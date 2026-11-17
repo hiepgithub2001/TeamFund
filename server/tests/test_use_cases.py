@@ -167,9 +167,9 @@ def test_jobs(world):
     svc.teams.update_settings(tid, OWNER, fee=200000, notify_day=1, due_days=4)  # due on the 5th
     svc.members.add_members(tid, OWNER, [{"name": "An"}])
     svc.jobs.open_month()
-    assert notifier.events == []  # no group linked yet
+    assert notifier.events == []  # nobody follows the bot yet
 
-    svc.teams.link_group(tid, OWNER, -1001)
+    svc.teams.follow(tid, MEMBER)
     clock.local = clock.local.replace(month=12, day=1)
     svc.jobs.open_month()
     svc.jobs.open_month()
@@ -498,7 +498,7 @@ def test_schedule_and_late_fee():
     from datetime import date
     svc, clock, notifier = make_services(datetime(2026, 11, 10, 10, 0))
     tid = setup_team(svc)
-    svc.teams.link_group(tid, OWNER, -1001)
+    svc.teams.follow(tid, MEMBER)
     key = sepay_key_for_fake(svc, tid)
     an, binh = [m["id"] for m in svc.members.add_members(tid, OWNER, [{"name": "An"}, {"name": "Bình"}])]
     r = svc.teams.update_settings(tid, OWNER, fee=200000, notify_day=15, due_days=5)
@@ -552,7 +552,7 @@ def test_each_package_has_its_own_terms():
     """Default: announce 15th, due +5, 1k/day. The quarterly plan: announce the 1st, due +10, 2k/day."""
     svc, clock, notifier = make_services(datetime(2026, 11, 1, 10, 0))
     tid = setup_team(svc)
-    svc.teams.link_group(tid, OWNER, -1001)
+    svc.teams.follow(tid, MEMBER)
     an, cu = [m["id"] for m in svc.members.add_members(tid, OWNER, [{"name": "An"}, {"name": "Cường"}])]
     svc.teams.update_settings(tid, OWNER, fee=200000)
     q = svc.plans.save_plan(tid, OWNER, 600000, 3, [cu])
@@ -585,3 +585,15 @@ def test_each_package_has_its_own_terms():
     # the plan goes back to the default's terms: due 20/11, 1k/day from the 1st -> 3 days
     svc.plans.set_terms(tid, OWNER, q["id"], inherit_schedule=True, inherit_late=True)
     assert {g["name"]: g["total"] for g in svc.money.unpaid(tid)} == {"An": 203000, "Cường": 603000}
+
+
+def test_followers():
+    svc, _, notifier = make_services(datetime(2026, 11, 17, 10, 0))
+    tid = setup_team(svc)
+    assert svc.teams.follow(tid, MEMBER) is True and svc.teams.follow(tid, MEMBER) is False
+    svc.teams.follow(tid, OWNER)
+    assert svc.teams.followers(tid) == [MEMBER, OWNER]
+    assert svc.teams.set_muted(tid, MEMBER)["muted"] is True  # /notify toggles
+    assert svc.teams.followers(tid) == [OWNER]
+    assert svc.teams.set_muted(tid, MEMBER)["muted"] is False
+    assert svc.teams.team_info(tid, OWNER)["followers"] == 2

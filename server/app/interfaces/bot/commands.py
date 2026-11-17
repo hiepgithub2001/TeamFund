@@ -12,10 +12,9 @@ from .i18n import t
 
 log = logging.getLogger("commands")
 
-EVERYONE = ["start", "status", "fund", "history", "bank", "requestmanager", "lang", "help"]
-MANAGER = ["start", "status", "fund", "history", "bank", "weblink", "members", "plans", "charge", "markpaid", "expense", "income", "money", "remind", "unmatched", "export", "settings", "teamlang", "lang", "help"]
+EVERYONE = ["start", "status", "fund", "history", "bank", "notify", "requestmanager", "lang", "help"]
+MANAGER = ["start", "status", "fund", "history", "bank", "notify", "weblink", "members", "plans", "charge", "markpaid", "expense", "income", "money", "remind", "unmatched", "export", "settings", "teamlang", "lang", "help"]
 OWNER = MANAGER + ["sepaytoken", "setbank", "requests", "managers", "transferowner", "log"]
-GROUP = ["status", "fund", "history", "bank", "linkgroup", "remind"]
 MASTER = ["start", "requestteam", "newteam", "myteams", "lang", "help"]
 MASTER_ADMIN = MASTER + ["requests", "teams"]
 
@@ -30,7 +29,8 @@ async def _set_for(bot: Bot, names: list[str], scope) -> None:
 
 async def set_team_default_commands(bot: Bot) -> None:
     await _set_for(bot, EVERYONE, BotCommandScopeAllPrivateChats())
-    await _set_for(bot, GROUP, BotCommandScopeAllGroupChats())
+    for _, code in LANGS:  # team bots no longer work in groups: no group menu
+        await bot.delete_my_commands(scope=BotCommandScopeAllGroupChats(), language_code=code)
 
 
 async def set_admin_commands(bot: Bot, chat_id: int, role: str) -> None:

@@ -29,8 +29,9 @@ class JobUseCases:
             for team in uow.teams.active():
                 try:
                     billing.ensure_bills(uow, self.d, team, period)
-                    if team.last_billed_period == period or not team.group_chat_id:
-                        continue  # announced the old way already this month, or nowhere to post
+                    to = uow.followers.active_ids(team.id)
+                    if team.last_billed_period == period or not to:
+                        continue  # announced the old way already this month, or nobody to tell
                     keys, due = [], []
                     for g in billing.opened_groups(uow, team, period):
                         key = f"announce:{team.id}:{g['plan_id'] or 0}:{g['months']}:{g['amount']}:{period}"
@@ -39,7 +40,7 @@ class JobUseCases:
                             due.append({k: v for k, v in g.items() if k not in ("notify", "due_on")})
                     if due and self.d.notifier.deliver({
                             "type": "bills_created", "team_id": team.id, "period_label": period_label(period),
-                            "fee": team.fee, "fees": due, "group_chat_id": team.group_chat_id}):
+                            "fee": team.fee, "fees": due, "to": to}):
                         for key in keys:
                             uow.job_runs.add(JobRun(key=key, created_at=self.d.clock.now()))
                         uow.commit()
@@ -56,7 +57,8 @@ class JobUseCases:
             for team in uow.teams.active():
                 try:
                     key = f"remind:{team.id}:{now:%Y-%m-%d}"
-                    if not team.group_chat_id or self._ran(uow, key):
+                    to = uow.followers.active_ids(team.id)
+                    if not to or self._ran(uow, key):
                         continue
                     billing.ensure_bills(uow, self.d, team)
                     hit = None
@@ -74,7 +76,7 @@ class JobUseCases:
                     if self.d.notifier.deliver({
                             "type": "reminder", "team_id": team.id, "period_label": period_label(p),
                             "due": due.strftime("%d/%m"), "late_fee": g["late_fee"], "overdue": today > due,
-                            "unpaid": unpaid, "group_chat_id": team.group_chat_id}):
+                            "unpaid": unpaid, "to": to}):
                         self._mark(uow, key)
                 except Exception:
                     uow.rollback()
@@ -89,13 +91,14 @@ class JobUseCases:
             for team in uow.teams.active():
                 try:
                     key = f"report:{team.id}:{period}"
-                    if not team.group_chat_id or self._ran(uow, key):
+                    to = uow.followers.active_ids(team.id)
+                    if not to or self._ran(uow, key):
                         continue
                     status = billing.team_status(uow, self.d, team)
                     event = {"type": "month_report", "team_id": team.id, "period_label": period_label(period),
                              **billing.month_totals(uow, self.d, team, period),
                              "balance": billing.fund(uow, team)["balance"], "unpaid": status["unpaid"],
-                             "paid_count": len(status["paid"]), "group_chat_id": team.group_chat_id}
+                             "paid_count": len(status["paid"]), "to": to}
                     if self.d.notifier.deliver(event):
                         self._mark(uow, key)
                 except Exception:

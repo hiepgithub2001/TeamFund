@@ -58,6 +58,13 @@ manager_requests = Table(
     Column("decided_at", DateTime),
 )
 
+followers = Table(
+    "team_followers", metadata, _id(),
+    Column("team_id", ForeignKey("teams.id"), index=True, nullable=False), Column("tg_id", BigInteger, nullable=False),
+    Column("muted", Boolean, nullable=False), Column("created_at", DateTime, nullable=False),
+    UniqueConstraint("team_id", "tg_id"),
+)
+
 members = Table(
     "members", metadata, _id(),
     Column("team_id", ForeignKey("teams.id"), index=True, nullable=False), Column("name", String(100), nullable=False),
@@ -130,7 +137,7 @@ job_runs = Table(
 
 _MAPPINGS = [
     (e.User, users), (e.TeamRequest, team_requests), (e.Team, teams), (e.TeamAdmin, team_admins),
-    (e.ManagerRequest, manager_requests), (e.Member, members), (e.FeePlan, fee_plans), (e.Payment, payments), (e.Bill, bills),
+    (e.ManagerRequest, manager_requests), (e.Member, members), (e.FeePlan, fee_plans), (e.Follower, followers), (e.Payment, payments), (e.Bill, bills),
     (e.PaymentIntent, payment_intents), (e.Expense, expenses), (e.AuditEntry, audit_log), (e.JobRun, job_runs),
 ]
 _started = False

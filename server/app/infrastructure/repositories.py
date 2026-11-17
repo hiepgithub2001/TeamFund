@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from ..domain.entities import (AuditEntry, Bill, Expense, FeePlan, JobRun, ManagerRequest, Member, Payment, PaymentIntent,
+from ..domain.entities import (AuditEntry, Bill, Expense, FeePlan, Follower, JobRun, ManagerRequest, Member, Payment, PaymentIntent,
                                Team, TeamAdmin, TeamRequest, User)
 
 
@@ -92,6 +92,15 @@ class SqlManagerRequests(_Repo):
     def expire_created_before(self, cutoff: datetime) -> None:
         self.s.execute(update(ManagerRequest).where(ManagerRequest.status == "pending",
                                                     ManagerRequest.created_at < cutoff).values(status="expired"))
+
+
+class SqlFollowers(_Repo):
+    def get(self, team_id: int, tg_id: int) -> Follower | None:
+        return self.s.scalar(select(Follower).where(Follower.team_id == team_id, Follower.tg_id == tg_id))
+
+    def active_ids(self, team_id: int) -> list[int]:
+        return list(self.s.scalars(select(Follower.tg_id).where(Follower.team_id == team_id,
+                                                                Follower.muted.is_(False)).order_by(Follower.id)))
 
 
 class SqlMembers(_Repo):

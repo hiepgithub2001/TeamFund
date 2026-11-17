@@ -7,14 +7,14 @@ import unicodedata
 from datetime import timedelta
 from typing import Callable
 
-from ..domain.entities import MANAGER, OWNER, ManagerRequest, Team, TeamAdmin
+from ..domain.entities import MANAGER, OWNER, Follower, ManagerRequest, Team, TeamAdmin
 from ..domain.errors import DomainError, invalid
 from ..domain.rules import (LANGS, MAX_DUE_DAYS, MAX_FEE, MAX_LATE_FEE, due_date, hash_secret, new_public_token,
                             schedule, terms, valid_bank)
 from .access import get_team, is_super, manager_team, owner_team, role_of
 from .billing import reprice_current_month, update_late_fees
 from .people import audit, display_name, user_info
-from .ports import Deps, SepayError, SepayWebhookSpec, UnitOfWork
+from .ports import Conflict, Deps, SepayError, SepayWebhookSpec, UnitOfWork
 
 REQUEST_COOLDOWN = timedelta(hours=24)
 log = logging.getLogger("teams")
@@ -65,7 +65,7 @@ class TeamUseCases:
                     "notify_day": notify, "due_days": days, "late_fee": t.late_fee or 0, "lang": t.lang, "bank_name": t.bank_name, "bank_account": t.bank_account,
                     "pay_account": t.pay_to(),
                     "bank_holder": t.bank_holder, "sepay_connected": bool(t.sepay_key_hash),
-                    "sepay_url": self._webhook_url(t), "group_chat_id": t.group_chat_id,
+                    "sepay_url": self._webhook_url(t), "followers": len(uow.followers.active_ids(t.id)),
                     "role": role_of(uow, t.id, actor)}
 
     def role(self, team_id: int, actor: int | None) -> dict:
@@ -279,15 +279,35 @@ class TeamUseCases:
                 uow.commit()
             return {"url": f"{self.d.config.public_url}/p/{team.public_token}/"}
 
-    def link_group(self, team_id: int, actor: int, chat_id: int) -> dict:
+    # ---- followers: who gets the team's announcements ---------------------------------------------
+
+    def follow(self, team_id: int, tg_id: int) -> bool:
+        """Someone opened the team bot. True the first time (they get announcements from now on)."""
         with self.d.uow() as uow:
-            team = manager_team(uow, team_id, actor)
-            before = team.group_chat_id
-            team.group_chat_id = chat_id
-            audit(uow, self.d.clock, team.id, actor, "team.group", before={"chat_id": before},
-                  after={"chat_id": chat_id})
+            get_team(uow, team_id)
+            if uow.followers.get(team_id, tg_id):
+                return False
+            uow.followers.add(Follower(team_id=team_id, tg_id=tg_id, created_at=self.d.clock.now()))
+            try:
+                uow.commit()
+            except Conflict:  # two updates from the same person at once
+                return False
+            return True
+
+    def set_muted(self, team_id: int, tg_id: int, muted: bool | None = None) -> dict:
+        """Turn someone's announcements off or on (None: toggle). Also used when they block the bot."""
+        with self.d.uow() as uow:
+            f = uow.followers.get(team_id, tg_id)
+            if f is None:
+                f = Follower(team_id=team_id, tg_id=tg_id, created_at=self.d.clock.now())
+                uow.followers.add(f)
+            f.muted = (not f.muted) if muted is None else muted
             uow.commit()
-            return {"group_chat_id": chat_id}
+            return {"muted": f.muted}
+
+    def followers(self, team_id: int) -> list[int]:
+        with self.d.uow() as uow:
+            return uow.followers.active_ids(team_id)
 
     # ---- admins -------------------------------------------------------------------------------
 

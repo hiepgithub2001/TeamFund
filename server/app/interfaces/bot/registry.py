@@ -19,7 +19,7 @@ from .render import report_error
 from .run import call
 
 log = logging.getLogger("bots")
-ALLOWED_UPDATES = ["message", "callback_query", "my_chat_member"]
+ALLOWED_UPDATES = ["message", "callback_query"]
 
 
 def make_bot(token: str) -> Bot:
@@ -32,13 +32,14 @@ def make_bot(token: str) -> Bot:
 @dataclass
 class Entry:
     bot: Bot
-    team: dict            # team_id, name, bot_id, bot_username, webhook_secret, lang, group_chat_id
+    team: dict            # team_id, name, bot_id, bot_username, webhook_secret, lang
     username: str
     secret: str
     poller: asyncio.Task | None = field(default=None, repr=False)
 
 
 by_bot: dict[int, Entry] = {}
+_followed: set[tuple[int, int]] = set()  # (team, person) already recorded as a follower since startup
 by_team: dict[int, Entry] = {}
 master: dict = {"bot": None, "poller": None}
 
@@ -57,6 +58,12 @@ async def team_context(handler, update: Update, data: dict):
         if user:
             asyncio.create_task(lang_of(user, fallback))  # keep names fresh
     data["entry"], data["lang"] = entry, lang
+    if user and chat is not None and chat.type == "private":
+        key = (entry.team["team_id"], user.id)
+        if key not in _followed:
+            data["new_follower"] = await call(S.teams.follow, *key)
+            _followed.add(key)
+        team.acting_user.set(user.id)
     try:
         return await handler(update, data)
     except Exception as e:

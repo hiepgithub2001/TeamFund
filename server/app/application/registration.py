@@ -27,7 +27,7 @@ class RegistrationUseCases:
         """What the bot layer needs to run a team's bot."""
         return {"team_id": t.id, "name": t.name, "bot_id": t.bot_id, "bot_username": t.bot_username,
                 "token": self.d.cipher.decrypt(t.bot_token_enc), "webhook_secret": t.webhook_secret, "lang": t.lang,
-                "group_chat_id": t.group_chat_id}
+                }
 
     def request_team(self, actor: int, team_name: str) -> dict:
         name = (team_name or "").strip()[:100]

@@ -18,6 +18,14 @@ async def _send(bot, chat_id, text, reply_markup=None):
         log.warning("send to %s failed: %s", chat_id, e)
 
 
+async def _tell(entry, ids, text, reply_markup=None, skip=None) -> None:
+    """A team announcement, privately to each follower (people who opened the team bot)."""
+    from .team import send_to
+    for tg_id in ids or []:
+        if tg_id != skip:
+            await send_to(entry, tg_id, text, reply_markup=reply_markup)
+
+
 async def deliver(ev: dict) -> bool:
     """Send the messages for one event. False if that team's bot isn't running."""
     entry = registry.by_team.get(int(ev["team_id"]))
@@ -25,7 +33,7 @@ async def deliver(ev: dict) -> bool:
         log.warning("event %s for team %s: bot not running", ev.get("type"), ev.get("team_id"))
         return False
     bot, G, name = entry.bot, entry.team["lang"], entry.username
-    group = ev.get("group_chat_id") or entry.team.get("group_chat_id")
+    to = ev.get("to") or []
     kind = ev["type"]
 
     if kind == "payment_confirmed":
@@ -33,28 +41,28 @@ async def deliver(ev: dict) -> bool:
         if ev.get("payer_tg_id"):
             L = await lang_for(ev["payer_tg_id"], G)
             await _send(bot, ev["payer_tg_id"], t(L, "pay.receipt", amount=money(ev["amount"], L), members=members))
-        if group:
-            await _send(bot, group, t(G, "group.paid", members=members, amount=money(ev["amount"], G)))
+        await _tell(entry, to, t(G, "group.paid", members=members, amount=money(ev["amount"], G)),
+                    skip=ev.get("payer_tg_id"))
     elif kind == "unmatched_payment":
         for admin_id in ev["admins"]:
             text, markup = unmatched_card(await lang_for(admin_id, G), ev)
             await _send(bot, admin_id, text, markup)
-    elif kind == "bills_created" and group:
-        await _send(bot, group, t(G, "group.bills_created", period=ev["period_label"],
+    elif kind == "bills_created":
+        await _tell(entry, to, t(G, "group.bills_created", period=ev["period_label"],
                                   fees=fees_text(G, ev.get("fees", []), ev["fee"])),
                     pay_keyboard(G, name))
-    elif kind == "reminder" and group:
+    elif kind == "reminder":
         head = t(G, "group.overdue" if ev.get("overdue") else "group.reminder", period=ev["period_label"],
                  due=ev["due"])
         if ev.get("overdue") and ev.get("late_fee"):
             head += "\n" + t(G, "late.rule", fee=money(ev["late_fee"], G))
-        await _send(bot, group, f"{head}\n{owes_lines(G, ev['unpaid'])}", pay_keyboard(G, name))
-    elif kind == "month_report" and group:
+        await _tell(entry, to, f"{head}\n{owes_lines(G, ev['unpaid'])}", pay_keyboard(G, name))
+    elif kind == "month_report":
         head = t(G, "group.report", period=ev["period_label"], collected=money(ev["collected"], G),
                  spent=money(ev["spent"], G), balance=money(ev["balance"], G), paid=ev["paid_count"])
         tail = (t(G, "group.report_unpaid") + "\n" + owes_lines(G, ev["unpaid"])) if ev["unpaid"] \
             else t(G, "group.report_all_paid")
-        await _send(bot, group, f"{head}\n\n{tail}", pay_keyboard(G, name) if ev["unpaid"] else None)
+        await _tell(entry, to, f"{head}\n\n{tail}", pay_keyboard(G, name) if ev["unpaid"] else None)
     elif kind not in ("bills_created", "reminder", "month_report"):
         log.warning("unknown event %s", kind)
     return True

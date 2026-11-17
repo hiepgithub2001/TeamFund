@@ -242,7 +242,7 @@ def record_transfer(uow: UnitOfWork, d: Deps, team: Team, transfer: IncomingTran
 
     if reason is None:
         return {"type": "payment_confirmed", "team_id": team.id, "payer_tg_id": intent.payer_tg_id,
-                "members": names, "amount": transfer.amount, "group_chat_id": team.group_chat_id}
+                "members": names, "amount": transfer.amount, "to": uow.followers.active_ids(team.id)}
     return {"type": "unmatched_payment", "team_id": team.id, "payment_id": payment.id, "amount": transfer.amount,
             "content": transfer.content[:200], "reason": reason, "needed": needed,
             "at": d.clock.fmt(payment.created_at), "admins": [a.tg_id for a in uow.admins.of_team(team.id)]}

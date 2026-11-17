@@ -93,6 +93,16 @@ class ManagerRequest:
 
 
 @dataclass(eq=False)
+class Follower:
+    """Someone who opened the team bot: they get the team's announcements privately (unless muted)."""
+    team_id: int
+    tg_id: int
+    muted: bool = False
+    created_at: datetime | None = None
+    id: int | None = None
+
+
+@dataclass(eq=False)
 class Member:
     team_id: int
     name: str

@@ -47,7 +47,7 @@ class SqlUnitOfWork:
         self.users, self.team_requests, self.teams = r.SqlUsers(s), r.SqlTeamRequests(s), r.SqlTeams(s)
         self.admins, self.manager_requests, self.members = r.SqlAdmins(s), r.SqlManagerRequests(s), r.SqlMembers(s)
         self.bills, self.intents, self.payments = r.SqlBills(s), r.SqlIntents(s), r.SqlPayments(s)
-        self.plans = r.SqlFeePlans(s)
+        self.plans, self.followers = r.SqlFeePlans(s), r.SqlFollowers(s)
         self.expenses, self.audit, self.job_runs = r.SqlExpenses(s), r.SqlAudit(s), r.SqlJobRuns(s)
         return self
 

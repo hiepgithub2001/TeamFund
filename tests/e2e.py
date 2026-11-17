@@ -247,8 +247,8 @@ async def main():
         await wait_sent(to(OWNER, "Monthly fee set to 200,000đ"), "fee set")
         await T(text_update(OWNER, "/add An | 10\nBình\nCường | 7 | 0901234567"))
         await wait_sent(to(OWNER, "Added 3"), "members added")
-        await T(text_update(OWNER, "/linkgroup", GROUP))
-        await wait_sent(to(GROUP, "linked"), "group linked")
+        await T(text_update(MEMBER, "/start"))
+        await wait_sent(to(MEMBER, "Welcome to <b>FC Test</b>"), "a new follower is welcomed")
         await T(text_update(OWNER, "/bank"))
         await wait_sent(to(OWNER, "Account: <code>0123456789</code>"), "bank shown")
         await T(text_update(OWNER, "/bank"))
@@ -279,7 +279,8 @@ async def main():
                 "content": f"CT {code} FT2611"}) as r:
             assert await r.json() == {"success": True}
         await wait_sent(to(MEMBER, r"Payment received: <b>400,000đ</b>"), "receipt")
-        await wait_sent(to(GROUP, r"An, Bình</b> paid 400,000đ"), "group paid post")
+        await wait_sent(to(OWNER, r"An, Bình</b> paid 400,000đ"), "followers told who paid")
+        assert not sent(to(MEMBER, r"An, Bình</b> paid 400,000đ")), "the payer only gets the receipt"
 
         # 5. status, an unmatched transfer, assign it
         await T(text_update(MEMBER, "/status"))
@@ -307,7 +308,7 @@ async def main():
         assert any(c["method"] == "setMyCommands" and (c["params"].get("scope") or {}).get("chat_id") == MEMBER
                    for c in calls), "manager menu set"
         await T(text_update(MEMBER, "/expense 300000 Pitch rental"))
-        await wait_sent(to(GROUP, "Expense"), "expense posted")
+        await wait_sent(to(OWNER, "Expense"), "expense announced to followers")
 
         # 7. fund, members screen, language, export
         await T(text_update(OWNER, "/fund"))
@@ -402,7 +403,7 @@ async def main():
             assert await r.json() == {"success": True}
         async with http.get(base + f"api/pay/{intent['code']}") as r:
             assert (await r.json())["status"] == "paid", "web payment confirmed"
-        await wait_sent(to(GROUP, r"Dũng</b> paid 200,000đ"), "group post for a web payment")
+        await wait_sent(to(OWNER, r"Dũng</b> paid 200,000đ"), "followers told about a web payment")
         async with http.get(base + "api/state") as r:
             assert (await r.json())["unpaid"] == []
         async with http.get(base + "api/month/" + st["months"][0]["period"]) as r:
@@ -446,7 +447,8 @@ async def main():
         # 11. other income and backdated records
         await T(text_update(OWNER, "/income 2m Championship prize"))
         await wait_sent(to(OWNER, "Income recorded. Fund balance"), "income recorded")
-        await wait_sent(to(GROUP, "Other income</b>: 2,000,000đ · Championship prize"), "income posted")
+        await wait_sent(to(MEMBER, "Other income</b>: 2,000,000đ · Championship prize"), "income announced")
+        assert not sent(to(OWNER, "Other income</b>: 2,000,000đ")), "whoever records it isn't told again"
         await T(text_update(OWNER, "/expense 100k Balls 01/01"))
         await wait_sent(to(OWNER, r"Expense recorded on 01/01/\d{4}"), "backdated expense")
         await T(text_update(OWNER, "/income 5k Bad day 31/02"))
@@ -527,7 +529,16 @@ async def main():
         await T(cb_update(OWNER, "mp:settle", rest["message_id"]))
         await wait_sent(lambda c: c["method"] == "editMessageText" and "Cash recorded: Giang (100,000đ)" in c["params"]["text"]
                         and "150,000đ is let go" in c["params"]["text"], "settled at 100k")
-        await wait_sent(to(GROUP, r"Giang</b> paid 100,000đ"), "group sees the real amount")
+        await wait_sent(to(MEMBER, r"Giang</b> paid 100,000đ"), "followers see the real amount")
+        # /remind goes to followers; /notify turns them off
+        await T(text_update(OWNER, "/remind"))
+        await wait_sent(to(OWNER, "Sent the unpaid list to 1 people"), "remind sent to followers")
+        await T(text_update(MEMBER, "/notify"))
+        await wait_sent(to(MEMBER, "announcements are off"), "notify off")
+        await T(text_update(OWNER, "/remind"))
+        await wait_sent(to(OWNER, "Sent the unpaid list to 0 people"), "muted follower skipped")
+        await T(text_update(MEMBER, "/notify"))
+        await wait_sent(to(MEMBER, "announcements are on"), "notify on")
 
         # 14. each package's deadline and late fee, in /plans
         await T(text_update(OWNER, "/setdue 15 5"))

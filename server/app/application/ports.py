@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Callable, Protocol
 
-from ..domain.entities import (AuditEntry, Bill, Expense, FeePlan, JobRun, ManagerRequest, Member, Payment, PaymentIntent,
+from ..domain.entities import (AuditEntry, Bill, Expense, FeePlan, Follower, JobRun, ManagerRequest, Member, Payment, PaymentIntent,
                                Team, TeamAdmin, TeamRequest, User)
 
 
@@ -53,6 +53,12 @@ class ManagerRequests(Protocol):
     def last_rejected_at(self, team_id: int, tg_id: int) -> datetime | None: ...
     def pending(self, team_id: int) -> list[ManagerRequest]: ...
     def expire_created_before(self, cutoff: datetime) -> None: ...
+
+
+class Followers(Protocol):
+    def add(self, f: Follower) -> None: ...
+    def get(self, team_id: int, tg_id: int) -> Follower | None: ...
+    def active_ids(self, team_id: int) -> list[int]: ...
 
 
 class Members(Protocol):
@@ -132,6 +138,7 @@ class UnitOfWork(Protocol):
     admins: Admins
     manager_requests: ManagerRequests
     members: Members
+    followers: Followers
     bills: Bills
     plans: FeePlans
     intents: Intents

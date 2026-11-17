@@ -1,11 +1,13 @@
 """Handlers shared by every team bot. The registry's middleware passes `entry` (bot + team) and `lang`."""
 import asyncio
+import contextvars
 import logging
 import re
 from datetime import date
 
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
+from aiogram.exceptions import TelegramForbiddenError
 from aiogram.types import BufferedInputFile, CallbackQuery, ChatMemberUpdated, ForceReply, Message
 
 from ..deps import S
@@ -62,20 +64,33 @@ async def allow(ev, entry, lang, level: str, private_only: bool = True) -> bool:
     return ok
 
 
-async def post_to_group(entry, text: str, photo: str | None = None, reply_markup=None) -> bool:
-    """Post in the team group if one is linked. True if the message went out."""
-    chat_id = entry.team.get("group_chat_id")
-    if not chat_id:
-        return False
+# who is acting in the current update: announcements skip them (they already got the reply)
+acting_user: contextvars.ContextVar[int | None] = contextvars.ContextVar("acting_user", default=None)
+
+
+async def send_to(entry, tg_id: int, text: str, photo: str | None = None, reply_markup=None) -> bool:
+    """One private message from the team bot. Someone who blocked the bot is muted."""
     try:
         if photo:
-            await entry.bot.send_photo(chat_id, photo, caption=text, reply_markup=reply_markup)
+            await entry.bot.send_photo(tg_id, photo, caption=text, reply_markup=reply_markup)
         else:
-            await entry.bot.send_message(chat_id, text, reply_markup=reply_markup)
+            await entry.bot.send_message(tg_id, text, reply_markup=reply_markup)
         return True
+    except TelegramForbiddenError:
+        await call(S.teams.set_muted, entry.team["team_id"], tg_id, True)
     except Exception as e:
-        log.warning("group post failed for team %s: %s", entry.team["team_id"], e)
-        return False
+        log.warning("message to %s failed (team %s): %s", tg_id, entry.team["team_id"], e)
+    return False
+
+
+async def broadcast(entry, text: str, photo: str | None = None, reply_markup=None) -> int:
+    """A team announcement, privately to every follower except whoever caused it. Returns how many got it."""
+    sent, skip = 0, acting_user.get()
+    for tg_id in await call(S.teams.followers, entry.team["team_id"]):
+        if tg_id != skip:
+            sent += await send_to(entry, tg_id, text, photo, reply_markup)
+            await asyncio.sleep(0.05)  # stay well under Telegram's 30 messages a second
+    return sent
 
 
 # ---- multi-select picker (pay, charge, split, cash, assign) ------------------------------------------
@@ -148,7 +163,7 @@ async def on_picker_confirm(cq: CallbackQuery, entry, lang, st, key) -> None:
         del_state(key)
         await cq.answer()
         await edit(cq, t(lang, "charge.done", count=r["count"], title=esc(r["title"]), each=money(r["each"], lang)))
-        await post_to_group(entry, t(G, "group.charge", title=esc(r["title"]), each=money(r["each"], G),
+        await broadcast(entry, t(G, "group.charge", title=esc(r["title"]), each=money(r["each"], G),
                                      count=r["count"]), reply_markup=pay_keyboard(G, entry.username))
     elif st["kind"] == "markpaid" and len(ids) == 1:
         # one person: ask whether the full amount came in, or something else
@@ -165,7 +180,7 @@ async def on_picker_confirm(cq: CallbackQuery, entry, lang, st, key) -> None:
         await cq.answer()
         members = esc(", ".join(r["members"]))
         await edit(cq, t(lang, "markpaid.done", members=members, amount=money(r["amount"], lang)))
-        await post_to_group(entry, t(G, "group.paid", members=members, amount=money(r["amount"], G)))
+        await broadcast(entry, t(G, "group.paid", members=members, amount=money(r["amount"], G)))
     elif st["kind"] == "plan":
         dt = st["data"]
         plan = await call(S.plans.save_plan, tid(entry), cq.from_user.id, dt["amount"], dt["months"], ids,
@@ -180,7 +195,7 @@ async def on_picker_confirm(cq: CallbackQuery, entry, lang, st, key) -> None:
         await cq.answer()
         members = esc(", ".join(r["members"]))
         await edit(cq, t(lang, "assign.done", members=members))
-        await post_to_group(entry, t(G, "group.paid", members=members, amount=money(r["amount"], G)))
+        await broadcast(entry, t(G, "group.paid", members=members, amount=money(r["amount"], G)))
 
 
 @router.callback_query(F.data.regexp(r"^k:(t|a|ok|x|r)(?::(\d+))?$").as_("m"))
@@ -387,7 +402,7 @@ async def on_decide_manager(cq: CallbackQuery, m: re.Match, entry, lang):
         pass
     if approved:
         await set_admin_commands(cq.bot, r["tg_id"], "manager")
-        await post_to_group(entry, t(group_lang(entry), "group.new_manager", name=esc(r["name"])))
+        await broadcast(entry, t(group_lang(entry), "group.new_manager", name=esc(r["name"])))
 
 
 # ---- owner tools -------------------------------------------------------------------------------
@@ -481,11 +496,22 @@ async def on_unmatched(cq: CallbackQuery, m: re.Match, entry, lang):
 # ---- commands: everyone --------------------------------------------------------------------------
 
 @router.message(Command("start", "pay"))
-async def cmd_start(message: Message, entry, lang):
+async def cmd_start(message: Message, entry, lang, new_follower: bool = False):
     if not is_private(message):
         await message.answer(t(lang, "btn.pay_now"), reply_markup=pay_keyboard(lang, entry.username))
         return
+    if new_follower:
+        await message.answer(t(lang, "follow.welcome", team=esc(entry.team["name"])))
     await open_pay_menu(message, entry, lang)
+
+
+@router.message(Command("notify"))
+async def cmd_notify(message: Message, entry, lang):
+    """Turn the team's announcements off or on for yourself."""
+    if not is_private(message):
+        return
+    r = await call(S.teams.set_muted, tid(entry), message.from_user.id)
+    await message.answer(t(lang, "follow.off" if r["muted"] else "follow.on"))
 
 
 @router.message(Command("status"))
@@ -666,7 +692,7 @@ async def record_cash(ev, entry, lang, member_id: int, amount: int | None, settl
         if r["still_owed"]:
             text += "\n" + t(lang, "cash.still_owed", amount=money(r["still_owed"], lang))
     G = group_lang(entry)
-    await post_to_group(entry, t(G, "group.paid", members=esc(", ".join(r["members"])), amount=money(r["amount"], G)))
+    await broadcast(entry, t(G, "group.paid", members=esc(", ".join(r["members"])), amount=money(r["amount"], G)))
     return text
 
 
@@ -763,7 +789,7 @@ async def record_money(message: Message, entry, lang: str, kind: str, text: str 
         r = await call(S.money.add_income, tid(entry), user, amount, title, day)
     await message.answer(t(lang, f"{kind}.done", date=on_date_text(lang, r, "on_date"),
                            balance=money(r["balance"], lang)))
-    await post_to_group(entry, t(G, f"group.{kind}", amount=money(r["amount"], G), title=esc(r["title"]),
+    await broadcast(entry, t(G, f"group.{kind}", amount=money(r["amount"], G), title=esc(r["title"]),
                                  by=esc(r["by"]), date=on_date_text(G, r, "group.on_date"),
                                  balance=money(r["balance"], G)), photo=photo)
 
@@ -994,17 +1020,13 @@ async def plan_amount_reply(message: Message, entry, lang, st: dict, text: str) 
 
 @router.message(Command("remind"))
 async def cmd_remind(message: Message, entry, lang):
-    if not await allow(message, entry, lang, "manager", private_only=False):
+    """Send who still owes to everyone following the team bot."""
+    if not await allow(message, entry, lang, "manager"):
         return
     G = group_lang(entry)
     text = status_text(G, await call(S.money.status, tid(entry)))
-    markup = pay_keyboard(G, entry.username)
-    group = entry.team.get("group_chat_id")
-    if group and message.chat.id != group:
-        await post_to_group(entry, text, reply_markup=markup)
-        await message.answer("✅")
-    else:
-        await message.answer(text, reply_markup=markup)
+    n = await broadcast(entry, text, reply_markup=pay_keyboard(G, entry.username))
+    await message.answer(t(lang, "remind.sent", n=n))
 
 
 @router.message(Command("unmatched"))
@@ -1044,7 +1066,7 @@ async def cmd_settings(message: Message, entry, lang):
                            due=t(lang, "settings.due", notify=s["notify_day"], days=s["due_days"])
                            + (" · " + t(lang, "latefee.on", fee=money(s["late_fee"], lang)) if s["late_fee"] else ""),
                            bank=bank, sepay="✅" if s["sepay_connected"] else none,
-                           group=t(lang, "settings.linked") if s["group_chat_id"] else none,
+                           group=s["followers"],
                            lang="Tiếng Việt" if s["lang"] == "vi" else "English"))
 
 
@@ -1081,18 +1103,6 @@ async def on_weblink_reset(cq: CallbackQuery, entry, lang):
         return
     r = await call(S.teams.web_link, tid(entry), cq.from_user.id, True)
     await say(cq, t(lang, "weblink.reset_done", url=esc(r["url"])))
-
-
-@router.message(Command("linkgroup"))
-async def cmd_linkgroup(message: Message, entry, lang):
-    if is_private(message):
-        await message.answer(t(lang, "err.group_only"))
-        return
-    if not await allow(message, entry, lang, "manager", private_only=False):
-        return
-    await call(S.teams.link_group, tid(entry), message.from_user.id, message.chat.id)
-    entry.team["group_chat_id"] = message.chat.id
-    await message.answer(t(group_lang(entry), "group.linked", team=esc(entry.team["name"])))
 
 
 # ---- commands: owner --------------------------------------------------------------------------------
@@ -1192,7 +1202,7 @@ async def apply_bank(cq: CallbackQuery, entry, lang, o: dict):
         await show(f"❌ {now['text']}\n{error_text(lang, e)}\n\n" + t(lang, "setbank.nothing_saved"))
         return
     await settle()
-    if r["changed"] and await post_to_group(entry, t(group_lang(entry), "group.bank_changed", by=esc(r["by"]),
+    if r["changed"] and await broadcast(entry, t(group_lang(entry), "group.bank_changed", by=esc(r["by"]),
                                                      bank=esc(r["bank"]), account=esc(r["va"] or r["account"]),
                                                      holder=esc(r["holder"]))):
         lines.append("✅ " + t(lang, "step.group"))
@@ -1338,12 +1348,6 @@ async def on_text(message: Message, entry, lang):
         mem = await call(S.members.update_member, tid(entry), message.from_user.id, st["member_id"], body)
         view, markup = member_view(lang, mem)
         await message.answer(f"{t(lang, 'member.updated')}\n\n{view}", reply_markup=markup)
-
-
-@router.my_chat_member()
-async def on_added_to_group(event: ChatMemberUpdated, entry):
-    if event.chat.type != "private" and event.new_chat_member.status in ("member", "administrator"):
-        await event.bot.send_message(event.chat.id, t(group_lang(entry), "group.added"))
 
 
 @router.callback_query()
