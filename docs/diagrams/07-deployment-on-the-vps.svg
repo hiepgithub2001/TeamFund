@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="860" viewBox="0 0 1200 860" role="img" aria-label="Deployment: the sslip.io hostname resolves to 103.90.225.28. Telegram, SePay and Let's Encrypt reach port 443, where Docker forwards to the Caddy container. Caddy passes /tg and /sepay to the app container over the internal Docker network. The app, which holds the bots, the webhooks, the scheduler, the use cases and the adapters, uses the Postgres container, whose data lives in the db_data volume. The app calls api.telegram.org outbound. The project folder on the host holds .env, the Caddyfile, the source used for docker build, and the deploy and backup scripts, and syncs with GitHub over SSH."><style>svg{
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="860" viewBox="0 0 1200 860" role="img" aria-label="Deployment: the sslip.io hostname resolves to 103.90.225.28. Telegram, SePay and Let's Encrypt reach port 443, where Docker forwards to the Caddy container. Caddy passes /tg and /sepay to the app container over the internal Docker network. The app, which holds the bots, the webhooks, the scheduler, the use cases and the adapters, uses the Postgres container, whose data lives in the db_data volume. The app calls api.telegram.org outbound. The project folder on the host holds .env, caddy/Caddyfile (watched by Caddy, which reloads itself when it changes), the source used for docker build, and the deploy and backup scripts, and syncs with GitHub over SSH."><style>svg{
   --bg:#f5f7f8; --surface:#ffffff; --fg:#17212b; --muted:#5b6b78; --line:#c9d3db;
   --tg:#2b7bb9; --tg-soft:#eaf3fa; --money:#b8730f; --money-soft:#fbf1df;
   --display:"Space Grotesk",system-ui,sans-serif;
@@ -202,8 +202,8 @@
       <text class="t" x="595" y="781" text-anchor="middle">.env (chmod 600)</text>
       <text class="s" x="595" y="799" text-anchor="middle">tokens, keys, DB password</text>
       <rect class="box file" x="684" y="758" width="150" height="56" rx="6"/>
-      <text class="t" x="759" y="781" text-anchor="middle">Caddyfile</text>
-      <text class="s" x="759" y="799" text-anchor="middle">hostname, routes, TLS</text>
+      <text class="t" x="759" y="781" text-anchor="middle">caddy/Caddyfile</text>
+      <text class="s" x="759" y="799" text-anchor="middle">routes, TLS · auto-reload</text>
       <rect class="box file" x="848" y="758" width="150" height="56" rx="6"/>
       <text class="t" x="923" y="781" text-anchor="middle">server/</text>
       <text class="s" x="923" y="799" text-anchor="middle">code + Dockerfile</text>

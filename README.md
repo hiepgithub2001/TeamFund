@@ -30,7 +30,7 @@ server/app/
 |---|---|---|
 | `app` | `./server` (Python 3.12, FastAPI, aiogram) | Everything above. Runs with one worker, because the bots and jobs live in this process. |
 | `db` | `postgres:16-alpine` | Storage |
-| `caddy` | `caddy:2.8.4` | HTTPS on 443; `/tg/*`, `/sepay/*`, `/health` → app |
+| `caddy` | `caddy:2.8.4` | HTTPS on 443; `/tg/*`, `/sepay/*`, `/health` → app. Config in `caddy/Caddyfile`; Caddy reloads it by itself when it changes. |
 
 ## Run
 

@@ -31,12 +31,15 @@ services:
   caddy:
     image: caddy:2.8.4
     restart: unless-stopped
+    # --watch: Caddy reloads by itself whenever caddy/Caddyfile changes (edit or git pull).
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile", "--watch"]
     ports:
       - "443:443"
     environment:
       PUBLIC_HOST: ${PUBLIC_HOST}
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # mount the folder, not the file: editors replace the file, and a file mount keeps the old one
+      - ./caddy:/etc/caddy:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
