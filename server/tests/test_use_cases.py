@@ -184,11 +184,6 @@ def test_jobs(world):
     # An owes November's and December's fee
     assert reminders[0]["unpaid"] == [{"name": "An", "total": 400000}]
 
-    clock.local = clock.local.replace(day=31, hour=20)
-    svc.jobs.month_report()
-    report = [e for e in notifier.events if e["type"] == "month_report"][0]
-    assert report["period_label"] == "12/2026" and report["balance"] == 0
-
     svc.jobs.clean_up()
 
 

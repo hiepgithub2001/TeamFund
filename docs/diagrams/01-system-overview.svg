@@ -117,7 +117,7 @@
       <rect class="box" x="830" y="145" width="160" height="60" rx="6"/>
       <text class="t" x="910" y="166" text-anchor="middle">interfaces/scheduler</text>
       <text class="s" x="910" y="183" text-anchor="middle">bills, late fees,</text>
-      <text class="s" x="910" y="198" text-anchor="middle">reminders, report</text>
+      <text class="s" x="910" y="198" text-anchor="middle">reminders</text>
 
       <rect class="box hot" x="655" y="235" width="335" height="74" rx="6"/>
       <text class="t" x="822" y="256" text-anchor="middle">application/ use cases + domain/</text>

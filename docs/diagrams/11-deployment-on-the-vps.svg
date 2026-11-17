@@ -137,7 +137,7 @@
       <rect class="box in" x="956" y="204" width="168" height="62" rx="6"/>
       <text class="t" x="1040" y="224" text-anchor="middle">interfaces/scheduler</text>
       <text class="s" x="1040" y="241" text-anchor="middle">APScheduler in-process</text>
-      <text class="s" x="1040" y="256" text-anchor="middle">00:05 · :05 · :30 · 09:00 · 20:00</text>
+      <text class="s" x="1040" y="256" text-anchor="middle">00:05 · :05 · :30 · 09:00</text>
       <rect class="box hot" x="776" y="280" width="348" height="62" rx="6"/>
       <text class="t" x="950" y="300" text-anchor="middle">application/ + domain/</text>
       <text class="s" x="950" y="317" text-anchor="middle">use cases and ports · entities and rules</text>

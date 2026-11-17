@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1010" height="240" viewBox="0 0 1010 240" role="img" aria-label="One day of scheduled jobs in team time. Every hour at minute 5, open_month creates the month's bills and announces each package on its announcement day; every hour at minute 30, clean_up expires old QR codes and manager requests. Once a day: 00:05 late_fees adds the new day to overdue bills' late fees, 09:00 remind sends one reminder to followers when a package is due soon or overdue, 20:00 month_report sends the month report on the last day of the month. When the server starts, open_month and late_fees run once right away."><style>svg{
+<svg xmlns="http://www.w3.org/2000/svg" width="1010" height="240" viewBox="0 0 1010 240" role="img" aria-label="One day of scheduled jobs in team time. Every hour at minute 5, open_month creates the month's bills and announces each package on its announcement day; every hour at minute 30, clean_up expires old QR codes and manager requests. Once a day: 00:05 late_fees adds the new day to overdue bills' late fees, 09:00 remind sends one reminder to followers when a package is due soon or overdue, When the server starts, open_month and late_fees run once right away."><style>svg{
   --bg:#f5f7f8; --surface:#ffffff; --fg:#17212b; --muted:#5b6b78; --line:#c9d3db;
   --tg:#2b7bb9; --tg-soft:#eaf3fa; --money:#b8730f; --money-soft:#fbf1df;
   --display:"Space Grotesk",system-ui,sans-serif;
@@ -42,7 +42,7 @@
       <text class="t" x="20" y="146">Every day</text>
       <circle class="box mo" cx="152.9" cy="140" r="7"/><text class="t" x="164.9" y="144">late_fees</text><text class="s" x="164.9" y="159">+1 day of fines</text>
       <circle class="box mo" cx="465.0" cy="140" r="7"/><text class="t" x="477.0" y="144">remind</text><text class="s" x="477.0" y="159">3 days before, on, every 3 days after</text>
-      <circle class="box mo" cx="850.0" cy="180" r="7"/><text class="t" x="862.0" y="184">month_report</text><text class="s" x="862.0" y="199">last day of the month only</text>
+      
       <text class="t" x="20" y="214">On start</text>
       <text class="s" x="162" y="214">open_month and late_fees run once, so a restart never skips a day or a month</text>
     </svg>

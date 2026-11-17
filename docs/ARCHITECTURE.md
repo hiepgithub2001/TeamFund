@@ -170,7 +170,7 @@ _One bill per cycle: a quarterly bill covers its three months, so Cường count
 
 ### Followers instead of a group
 
-Team bots don't work in groups. Everyone who opens a team bot privately **follows** the team (a new follower is welcomed once). Whatever used to be posted in a team group now goes to each follower privately: the fee is open, reminders, the month report, who paid (except to the payer, who gets the receipt), expenses, other income, charges, a bank change, and undos of those. The person who caused an announcement doesn't get it again. `/notify` turns announcements off or on for yourself; someone who blocks the bot is muted. `/remind` sends the unpaid list to all followers and says how many got it.
+Team bots don't work in groups. Everyone who opens a team bot privately **follows** the team (a new follower is welcomed once). Whatever used to be posted in a team group now goes to each follower privately: the fee is open, reminders, who paid (except to the payer, who gets the receipt), expenses, other income, charges, a bank change, and undos of those. The person who caused an announcement doesn't get it again. `/notify` turns announcements off or on for yourself; someone who blocks the bot is muted. `/remind` sends the unpaid list to all followers and says how many got it.
 
 ### Undo
 
@@ -195,7 +195,6 @@ _All times are team time (`TEAM_TIMEZONE`, Asia/Ho_Chi_Minh). The jobs run insid
 | `open_month` | every hour at :05, and once at start | Creates the fee bills each active member needs for this month (standard periods: a quarter's bill opens in Jan/Apr/Jul/Oct). On each package's announcement day, tells the followers its new bills, due date and late fee. | Bills: one per member per period (`monthly_key`). Posts: a `job_log` key per team, package and period. |
 | `late_fees` | 00:05 every day, and once at start | Sets each overdue fee bill's "Phạt trễ N ngày" line to the days past its real due date × its package's rate. Paid bills stop; paused members freeze; a rate of 0 waives what's left. Also runs right after a package's deadline or late fee changes in `/plans`. | It recomputes from dates, so running it again the same day changes nothing. |
 | `remind` | 09:00 every day | If any package is 3 days before its due date, on it, or a multiple of 3 days past it (and announced), sends followers one message listing everyone who still owes, with a pay button. | `job_log` key per team per day. |
-| `month_report` | 20:00, acts only on the last day of the month | Sends followers the month's money in and out, the balance, how many paid and who still owes. | `job_log` key per team per month. |
 | `clean_up` | every hour at :30 | Expires QR codes older than 24 hours and manager requests older than 7 days. | Only changes what's still pending. |
 
 - Nothing about fines changes on reads: opening the bot or the pay page shows what the last `late_fees` run set. A QR made one day and paid after the next run is accepted at the QR's amount.

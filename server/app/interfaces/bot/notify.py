@@ -57,12 +57,6 @@ async def deliver(ev: dict) -> bool:
         if ev.get("overdue") and ev.get("late_fee"):
             head += "\n" + t(G, "late.rule", fee=money(ev["late_fee"], G))
         await _tell(entry, to, f"{head}\n{owes_lines(G, ev['unpaid'])}", pay_keyboard(G, name))
-    elif kind == "month_report":
-        head = t(G, "group.report", period=ev["period_label"], collected=money(ev["collected"], G),
-                 spent=money(ev["spent"], G), balance=money(ev["balance"], G), paid=ev["paid_count"])
-        tail = (t(G, "group.report_unpaid") + "\n" + owes_lines(G, ev["unpaid"])) if ev["unpaid"] \
-            else t(G, "group.report_all_paid")
-        await _tell(entry, to, f"{head}\n\n{tail}", pay_keyboard(G, name) if ev["unpaid"] else None)
-    elif kind not in ("bills_created", "reminder", "month_report"):
+    elif kind not in ("bills_created", "reminder"):
         log.warning("unknown event %s", kind)
     return True

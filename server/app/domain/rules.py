@@ -201,10 +201,6 @@ def should_remind(today: date, notify: date, due: date) -> bool:
     return diff > 0 and diff % REMIND_EVERY_DAYS_AFTER_DUE == 0
 
 
-def is_last_day_of_month(year: int, month: int, day: int) -> bool:
-    return day == calendar.monthrange(year, month)[1]
-
-
 # ---- backdating ------------------------------------------------------------------------------------
 
 MAX_BACKDATE_DAYS = 3 * 366

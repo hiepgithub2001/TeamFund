@@ -5,7 +5,7 @@ Telegram bots that collect a football team's monthly fee and confirm payments au
 - A **master bot** registers teams. Anyone can ask with `/requestteam`; a system admin approves.
 - Each team gets its **own bot**. Members open it, tap the names they're paying for, and get a SePay QR code with a unique transfer code. SePay's webhook confirms the payment, the payer gets a receipt and everyone who follows the team bot gets an announcement privately (no group needed).
 - Members **without Telegram** use the team's **pay page** (a small web app at a secret link a manager gets with `/weblink`): pay by QR like `/start`, and read this month's status, the fund and its history, and the roster (no phone numbers). Read-only otherwise.
-- The **owner** sets the bank account and SePay key and approves managers. **Managers** handle members, fees, charges, cash payments, expenses and reports.
+- The **owner** sets the bank account and SePay key and approves managers. **Managers** handle members, fees, charges, cash payments, expenses and the Excel export.
 
 ## Architecture
 
@@ -61,7 +61,6 @@ Port 443 must be reachable from the internet; Telegram and SePay both call it. P
 - Every hour: create this month's bills; announce each package once, on its announcement day, to the followers.
 - 00:05: update every overdue bill's late fee (days past its due date × the package's rate).
 - 09:00: reminder to the followers 3 days before a package's due date, on it, then every 3 days while someone owes.
-- 20:00 on the last day of the month: report (collected, spent, balance, who still owes).
 
 ## Tests
 

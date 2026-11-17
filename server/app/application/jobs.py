@@ -3,7 +3,7 @@ import logging
 from datetime import timedelta
 
 from ..domain.entities import JobRun
-from ..domain.rules import add_months, is_last_day_of_month, period_label, should_remind
+from ..domain.rules import add_months, period_label, should_remind
 from . import billing
 from .ports import Deps
 
@@ -81,29 +81,6 @@ class JobUseCases:
                 except Exception:
                     uow.rollback()
                     log.exception("remind failed for team %s", team.id)
-
-    def month_report(self) -> None:
-        now = self.d.clock.local_now()
-        if not is_last_day_of_month(now.year, now.month, now.day):
-            return
-        period = self.d.clock.current_period()
-        with self.d.uow() as uow:
-            for team in uow.teams.active():
-                try:
-                    key = f"report:{team.id}:{period}"
-                    to = uow.followers.active_ids(team.id)
-                    if not to or self._ran(uow, key):
-                        continue
-                    status = billing.team_status(uow, self.d, team)
-                    event = {"type": "month_report", "team_id": team.id, "period_label": period_label(period),
-                             **billing.month_totals(uow, self.d, team, period),
-                             "balance": billing.fund(uow, team)["balance"], "unpaid": status["unpaid"],
-                             "paid_count": len(status["paid"]), "to": to}
-                    if self.d.notifier.deliver(event):
-                        self._mark(uow, key)
-                except Exception:
-                    uow.rollback()
-                    log.exception("month_report failed for team %s", team.id)
 
     def late_fees(self) -> None:
         """Once a day, just after midnight: add the new day to every overdue fee bill's late fee."""
