@@ -166,6 +166,12 @@ class SqlIntents(_Repo):
         return self.s.scalar(select(PaymentIntent).where(PaymentIntent.team_id == team_id,
                                                          PaymentIntent.code.in_(codes)))
 
+    def members_of(self, intent_ids: list[int]) -> dict[int, list[str]]:
+        if not intent_ids:
+            return {}
+        rows = self.s.execute(select(PaymentIntent.id, PaymentIntent.member_names).where(PaymentIntent.id.in_(intent_ids)))
+        return {i: list(names or []) for i, names in rows}
+
     def expire_pending_before(self, now: datetime) -> None:
         self.s.execute(update(PaymentIntent).where(PaymentIntent.status == "pending", PaymentIntent.expires_at < now)
                        .values(status="expired"))

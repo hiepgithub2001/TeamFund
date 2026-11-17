@@ -87,7 +87,7 @@ _The owner does only what SePay can't let anyone else do: link the bank account 
 
 ## Pay page for members without Telegram
 
-Some members won't install Telegram. Each team has a **pay page**, a small web app (PWA) at a secret link, that does exactly what `/start` does in the bot: list who still owes, tick names, get the VietQR, and see it confirmed. It reads and writes the same database through the same use cases, so a payment on the page shows up in the bot, `/status`, the reports and the group, and the other way round. Managing stays in Telegram: the page can't add members, change fees or see phone numbers.
+Some members won't install Telegram. Each team has a **pay page**, a small web app (PWA) at a secret link, with four tabs. **Đóng quỹ** (Pay) does what `/start` does in the bot: list who still owes, tick names, get the VietQR, and see it confirmed. The other three are read-only views of what members can read in the bot: **Tháng này** (This month, like `/status`: who has paid, who owes what, the due day and fee), **Quỹ** (Fund, like `/fund` and `/history`: money in, money out, balance, the last 6 months, recent payments and expenses) and **Thành viên** (Members: the roster with shirt numbers, fee, status and what each still owes). It reads and writes the same database through the same use cases, so a payment on the page shows up in the bot, `/status`, the reports and the group, and the other way round. Managing stays in Telegram: the page can't add members, change fees or record expenses.
 
 ![Sequence: a member opens the team's secret link in a browser. The page calls GET api/state through Caddy and http/web.py](diagrams/07-pay-page-for-members-without-telegram.svg)
 
@@ -97,7 +97,7 @@ _The page is one HTML shell with plain JavaScript (no build step) in `interfaces
 |---|---|
 | Getting the link | A manager sends `/weblink` in the team bot and shares the link (Zalo, Messenger, a printed QR). **🔄 Make a new link** replaces it; the old one stops working at once. |
 | Who can open it | Anyone with the link, with no login, like the bot's `/start`. The token is 16 random characters, so team pages can't be guessed or listed. |
-| What it shows | Team name, bank account, and unpaid members with their bills. No phone numbers, notes, history or fund balance. |
+| What it shows | Team name and bank account; this month's paid and unpaid members with their bills; the fund (in, out, balance, last 6 months); the latest 30 payments and expenses; the roster. **Never** phone numbers or member notes (the bot shows those to managers only), and never the raw bank memo of a transfer, which can carry the sender's full name and bank references: payments are labelled by whom they paid for, and an unassigned transfer only as "not assigned yet". |
 | What it can do | Create a QR for chosen members, and poll that QR's status. Nothing else. |
 | Abuse | Per-IP limits: 10 QR codes and 120 reads a minute. Unpaid QR codes simply expire. |
 | Keeping the link private | `Referrer-Policy: no-referrer` (the QR image comes from qr.sepay.vn and must not see the link), `noindex`, and a strict Content-Security-Policy: only our own scripts run, and names are inserted as text, never HTML. |

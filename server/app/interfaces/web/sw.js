@@ -1,7 +1,7 @@
 // Service worker for one team's pay page (scope /p/<token>/). Keeps the app shell for offline starts;
 // the API is never cached, so amounts and statuses always come from the server.
 "use strict";
-const VERSION = "tf-web-1";
+const VERSION = "tf-web-2";
 const SHELL = ["./", "app.js", "app.css", "icon.svg", "icon-192.png", "icon-512.png", "manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {

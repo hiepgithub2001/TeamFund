@@ -18,6 +18,13 @@ const T = {
     slow: "Thao tác quá nhanh. Đợi một chút rồi thử lại.", nothing: "Những người này không còn khoản nào phải đóng.",
     install: "Cài vào màn hình chính", iosInstall: "iPhone: bấm Chia sẻ → Thêm vào MH chính để cài.",
     monthly: "Quỹ tháng {p}", retry: "Thử lại", telegram: "Dùng Telegram? Mở bot",
+    tabPay: "Đóng quỹ", tabMonth: "Tháng này", tabFund: "Quỹ", tabMembers: "Thành viên",
+    paidOf: "Đã đóng {a}/{b}", due: "Hạn đóng: ngày {d} hằng tháng", feeIs: "Mức quỹ: {f}/tháng",
+    paidList: "Đã đóng", unpaidList: "Chưa đóng", nobodyPaid: "Chưa ai đóng tháng này.", nobodyOwes: "Không ai còn nợ.",
+    income: "Tổng thu", expense: "Tổng chi", balance: "Số dư", byMonth: "Theo tháng", in: "Thu", out: "Chi",
+    history: "Giao dịch gần đây", noHistory: "Chưa có giao dịch.", feeFrom: "Đóng quỹ: {n}", cashFrom: "Tiền mặt: {n}",
+    unassigned: "Chuyển khoản chưa gán", owes: "Còn nợ {a}", allClear: "Đã đóng đủ", paused: "Tạm nghỉ",
+    shirt: "Áo số {n}", noMembers: "Đội chưa có thành viên.", readOnly: "Chỉ xem. Quản lý đội trong bot Telegram.",
   },
   en: {
     title: "Team fund", month: "Month {p}", owing: "Still to pay", people: "{n} people", total: "Total owed",
@@ -34,6 +41,13 @@ const T = {
     slow: "Too many tries. Wait a moment and try again.", nothing: "Those people have nothing left to pay.",
     install: "Add to home screen", iosInstall: "iPhone: tap Share → Add to Home Screen to install.",
     monthly: "Monthly fee {p}", retry: "Try again", telegram: "Use Telegram? Open the bot",
+    tabPay: "Pay", tabMonth: "This month", tabFund: "Fund", tabMembers: "Members",
+    paidOf: "{a} of {b} paid", due: "Due on day {d} of each month", feeIs: "Fee: {f}/month",
+    paidList: "Paid", unpaidList: "Not paid yet", nobodyPaid: "Nobody has paid this month yet.", nobodyOwes: "Nobody owes anything.",
+    income: "Money in", expense: "Money out", balance: "Balance", byMonth: "By month", in: "In", out: "Out",
+    history: "Recent transactions", noHistory: "No transactions yet.", feeFrom: "Fee: {n}", cashFrom: "Cash: {n}",
+    unassigned: "Transfer not assigned yet", owes: "Owes {a}", allClear: "All paid", paused: "On break",
+    shirt: "Shirt {n}", noMembers: "The team has no members yet.", readOnly: "Read-only. The team is managed in the Telegram bot.",
   },
 };
 
@@ -42,7 +56,7 @@ const store = {  // per-device conveniences only; the page works without them
   get(k) { try { return JSON.parse(localStorage.getItem("tf." + k)); } catch { return null; } },
   set(k, v) { try { v == null ? localStorage.removeItem("tf." + k) : localStorage.setItem("tf." + k, JSON.stringify(v)); } catch { /* private mode */ } },
 };
-const S = { data: null, lang: store.get("lang"), selected: new Set(), query: "", intent: null, timer: null, install: null };
+const S = { data: null, lang: store.get("lang"), tab: store.get("tab") || "pay", selected: new Set(), query: "", intent: null, timer: null, install: null };
 
 const t = (k, p = {}) => (T[S.lang] || T.vi)[k].replace(/\{(\w+)\}/g, (_, x) => p[x] ?? "");
 const money = (n) => Number(n).toLocaleString(S.lang === "en" ? "en-US" : "vi-VN") + "đ";
@@ -102,15 +116,73 @@ function footer() {
       S.install.prompt(); await S.install.userChoice.catch(() => null); S.install = null; render();
     } }, t("install"))) : ios ? h("p", {}, t("iosInstall")) : null,
     d && d.bot_username ? h("p", {}, h("a", { href: `https://t.me/${encodeURIComponent(d.bot_username)}`, rel: "noreferrer" }, t("telegram"))) : null,
-    h("p", {}, "Team Fund · SePay"));
+    h("p", {}, t("readOnly")), h("p", {}, "Team Fund · SePay"));
 }
 
 function billText(b) { return b.kind === "monthly" ? t("monthly", { p: b.period_label }) : `${b.title} (${b.period_label})`; }
 
+const TABS = [["pay", "tabPay"], ["month", "tabMonth"], ["fund", "tabFund"], ["members", "tabMembers"]];
+function tabs() {
+  return h("nav", { class: "tabs", role: "tablist" }, TABS.map(([id, key]) =>
+    h("button", { role: "tab", "aria-selected": S.tab === id ? "true" : "false", class: "tab", onclick: () => {
+      S.tab = id; store.set("tab", id); render(); toTop();
+    } }, t(key))));
+}
+function section(title, ...kids) { return h("section", { class: "card" }, h("h2", { class: "sec" }, title), ...kids); }
+function item(main, sub, right, cls = "") {
+  return h("li", { class: "item " + cls }, h("div", { class: "who" }, h("div", { class: "name" }, main),
+    sub ? h("div", { class: "bills" }, sub) : null), right != null ? h("div", { class: "amt" }, right) : null);
+}
+
+function monthView() {
+  const d = S.data, members = d.members.filter((m) => m.status === "active");
+  show(header(), tabs(),
+    h("div", { class: "summary" },
+      h("div", { class: "stat" }, h("span", { class: "muted small" }, t("month", { p: d.period_label })),
+        h("b", {}, t("paidOf", { a: d.paid.length, b: d.paid.length + d.unpaid.length }))),
+      h("div", { class: "stat" }, h("span", { class: "muted small" }, t("total")), h("b", {}, money(d.total_unpaid)))),
+    h("p", { class: "muted small" }, t("due", { d: d.due_day }), d.fee ? " · " + t("feeIs", { f: money(d.fee) }) : ""),
+    section(t("unpaidList"), d.unpaid.length ? h("ul", { class: "list" }, d.unpaid.map((u) =>
+      item(u.name, u.bills.map(billText).join(" · "), money(u.total), "owe"))) : h("p", { class: "muted" }, t("nobodyOwes"))),
+    section(t("paidList"), d.paid.length ? h("ul", { class: "list" }, d.paid.map((n) => item("✅ " + n, null, null)))
+      : h("p", { class: "muted" }, t("nobodyPaid"))),
+    members.length ? null : h("p", { class: "muted center" }, t("noMembers")), footer());
+}
+
+function fundView() {
+  const d = S.data, f = d.fund;
+  const label = (x) => x.kind === "expense" ? x.title : x.kind === "unassigned" ? t("unassigned")
+    : t(x.kind === "cash" ? "cashFrom" : "feeFrom", { n: x.title });
+  show(header(), tabs(),
+    h("div", { class: "summary three" },
+      h("div", { class: "stat" }, h("span", { class: "muted small" }, t("income")), h("b", { class: "pos" }, money(f.income))),
+      h("div", { class: "stat" }, h("span", { class: "muted small" }, t("expense")), h("b", { class: "neg" }, money(f.expense))),
+      h("div", { class: "stat" }, h("span", { class: "muted small" }, t("balance")), h("b", {}, money(f.balance)))),
+    section(t("byMonth"), h("table", { class: "months" },
+      h("thead", {}, h("tr", {}, h("th", {}, ""), h("th", {}, t("in")), h("th", {}, t("out")))),
+      h("tbody", {}, d.months.map((m) => h("tr", {}, h("td", {}, m.period_label),
+        h("td", { class: "pos" }, m.collected ? money(m.collected) : "–"), h("td", { class: "neg" }, m.spent ? money(m.spent) : "–")))))),
+    section(t("history"), d.history.length ? h("ul", { class: "list" }, d.history.map((x) =>
+      item(label(x), x.at, (x.type === "in" ? "+" : "−") + money(x.amount), x.type === "in" ? "in" : "out")))
+      : h("p", { class: "muted" }, t("noHistory"))),
+    footer());
+}
+
+function membersView() {
+  const d = S.data, ms = d.members.filter((m) => m.status !== "left");
+  show(header(), tabs(),
+    section(`${t("tabMembers")} (${ms.length})`, ms.length ? h("ul", { class: "list" }, ms.map((m) => item(
+      m.name + (m.nickname ? ` (${m.nickname})` : ""),
+      [m.shirt_number ? t("shirt", { n: m.shirt_number }) : null, m.status === "paused" ? t("paused") : null,
+       t("feeIs", { f: money(m.fee) })].filter(Boolean).join(" · "),
+      m.owes ? t("owes", { a: money(m.owes) }) : t("allClear"), m.owes ? "owe" : "ok"))) : h("p", { class: "muted" }, t("noMembers"))),
+    footer());
+}
+
 function listView() {
   const d = S.data;
-  if (!d.has_bank) return show(header(), h("div", { class: "card note" }, t("noBank")), footer());
-  if (!d.unpaid.length) return show(header(), h("div", { class: "empty" }, h("div", { class: "big" }, "⚽"),
+  if (!d.has_bank) return show(header(), tabs(), h("div", { class: "card note" }, t("noBank")), footer());
+  if (!d.unpaid.length) return show(header(), tabs(), h("div", { class: "empty" }, h("div", { class: "big" }, "⚽"),
     h("h2", {}, t("allPaid")), h("p", { class: "muted" }, t("allPaidSub"))), footer());
 
   const q = S.query.trim().toLocaleLowerCase();
@@ -133,7 +205,7 @@ function listView() {
     "aria-label": t("search"), value: S.query, oninput: (e) => { S.query = e.target.value; listView();
       const s = document.querySelector(".search"); s.focus(); s.setSelectionRange(s.value.length, s.value.length); } }) : null;
 
-  show(header(),
+  show(header(), tabs(),
     h("div", { class: "summary" },
       h("div", { class: "stat" }, h("span", { class: "muted small" }, t("owing")), h("b", {}, t("people", { n: d.unpaid.length }))),
       h("div", { class: "stat" }, h("span", { class: "muted small" }, t("total")), h("b", {}, money(d.total_unpaid)))),
@@ -200,7 +272,11 @@ function poll() {
 }
 document.addEventListener("visibilitychange", () => { if (!document.hidden && S.intent && !S.timer) poll(); });
 
-function render() { if (S.intent) qrView(); else if (S.data) listView(); }
+function render() {
+  if (S.intent) return qrView();
+  if (!S.data) return;
+  ({ month: monthView, fund: fundView, members: membersView }[S.tab] || listView)();
+}
 async function load() {
   stop();
   try {
@@ -211,7 +287,7 @@ async function load() {
     const ids = new Set(S.data.unpaid.map((u) => u.member_id));
     for (const id of [...S.selected]) if (!ids.has(id)) S.selected.delete(id);
     const saved = store.get("intent");
-    if (saved && saved.code) { S.intent = saved; qrView(); poll(); } else listView();
+    if (saved && saved.code) { S.intent = saved; qrView(); poll(); } else render();
   } catch (err) { S.lang = S.lang || "vi"; messageView(err.message, err.message !== "notFound"); }
 }
 

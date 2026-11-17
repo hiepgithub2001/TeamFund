@@ -292,6 +292,22 @@ def test_web_pay_page(world):
     assert ev["type"] == "payment_confirmed" and ev["payer_tg_id"] is None  # no Telegram payer: group post only
     assert [u["name"] for u in web.page(token)["unpaid"]] == ["Bình"]
 
+    # the read-only parts: this month, the fund, history, the roster
+    svc.members.update_member(tid, OWNER, an, {"phone": "0901234567", "note": "private", "shirt_number": "10"})
+    svc.money.add_expense(tid, OWNER, 50000, "Sân bóng")
+    svc.money.record_transfer(tid, key, IncomingTransfer("tx-stranger", 30000, "NGUYEN VAN X CHUYEN TIEN FT2611"))
+    view = web.page(token)
+    assert view["paid"] == ["An"] and view["fund"] == {"income": 230000, "expense": 50000, "balance": 180000}
+    assert view["months"][0] == {"period_label": "11/2026", "collected": 230000, "spent": 50000} and len(view["months"]) == 6
+    assert view["months"][1]["period_label"] == "10/2026"
+    hist = {(h["type"], h["kind"], h["title"], h["amount"]) for h in view["history"]}
+    assert hist == {("in", "sepay", "An", 200000), ("in", "unassigned", "", 30000), ("out", "expense", "Sân bóng", 50000)}
+    roster = {m["name"]: m for m in view["members"]}
+    assert roster["An"] == {"name": "An", "nickname": None, "shirt_number": "10", "status": "active", "fee": 200000, "owes": 0}
+    assert roster["Bình"]["owes"] == 200000
+    blob = repr(view)
+    assert "0901234567" not in blob and "private" not in blob and "NGUYEN VAN X" not in blob and "FT2611" not in blob
+
     other = web.create_intent(token, [page["unpaid"][1]["member_id"]])
     clock.advance(hours=25)
     assert web.intent_status(token, other["code"])["status"] == "expired"

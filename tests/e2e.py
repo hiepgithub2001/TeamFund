@@ -376,8 +376,12 @@ async def main():
             man = json.loads(await r.text())
             assert man["start_url"] == "./" and man["display"] == "standalone" and "FC Test" in man["name"]
         async with http.get(base + "api/state") as r:
-            st = await r.json()
+            raw = await r.text()
+            st = json.loads(raw)
             assert [u["name"] for u in st["unpaid"]] == ["Dũng"] and st["bank_account"] == "0123456789"
+            assert {"paid", "fund", "months", "history", "members"} <= set(st), set(st)
+            assert "Cường" in [m["name"] for m in st["members"]] and st["fund"]["expense"] > 0
+            assert "0901234567" not in raw, "phone numbers never reach the page"
         async with http.post(base + "api/pay", json={"member_ids": [st["unpaid"][0]["member_id"]]}) as r:
             intent = await r.json()
             assert r.status == 200 and intent["amount"] == 200000, intent
