@@ -41,11 +41,14 @@ async def deliver(ev: dict) -> bool:
             await _send(bot, admin_id, text, markup)
     elif kind == "bills_created" and group:
         await _send(bot, group, t(G, "group.bills_created", period=ev["period_label"],
-                                  fees=fees_text(G, ev.get("fees", []), ev["fee"]), due=ev["due_day"]),
+                                  fees=fees_text(G, ev.get("fees", []), ev["fee"]), due=ev["due"])
+                    + (("\n" + t(G, "late.rule", fee=money(ev["late_fee"], G))) if ev.get("late_fee") else ""),
                     pay_keyboard(G, name))
     elif kind == "reminder" and group:
         head = t(G, "group.overdue" if ev.get("overdue") else "group.reminder", period=ev["period_label"],
-                 due=ev["due_day"])
+                 due=ev["due"])
+        if ev.get("overdue") and ev.get("late_fee"):
+            head += "\n" + t(G, "late.rule", fee=money(ev["late_fee"], G))
         await _send(bot, group, f"{head}\n{owes_lines(G, ev['unpaid'])}", pay_keyboard(G, name))
     elif kind == "month_report" and group:
         head = t(G, "group.report", period=ev["period_label"], collected=money(ev["collected"], G),

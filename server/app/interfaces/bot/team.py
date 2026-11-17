@@ -598,14 +598,36 @@ async def cmd_add(message: Message, command: CommandObject, entry, lang):
 
 @router.message(Command("setdue"))
 async def cmd_setdue(message: Message, command: CommandObject, entry, lang):
+    """`/setdue 15 5`: announce the fee on the 15th, due 5 days later (the 20th)."""
+    if not await allow(message, entry, lang, "manager"):
+        return
+    parts = (command.args or "").split()
+    if len(parts) != 2 or not all(p.isdigit() for p in parts) or not 1 <= int(parts[0]) <= 28 \
+            or not 0 <= int(parts[1]) <= 60:
+        s = await call(S.teams.team_info, tid(entry), message.from_user.id)
+        await message.answer(t(lang, "setdue.current", notify=s["notify_day"], days=s["due_days"]) + "\n\n"
+                             + t(lang, "usage.setdue"))
+        return
+    r = await call(S.teams.update_settings, tid(entry), message.from_user.id,
+                   notify_day=int(parts[0]), due_days=int(parts[1]))
+    await message.answer(t(lang, "setdue.done", notify=r["notify_day"], days=r["due_days"], due=r["due"]))
+
+
+@router.message(Command("latefee"))
+async def cmd_latefee(message: Message, command: CommandObject, entry, lang):
+    """`/latefee 1k`: each overdue fee bill costs 1,000đ more per day. `/latefee 0` turns it off."""
     if not await allow(message, entry, lang, "manager"):
         return
     raw = (command.args or "").strip()
-    if not raw.isdigit() or not 1 <= int(raw) <= 28:
-        await message.answer(t(lang, "usage.setdue"))
+    fee = 0 if raw == "0" else parse_amount(raw)
+    if fee is None:
+        s = await call(S.teams.team_info, tid(entry), message.from_user.id)
+        cur = t(lang, "latefee.on", fee=money(s["late_fee"], lang)) if s["late_fee"] else t(lang, "latefee.off")
+        await message.answer(cur + "\n\n" + t(lang, "usage.latefee"))
         return
-    r = await call(S.teams.update_settings, tid(entry), message.from_user.id, due_day=int(raw))
-    await message.answer(t(lang, "setdue.done", day=r["due_day"]))
+    r = await call(S.teams.update_settings, tid(entry), message.from_user.id, late_fee=fee)
+    await message.answer(t(lang, "latefee.done", fee=money(r["late_fee"], lang), due=r["due"]) if r["late_fee"]
+                         else t(lang, "latefee.done_off"))
 
 
 async def charge_picker(ev, entry, lang, kind: str, amount: int, title: str) -> dict | None:
@@ -994,7 +1016,9 @@ async def cmd_settings(message: Message, entry, lang):
     if s["bank_account"] and s["pay_account"] != s["bank_account"]:
         bank += f" · VA {esc(s['pay_account'])}"
     await message.answer(t(lang, "settings.text", team=esc(s["name"]), fee=money(s["fee"], lang) if s["fee"] else none,
-                           due=s["due_day"], bank=bank, sepay="✅" if s["sepay_connected"] else none,
+                           due=t(lang, "settings.due", notify=s["notify_day"], days=s["due_days"])
+                           + (" · " + t(lang, "latefee.on", fee=money(s["late_fee"], lang)) if s["late_fee"] else ""),
+                           bank=bank, sepay="✅" if s["sepay_connected"] else none,
                            group=t(lang, "settings.linked") if s["group_chat_id"] else none,
                            lang="Tiếng Việt" if s["lang"] == "vi" else "English"))
 

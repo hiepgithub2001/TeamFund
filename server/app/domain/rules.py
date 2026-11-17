@@ -1,5 +1,6 @@
 """Pure business rules. No I/O, no framework: easy to test and to read."""
 import calendar
+from datetime import date, timedelta
 import hashlib
 import math
 import re
@@ -120,24 +121,50 @@ def hash_secret(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
 
 
-# ---- reminders --------------------------------------------------------------------------------
+# ---- schedule: announce, due, late -----------------------------------------------------------
 
+MAX_DUE_DAYS = 60
+MAX_LATE_FEE = 1_000_000
 REMIND_EVERY_DAYS_AFTER_DUE = 3
 
 
-def due_day_in_month(due_day: int, year: int, month: int) -> int:
-    return min(due_day, calendar.monthrange(year, month)[1])
+def schedule(team: Team) -> tuple[int, int]:
+    """(notify day of the month, days until due). Teams from before this setting: announced on the 1st,
+    due on their old due day."""
+    if team.notify_day:
+        return team.notify_day, team.due_days or 0
+    return 1, max(0, (team.due_day or 1) - 1)
+
+
+def notify_date(team: Team, period: str) -> date:
+    y, m = map(int, period.split("-"))
+    return date(y, m, min(schedule(team)[0], calendar.monthrange(y, m)[1]))
+
+
+def due_date(team: Team, period: str) -> date:
+    """The announcement day of the bill's first month plus the team's deadline (it may fall next month)."""
+    return notify_date(team, period) + timedelta(days=schedule(team)[1])
+
+
+def late_days(due: date, today: date, since: date | None) -> int:
+    """Whole days a bill is overdue, counted from the due date or from when the late fee was turned on."""
+    start = max(due, since) if since else due
+    return max(0, (today - start).days)
+
+
+def should_remind(today: date, notify: date, due: date) -> bool:
+    """3 days before the due date, on it, then every 3 days while someone still owes; never before the
+    fee is announced."""
+    if today < notify:
+        return False
+    diff = (today - due).days
+    if diff in (-3, 0):
+        return True
+    return diff > 0 and diff % REMIND_EVERY_DAYS_AFTER_DUE == 0
 
 
 def is_last_day_of_month(year: int, month: int, day: int) -> bool:
     return day == calendar.monthrange(year, month)[1]
-
-
-def should_remind(day: int, due: int) -> bool:
-    """3 days before the due day, on it, then every 3 days while someone still owes."""
-    if day in (due - 3, due):
-        return True
-    return day > due and (day - due) % REMIND_EVERY_DAYS_AFTER_DUE == 0
 
 
 # ---- backdating ------------------------------------------------------------------------------------

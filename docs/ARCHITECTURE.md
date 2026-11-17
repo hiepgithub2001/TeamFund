@@ -160,6 +160,8 @@ _One bill per cycle: a quarterly bill covers its three months, so Cường count
 - Changing a plan, the team fee or a member's own fee reprices only unpaid fee bills opened this month. A quarter that's already running keeps its amount; the new fee starts when it runs out. Waive it on the member's bills screen if it should stop sooner.
 - Cash that differs from the bill: pick one person in `/markpaid`, then ✏️ Another amount (at most what they owe). The money goes to their oldest bills first, and the fund grows by that amount only. For the rest, ✔️ **let it go** settles that bill at what was paid (someone who joined mid-quarter pays 300k of 600k), or ⏳ **still owes** keeps the rest as a new unpaid bill. More than owed: record the extra with `/income`. A SePay transfer below the amount goes to `/unmatched`, where assigning it closes the bills with the amount that actually arrived.
 - Setting a member's own monthly fee takes them off their plan. Deleting a plan moves its members back to the default.
+- **Schedule:** `/setdue 15 5` announces the fee on the 15th of each month and makes it due 5 days later (the 20th); the deadline may run into the next month (`/setdue 25 10` → the 5th). A bill's due date is the announcement day of its first month plus the deadline. Reminders: 3 days before the due date, on it, then every 3 days while someone owes, never before the announcement. Teams set up before this keep their old due day (announced on the 1st).
+- **Late fee:** `/latefee 1k` adds 1,000đ per day to each overdue fee bill, as its own line "Phạt trễ N ngày" kept current whenever anyone looks or pays. Days are counted from the due date, or from the day the late fee was turned on if that's later, so turning it on never fines the past. It stops growing when the fee is paid, freezes for paused members, isn't charged on `/charge` costs, and goes away when the fee is waived or with `/latefee 0`. A QR made one day and paid the next is accepted at the QR's amount.
 - Reminders and the monthly "fee is open" post run when anyone has a fee: the team fee or a plan. The post lists each fee with how many people pay it.
 - Plan changes, other income and backdated records all go into `/log` (`plan.save`, `plan.delete`, `income.add`, with the date).
 
@@ -170,7 +172,7 @@ Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID
 | Role | Who | Can do |
 |---|---|---|
 | Owner | Whoever registered the bot with `/newteam` | Everything a manager can, plus `/sepaytoken`, `/setbank` (pick from SePay; also sets up the webhook), approve or remove managers, `/transferowner`, `/log` |
-| Manager | Approved by the owner | `/weblink` (the pay page link), `/members` (view, ➕ add, edit, remove), `/plans` (default fee and plans), `/setdue`, `/markpaid`, `/expense`, `/income`, `/charge` (each pays, or ➗ split), `/remind`, assign unmatched payments, `/export` |
+| Manager | Approved by the owner | `/weblink` (the pay page link), `/members` (view, ➕ add, edit, remove), `/plans` (default fee and plans), `/setdue` (announcement day + days), `/latefee`, `/markpaid`, `/expense`, `/income`, `/charge` (each pays, or ➗ split), `/remind`, assign unmatched payments, `/export` |
 | Everyone | Anyone who opens the bot | `/start` and pay (or the pay page in a browser, no Telegram needed), `/status`, `/fund`, `/history` (or `/history 10/2026` for every transaction of one month), `/bank` (the team account; managers also see whether SePay is connected), `/lang`, `/requestmanager` |
 
 ### Becoming a manager: request and approve

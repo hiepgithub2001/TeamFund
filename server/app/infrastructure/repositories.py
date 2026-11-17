@@ -144,6 +144,9 @@ class SqlBills(_Repo):
              .where(Bill.team_id == team_id, Bill.kind == "monthly", Bill.period >= since))
         return [(b, m) for b, m in self.s.execute(q.order_by(Bill.period, Bill.id))]
 
+    def late_of_team(self, team_id: int) -> list[Bill]:
+        return list(self.s.scalars(select(Bill).where(Bill.team_id == team_id, Bill.kind == "late")))
+
     def unpaid_of_member(self, member_id: int) -> list[Bill]:
         return list(self.s.scalars(select(Bill).where(Bill.member_id == member_id, Bill.status == "unpaid")
                                    .order_by(Bill.period, Bill.id)))

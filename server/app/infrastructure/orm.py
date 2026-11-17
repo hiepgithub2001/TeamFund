@@ -1,7 +1,7 @@
 """Database tables, mapped onto the domain dataclasses (SQLAlchemy imperative mapping).
 
 The domain stays free of SQLAlchemy: this module knows about the domain, never the other way round."""
-from sqlalchemy import (JSON, BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, MetaData, String, Table,
+from sqlalchemy import (JSON, BigInteger, Boolean, Column, Date, DateTime, ForeignKey, Integer, MetaData, String, Table,
                         Text, UniqueConstraint)
 from sqlalchemy.orm import registry
 
@@ -39,6 +39,8 @@ teams = Table(
     Column("bank_holder", String(128)), Column("sepay_key_hash", String(64)), Column("last_billed_period", String(7)),
     Column("sepay_token_enc", Text), Column("sepay_webhook_id", String(64)),
     Column("public_token", String(32), unique=True), Column("pay_account", String(32)),
+    Column("notify_day", Integer), Column("due_days", Integer), Column("late_fee", Integer),
+    Column("late_fee_since", Date),
     Column("active", Boolean, nullable=False), Column("created_at", DateTime, nullable=False),
 )
 

@@ -527,6 +527,20 @@ async def main():
                         and "150,000đ is let go" in c["params"]["text"], "settled at 100k")
         await wait_sent(to(GROUP, r"Giang</b> paid 100,000đ"), "group sees the real amount")
 
+        # 14. schedule as announcement day + days, and a late fee
+        await T(text_update(OWNER, "/setdue"))
+        await wait_sent(to(OWNER, "<code>/setdue 15 5</code>"), "setdue explains")
+        await T(text_update(OWNER, "/setdue 15 5"))
+        await wait_sent(to(OWNER, "announced on day 15 of each month and due 5 days later"), "schedule set")
+        await T(text_update(OWNER, "/latefee 1k"))
+        await wait_sent(to(OWNER, "Late fee 1,000đ/day"), "late fee on")
+        await T(text_update(OWNER, "/status"))
+        await wait_sent(to(OWNER, "Paying late: 1,000đ per day overdue"), "status shows the late fee rule")
+        await T(text_update(OWNER, "/settings"))
+        await wait_sent(to(OWNER, "announced on day 15, due 5 days later · Late fee: 1,000đ/day"), "settings")
+        await T(text_update(OWNER, "/latefee 0"))
+        await wait_sent(to(OWNER, "Late fee turned off"), "late fee off")
+
         print(f"e2e passed ({len(calls)} Telegram API calls)")
     finally:
         await http.close()

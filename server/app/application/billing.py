@@ -3,8 +3,8 @@ from datetime import timedelta
 
 from ..domain.entities import Bill, IncomingTransfer, Member, Payment, PaymentIntent, Team
 from ..domain.errors import DomainError
-from ..domain.rules import (CYCLES, add_months, covers, find_payment_codes, member_fee, new_payment_code,
-                            period_label, split_share, transfer_content)
+from ..domain.rules import (CYCLES, add_months, covers, due_date, find_payment_codes, late_days, member_fee,
+                            new_payment_code, period_label, schedule, split_share, transfer_content)
 from .ports import Conflict, Deps, UnitOfWork
 
 INTENT_TTL = timedelta(hours=24)
@@ -47,7 +47,41 @@ def ensure_bills(uow: UnitOfWork, d: Deps, team: Team, period: str | None = None
         except Conflict:  # the scheduler and a request raced; reread and fill the gaps
             uow.rollback()
             return ensure_bills(uow, d, team, period, _retry=False) if _retry else 0
+    update_late_fees(uow, d, team)
     return created
+
+
+def update_late_fees(uow: UnitOfWork, d: Deps, team: Team) -> None:
+    """Keep each overdue fee bill's late fee (its own "late" bill) at days overdue × the team's rate.
+    Runs with ensure_bills, so amounts are current whenever someone looks or pays. A late bill stops
+    growing once the fee is paid, and stays as it is for paused members; turning the fee off waives
+    the late bills still unpaid."""
+    rate, today = team.late_fee or 0, d.clock.local_now().date()
+    late = {b.monthly_key: b for b in uow.bills.late_of_team(team.id)}
+    changed = False
+    for b, m in uow.bills.unpaid_with_members(team.id):
+        if b.kind != "monthly" or m.status != "active":
+            continue
+        key = f"late:{b.id}"
+        lb = late.get(key)
+        if lb is not None and lb.status != "unpaid":
+            continue
+        days = late_days(due_date(team, b.period), today, team.late_fee_since) if rate else 0
+        if days > 0:
+            if lb is None:
+                uow.bills.add(Bill(team_id=team.id, member_id=b.member_id, kind="late", title=f"late:{days}",
+                                   period=b.period, months=b.months, amount=days * rate, monthly_key=key,
+                                   created_at=d.clock.now()))
+                changed = True
+            elif (lb.amount, lb.title) != (days * rate, f"late:{days}"):
+                lb.amount, lb.title, changed = days * rate, f"late:{days}", True
+        elif lb is not None:
+            lb.status, changed = "waived", True
+    if changed:
+        try:
+            uow.commit()
+        except Conflict:  # two requests added the same late bill; the other one's is as good
+            uow.rollback()
 
 
 def reprice_current_month(uow: UnitOfWork, d: Deps, team: Team) -> None:
@@ -79,8 +113,11 @@ def has_fees(uow: UnitOfWork, team: Team) -> bool:
 
 
 def bill_dict(b: Bill) -> dict:
-    return {"id": b.id, "kind": b.kind, "title": b.title, "period": b.period, "months": b.months or 1,
-            "period_label": period_label(b.period, b.months), "amount": b.amount, "status": b.status}
+    out = {"id": b.id, "kind": b.kind, "title": b.title, "period": b.period, "months": b.months or 1,
+           "period_label": period_label(b.period, b.months), "amount": b.amount, "status": b.status}
+    if b.kind == "late":
+        out["days"] = int(b.title.split(":")[1]) if ":" in b.title else 0
+    return out
 
 
 def unpaid_by_member(uow: UnitOfWork, team: Team, member_ids: list[int] | None = None) -> list[dict]:
@@ -147,6 +184,15 @@ def record_transfer(uow: UnitOfWork, d: Deps, team: Team, transfer: IncomingTran
         payment.intent_id, payment.payer_tg_id = intent.id, intent.payer_tg_id
         bills = uow.bills.get_many(intent.bill_ids, unpaid_only=True)
         needed = sum(b.amount for b in bills)
+        if bills and intent.amount <= transfer.amount < needed:
+            # a late fee grew after the QR was made: the day they made it is the day that counts
+            short = needed - transfer.amount
+            for lb in sorted((b for b in bills if b.kind == "late"), key=lambda b: -b.id):
+                cut = min(short, lb.amount)
+                lb.amount, short = lb.amount - cut, short - cut
+            if short == 0:
+                bills = [b for b in bills if b.amount > 0]
+                needed = transfer.amount
         if not bills:
             reason = "already_paid"
         elif transfer.amount < needed:
@@ -257,7 +303,10 @@ def team_status(uow: UnitOfWork, d: Deps, team: Team) -> dict:
     paid = sorted((m.name for b, m in covering(uow, team, period).values()
                    if b.status == "paid" and m.status != "left"), key=str.casefold)
     unpaid = [{"name": g["name"], "total": g["total"]} for g in unpaid_by_member(uow, team)]
-    return {"period": period, "period_label": period_label(period), "fee": team.fee, "due_day": team.due_day,
+    notify, days = schedule(team)
+    return {"period": period, "period_label": period_label(period), "fee": team.fee,
+            "due": due_date(team, period).strftime("%d/%m"), "notify_day": notify, "due_days": days,
+            "late_fee": team.late_fee or 0,
             "fees": fee_groups(uow, team), "has_fees": has_fees(uow, team),
             "paid": paid, "unpaid": unpaid, "total_unpaid": sum(u["total"] for u in unpaid)}
 

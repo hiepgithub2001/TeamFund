@@ -42,7 +42,9 @@ def status_text(lang: str, s: dict) -> str:
     if not s.get("has_fees", s["fee"]):
         return t(lang, "status.no_fee")
     parts = [t(lang, "status.title", period=s["period_label"], fees=fees_text(lang, s.get("fees", []), s["fee"]),
-               due=s["due_day"])]
+               due=s["due"])]
+    if s.get("late_fee"):
+        parts[0] += "\n" + t(lang, "late.rule", fee=money(s["late_fee"], lang))
     if s["paid"]:
         parts.append(t(lang, "status.paid", n=len(s["paid"]), names=", ".join(esc(n) for n in s["paid"])))
     if s["unpaid"]:
@@ -54,6 +56,8 @@ def status_text(lang: str, s: dict) -> str:
 
 
 def bill_label(lang: str, b: dict) -> str:
+    if b["kind"] == "late":
+        return t(lang, "bill.late", days=b.get("days", 0), period=b["period_label"])
     if b["kind"] == "monthly":
         months = b.get("months") or 1
         if months > 1:

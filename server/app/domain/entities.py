@@ -4,7 +4,7 @@ The infrastructure layer maps them onto database tables (SQLAlchemy imperative m
 domain never knows how it is stored. Timestamps are naive UTC and are set by the use cases from
 the Clock port. `eq=False` keeps identity semantics, which the ORM relies on."""
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 
 OWNER, MANAGER = "owner", "manager"
 
@@ -45,7 +45,11 @@ class Team:
     owner_tg_id: int
     group_chat_id: int | None = None
     fee: int = 0
-    due_day: int = 5
+    due_day: int = 5                       # old setting (due day of the month); used until notify_day is set
+    notify_day: int | None = None          # day of the month the fee is announced
+    due_days: int | None = None            # days after the announcement until it's due
+    late_fee: int | None = None            # đ per day a fee bill is overdue; 0/None: off
+    late_fee_since: date | None = None     # the day the late fee was turned on: no fines for days before it
     lang: str = "vi"
     bank_name: str | None = None
     bank_account: str | None = None

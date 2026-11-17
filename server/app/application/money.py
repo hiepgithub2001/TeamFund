@@ -105,6 +105,9 @@ class MoneyUseCases:
             if b.status != "unpaid":
                 raise DomainError(409, "already_resolved")
             b.status = "waived"
+            for lb in uow.bills.late_of_team(team.id):
+                if lb.monthly_key == f"late:{b.id}" and lb.status == "unpaid":
+                    lb.status = "waived"
             audit(uow, self.d.clock, team.id, actor, "bill.waive", target=f"{b.title} {period_label(b.period)}",
                   after={"bill_id": b.id, "amount": b.amount})
             uow.commit()

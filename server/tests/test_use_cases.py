@@ -81,8 +81,8 @@ def test_full_flow(world):
     link_bank(svc, tid)
     assert code(teams.choose_bank, tid, OWNER, "not-in-sepay") == "not_found"
     key = sepay_key(svc, tid)
-    teams.update_settings(tid, MANAGER, fee=200000, due_day=5)
-    assert code(teams.update_settings, tid, MANAGER, due_day=31) == "invalid"
+    teams.update_settings(tid, MANAGER, fee=200000, notify_day=1, due_days=4)
+    assert code(teams.update_settings, tid, MANAGER, notify_day=31) == "invalid"
     an, binh, cuong = (m["id"] for m in members.add_members(
         tid, MANAGER, [{"name": "An"}, {"name": "Bình"}, {"name": "Cường"}]))
 
@@ -164,7 +164,7 @@ def test_manager_request_cooldown(world):
 def test_jobs(world):
     svc, clock, notifier = world
     tid = setup_team(svc)
-    svc.teams.update_settings(tid, OWNER, fee=200000, due_day=5)
+    svc.teams.update_settings(tid, OWNER, fee=200000, notify_day=1, due_days=4)  # due on the 5th
     svc.members.add_members(tid, OWNER, [{"name": "An"}])
     svc.jobs.open_month()
     assert notifier.events == []  # no group linked yet
@@ -491,3 +491,58 @@ def test_cash_less_than_owed():
     assert {g["name"]: g["total"] for g in svc.money.unpaid(tid)} == {"Bình": 400000, "Cường": 600000}
     svc.money.markpaid(tid, OWNER, [binh])
     assert svc.money.fund(tid)["income"] == 900000
+
+
+def test_schedule_and_late_fee():
+    """Announce on the 15th, due 5 days later; 1,000đ per overdue day, only from when it's turned on."""
+    from datetime import date
+    svc, clock, notifier = make_services(datetime(2026, 11, 10, 10, 0))
+    tid = setup_team(svc)
+    svc.teams.link_group(tid, OWNER, -1001)
+    key = sepay_key_for_fake(svc, tid)
+    an, binh = [m["id"] for m in svc.members.add_members(tid, OWNER, [{"name": "An"}, {"name": "Bình"}])]
+    r = svc.teams.update_settings(tid, OWNER, fee=200000, notify_day=15, due_days=5)
+    assert (r["notify_day"], r["due_days"], r["due"]) == (15, 5, "20/11")
+    assert code(svc.teams.update_settings, tid, OWNER, notify_day=29) == "invalid"
+    assert code(svc.teams.update_settings, tid, OWNER, late_fee=-1) == "invalid"
+    svc.jobs.open_month()
+    assert not [e for e in notifier.events if e["type"] == "bills_created"], "not before the 15th"
+    clock.local = clock.local.replace(day=15)
+    svc.jobs.open_month()
+    opened = [e for e in notifier.events if e["type"] == "bills_created"]
+    assert len(opened) == 1 and opened[0]["due"] == "20/11"
+
+    clock.local = clock.local.replace(day=22)
+    svc.teams.update_settings(tid, OWNER, late_fee=1000)  # turned on on the 22nd: counts from the 22nd
+    assert {g["name"]: g["total"] for g in svc.money.unpaid(tid)} == {"An": 200000, "Bình": 200000}
+    clock.local = clock.local.replace(day=25)
+    owed = {g["name"]: g for g in svc.money.unpaid(tid)}
+    assert owed["An"]["total"] == 203000
+    late = [b for b in owed["An"]["bills"] if b["kind"] == "late"][0]
+    assert (late["days"], late["amount"]) == (3, 3000)
+    s = svc.money.status(tid)
+    assert (s["due"], s["late_fee"]) == ("20/11", 1000)
+
+    # An makes a QR on the 25th and pays it on the 26th: the extra day's fine isn't asked for
+    intent = svc.money.create_intent(tid, MEMBER, [an])
+    assert intent["amount"] == 203000
+    clock.local = clock.local.replace(day=26)
+    svc.money.unpaid(tid)  # the late fee grows to 4,000đ
+    assert svc.money.record_transfer(tid, key, IncomingTransfer("tx-late", 203000, intent["content"])) == \
+        "payment_confirmed"
+    owed = {g["name"]: g["total"] for g in svc.money.unpaid(tid)}
+    assert "An" not in owed and owed["Bình"] == 204000
+    clock.local = clock.local.replace(day=28)
+    assert {g["name"]: g["total"] for g in svc.money.unpaid(tid)} == {"Bình": 206000}, "An's fine stopped"
+
+    # waiving the fee waives its fine; turning the late fee off waives the fines left
+    bills = svc.members.member_bills(tid, OWNER, binh)["bills"]
+    svc.money.waive(tid, OWNER, next(b["id"] for b in bills if b["kind"] == "monthly"))
+    assert svc.money.unpaid(tid) == []
+    svc.teams.update_settings(tid, OWNER, late_fee=0)
+    assert svc.teams.team_info(tid, OWNER)["late_fee"] == 0
+
+
+def sepay_key_for_fake(svc, tid):
+    link_bank(svc, tid)
+    return sepay_key(svc, tid)

@@ -9,7 +9,7 @@ import re
 
 from ..domain.entities import Team
 from ..domain.errors import DomainError, invalid
-from ..domain.rules import months_between, period_label
+from ..domain.rules import due_date, months_between, period_label
 from . import billing
 from .ports import Deps, UnitOfWork
 
@@ -35,12 +35,14 @@ class WebUseCases:
             billing.ensure_bills(uow, self.d, team)
             unpaid = [{"member_id": g["member_id"], "name": g["name"], "total": g["total"],
                        "bills": [{"kind": b["kind"], "title": b["title"], "period_label": b["period_label"],
-                                  "months": b["months"], "amount": b["amount"]} for b in g["bills"]]}
+                                  "months": b["months"], "amount": b["amount"], "days": b.get("days")}
+                                 for b in g["bills"]]}
                       for g in billing.unpaid_by_member(uow, team)]
             period = self.d.clock.current_period()
             fund = billing.fund(uow, team)
             return {"team": team.name, "lang": team.lang, "period_label": period_label(period),
-                    "due_day": team.due_day, "fee": team.fee, "fees": billing.fee_groups(uow, team),
+                    "due": due_date(team, period).strftime("%d/%m"), "late_fee": team.late_fee or 0,
+                    "fee": team.fee, "fees": billing.fee_groups(uow, team),
                     "has_bank": team.has_bank(),
                     "bank_name": team.bank_name, "bank_account": team.pay_to(), "bank_holder": team.bank_holder,
                     "bot_username": team.bot_username, "unpaid": unpaid,

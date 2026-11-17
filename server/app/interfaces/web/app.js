@@ -21,7 +21,7 @@ const T = {
     tabPay: "Đóng quỹ", tabFund: "Quỹ", tabMembers: "Thành viên", owingPeople: "Còn nợ",
     tapMonth: "Bấm vào một tháng để xem mọi giao dịch của tháng đó.",
     noTx: "Tháng này không có giao dịch.",
-    paidOf: "Đã đóng {a}/{b}", due: "Hạn đóng: ngày {d} hằng tháng", feeIs: "Mức quỹ: {f}", feeN: "{f} × {n} người", feeCycle: "Quỹ {c} {p}",
+    paidOf: "Đã đóng {a}/{b}", due: "Hạn tháng này: {d}", lateRule: "Đóng trễ: phạt {f}/ngày", late: "Phạt trễ {n} ngày (quỹ {p})", feeIs: "Mức quỹ: {f}", feeN: "{f} × {n} người", feeCycle: "Quỹ {c} {p}",
     c1: "tháng", c3: "quý", c6: "6 tháng", c12: "năm", otherFrom: "Thu khác: {n}", otherIncome: "Trong đó thu khác: {a}",
     paidList: "Đã đóng", unpaidList: "Chưa đóng", nobodyPaid: "Chưa ai đóng tháng này.", nobodyOwes: "Không ai còn nợ.",
     income: "Tổng thu", expense: "Tổng chi", balance: "Số dư", byMonth: "Theo tháng", in: "Thu", out: "Chi",
@@ -47,7 +47,7 @@ const T = {
     tabPay: "Pay", tabFund: "Fund", tabMembers: "Members", owingPeople: "Owing",
     tapMonth: "Tap a month to see all its transactions.",
     noTx: "No transactions this month.",
-    paidOf: "{a} of {b} paid", due: "Due on day {d} of each month", feeIs: "Fee: {f}", feeN: "{f} for {n}", feeCycle: "Fee per {c} {p}",
+    paidOf: "{a} of {b} paid", due: "Due this month: {d}", lateRule: "Paying late: {f} per day", late: "Late fee, {n} days (fee {p})", feeIs: "Fee: {f}", feeN: "{f} for {n}", feeCycle: "Fee per {c} {p}",
     c1: "month", c3: "quarter", c6: "6 months", c12: "year", otherFrom: "Other income: {n}", otherIncome: "Of which other income: {a}",
     paidList: "Paid", unpaidList: "Not paid yet", nobodyPaid: "Nobody has paid this month yet.", nobodyOwes: "Nobody owes anything.",
     income: "Money in", expense: "Money out", balance: "Balance", byMonth: "By month", in: "In", out: "Out",
@@ -126,6 +126,7 @@ function footer() {
 }
 
 function billText(b) {
+  if (b.kind === "late") return t("late", { n: b.days || 0, p: b.period_label });
   if (b.kind !== "monthly") return `${b.title} (${b.period_label})`;
   return (b.months || 1) > 1 ? t("feeCycle", { c: t("c" + b.months), p: b.period_label }) : t("monthly", { p: b.period_label });
 }
@@ -254,6 +255,8 @@ function listView() {
     h("div", { class: "summary" },
       h("div", { class: "stat" }, h("span", { class: "muted small" }, t("owing")), h("b", {}, t("people", { n: d.unpaid.length }))),
       h("div", { class: "stat" }, h("span", { class: "muted small" }, t("total")), h("b", {}, money(d.total_unpaid)))),
+    h("p", { class: "muted small" }, d.due ? t("due", { d: d.due }) : null,
+      d.late_fee ? " · " + t("lateRule", { f: money(d.late_fee) }) : null),
     h("p", { class: "muted small" }, t("pick")), search, h("ul", { class: "people" }, items), footer(),
     h("div", { class: "bar" }, h("div", { class: "wrap" },
       h("div", { class: "sel" }, t("selected", { n: chosen.length }), h("b", {}, money(sum))),

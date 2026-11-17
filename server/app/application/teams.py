@@ -9,9 +9,10 @@ from typing import Callable
 
 from ..domain.entities import MANAGER, OWNER, ManagerRequest, Team, TeamAdmin
 from ..domain.errors import DomainError, invalid
-from ..domain.rules import LANGS, MAX_FEE, hash_secret, new_public_token, valid_bank
+from ..domain.rules import (LANGS, MAX_DUE_DAYS, MAX_FEE, MAX_LATE_FEE, due_date, hash_secret, new_public_token,
+                            schedule, valid_bank)
 from .access import get_team, is_super, manager_team, owner_team, role_of
-from .billing import reprice_current_month
+from .billing import reprice_current_month, update_late_fees
 from .people import audit, display_name, user_info
 from .ports import Deps, SepayError, SepayWebhookSpec, UnitOfWork
 
@@ -59,8 +60,9 @@ class TeamUseCases:
     def team_info(self, team_id: int, actor: int | None) -> dict:
         with self.d.uow() as uow:
             t = get_team(uow, team_id)
+            notify, days = schedule(t)
             return {"team_id": t.id, "name": t.name, "bot_username": t.bot_username, "fee": t.fee,
-                    "due_day": t.due_day, "lang": t.lang, "bank_name": t.bank_name, "bank_account": t.bank_account,
+                    "notify_day": notify, "due_days": days, "late_fee": t.late_fee or 0, "lang": t.lang, "bank_name": t.bank_name, "bank_account": t.bank_account,
                     "pay_account": t.pay_to(),
                     "bank_holder": t.bank_holder, "sepay_connected": bool(t.sepay_key_hash),
                     "sepay_url": self._webhook_url(t), "group_chat_id": t.group_chat_id,
@@ -71,22 +73,42 @@ class TeamUseCases:
             get_team(uow, team_id)
             return {"role": role_of(uow, team_id, actor), "is_super": is_super(self.d.config, actor)}
 
-    def update_settings(self, team_id: int, actor: int, fee: int | None = None, due_day: int | None = None,
-                        lang: str | None = None) -> dict:
+    def update_settings(self, team_id: int, actor: int, fee: int | None = None, lang: str | None = None,
+                        notify_day: int | None = None, due_days: int | None = None,
+                        late_fee: int | None = None) -> dict:
+        """Change the default fee, group language, the schedule (announce on notify_day, due due_days later)
+        or the late fee per overdue day (0 turns it off)."""
+        ok = lambda v, lo, hi: v is None or (isinstance(v, int) and not isinstance(v, bool) and lo <= v <= hi)  # noqa: E731
+        if not (ok(fee, 0, MAX_FEE) and ok(notify_day, 1, 28) and ok(due_days, 0, MAX_DUE_DAYS)
+                and ok(late_fee, 0, MAX_LATE_FEE)) or (lang is not None and lang not in LANGS):
+            raise invalid()
         with self.d.uow() as uow:
             team = manager_team(uow, team_id, actor)
-            if (fee is not None and not 0 <= fee <= MAX_FEE) or (due_day is not None and not 1 <= due_day <= 28) \
-                    or (lang is not None and lang not in LANGS):
-                raise invalid()
-            before = {"fee": team.fee, "due_day": team.due_day, "lang": team.lang}
-            changes = {k: v for k, v in (("fee", fee), ("due_day", due_day), ("lang", lang)) if v is not None}
+            fields = ("fee", "lang", "notify_day", "due_days", "late_fee")
+            before = {k: getattr(team, k) for k in fields}
+            changes = {k: v for k, v in zip(fields, (fee, lang, notify_day, due_days, late_fee)) if v is not None}
+            if (notify_day is None) != (due_days is None):  # the schedule is set as a pair
+                cur = schedule(team)
+                changes.setdefault("notify_day", cur[0])
+                changes.setdefault("due_days", cur[1])
+            if "late_fee" in changes:
+                was_on = bool(team.late_fee)
+                if changes["late_fee"] and not was_on:
+                    team.late_fee_since = self.d.clock.local_now().date()
+                elif not changes["late_fee"]:
+                    team.late_fee_since = None
             for k, v in changes.items():
                 setattr(team, k, v)
             if "fee" in changes:
                 reprice_current_month(uow, self.d, team)
             audit(uow, self.d.clock, team.id, actor, "team.settings", before=before, after=changes)
             uow.commit()
-            return {"fee": team.fee, "due_day": team.due_day, "lang": team.lang}
+            if {"late_fee", "notify_day", "due_days"} & changes.keys():
+                update_late_fees(uow, self.d, team)
+            notify, days = schedule(team)
+            return {"fee": team.fee, "lang": team.lang, "notify_day": notify, "due_days": days,
+                    "late_fee": team.late_fee or 0,
+                    "due": due_date(team, self.d.clock.current_period()).strftime("%d/%m")}
 
     def sepay_info(self, team_id: int, actor: int) -> dict:
         with self.d.uow() as uow:
