@@ -35,7 +35,7 @@ class WebUseCases:
             period = self.d.clock.current_period()
             return {"team": team.name, "lang": team.lang, "period_label": period_label(period),
                     "due_day": team.due_day, "fee": team.fee, "has_bank": team.has_bank(),
-                    "bank_name": team.bank_name, "bank_account": team.bank_account, "bank_holder": team.bank_holder,
+                    "bank_name": team.bank_name, "bank_account": team.pay_to(), "bank_holder": team.bank_holder,
                     "bot_username": team.bot_username, "unpaid": unpaid,
                     "total_unpaid": sum(u["total"] for u in unpaid)}
 

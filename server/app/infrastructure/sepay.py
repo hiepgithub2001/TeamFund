@@ -10,10 +10,14 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
-from ..application.ports import SepayBankAccount, SepayError, SepayWebhook, SepayWebhookSpec
+from ..application.ports import SepayBankAccount, SepayError, SepayVirtualAccount, SepayWebhook, SepayWebhookSpec
 
 log = logging.getLogger("sepay.api")
 USER_AGENT = "TeamFund/1.0"
+
+
+def _true(v) -> bool:
+    return v is True or str(v).lower() in ("1", "true")
 
 
 class SepayQr:
@@ -31,9 +35,14 @@ class SepayUserApi:
     def bank_accounts(self, token: str) -> list[SepayBankAccount]:
         return [SepayBankAccount(xid=str(a["id"]), account_number=str(a.get("account_number") or ""),
                                  bank_short_name=a.get("bank_short_name") or "", bank_code=a.get("bank_code") or "",
-                                 holder=a.get("account_holder_name") or "",
-                                 active=str(a.get("active")) in ("1", "True", "true"))
+                                 holder=a.get("account_holder_name") or "", active=_true(a.get("active")),
+                                 va_only=_true(a.get("va_only")))
                 for a in self._pages(token, "/bank-accounts")]
+
+    def virtual_accounts(self, token: str, bank_account_xid: str) -> list[SepayVirtualAccount]:
+        return [SepayVirtualAccount(va=str(v.get("va") or ""), active=_true(v.get("active")), official=_true(v.get("official")))
+                for v in self._pages(token, f"/bank-accounts/{quote(bank_account_xid)}/va", size="per_page")
+                if v.get("va")]
 
     def webhooks(self, token: str) -> list[SepayWebhook]:
         return [SepayWebhook(id=str(w["id"]), url=w.get("webhook_url") or w.get("url") or "")
@@ -71,10 +80,10 @@ class SepayUserApi:
             "active": True,
         }
 
-    def _pages(self, token: str, path: str) -> list[dict]:
+    def _pages(self, token: str, path: str, size: str = "limit") -> list[dict]:
         items, page = [], 1
         while True:
-            data = self._call(token, "GET", f"{path}?{urlencode({'page': page, 'limit': 100})}")
+            data = self._call(token, "GET", f"{path}?{urlencode({'page': page, size: 100})}")
             items += data.get("data") or []
             p = (data.get("meta") or {}).get("pagination") or {}
             if not p.get("has_more") and p.get("current_page", 1) >= p.get("last_page", 1):

@@ -5,7 +5,8 @@ from zoneinfo import ZoneInfo
 
 from cryptography.fernet import Fernet
 
-from app.application.ports import AppConfig, Deps, SepayBankAccount, SepayError, SepayWebhook
+from app.application.ports import (AppConfig, Deps, SepayBankAccount, SepayError, SepayVirtualAccount,
+                                   SepayWebhook)
 from app.application.services import build_services
 from app.infrastructure.clock import SystemClock
 from app.infrastructure.crypto import FernetCipher
@@ -52,6 +53,7 @@ class FakeSepay:
     def __init__(self):
         self.accounts = [SepayBankAccount("acc-1", "101003630278", "VietinBank", "ICB", "TRAN LE HIEP", True)]
         self.hooks: dict[str, dict] = {}
+        self.vas: dict[str, list] = {}         # bank account xid -> [SepayVirtualAccount]
         self.calls: list[str] = []
         self.fail_update: str | None = None   # make update_webhook raise this kind once
 
@@ -62,6 +64,10 @@ class FakeSepay:
     def bank_accounts(self, token):
         self._auth(token); self.calls.append("accounts")
         return list(self.accounts)
+
+    def virtual_accounts(self, token, bank_account_xid):
+        self._auth(token); self.calls.append("vas")
+        return list(self.vas.get(bank_account_xid, []))
 
     def webhooks(self, token):
         self._auth(token); self.calls.append("webhooks")

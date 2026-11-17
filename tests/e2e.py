@@ -76,7 +76,7 @@ async def fake_sepay(request: web.Request):
     if path == "bank-accounts":
         return web.json_response({"status": "success", "data": [
             {"id": "acc-1", "account_number": "0123456789", "bank_short_name": "MBBank", "bank_code": "MB",
-             "account_holder_name": "NGUYEN VAN A", "active": "1"}], **page})
+             "account_holder_name": "NGUYEN VAN A", "active": "1", "va_only": False}], **page})
     if path == "webhooks" and method == "GET":
         return web.json_response({"status": "success", "data": [
             {"id": i, "webhook_url": h["url"]} for i, h in sepay_hooks.items()], **page})

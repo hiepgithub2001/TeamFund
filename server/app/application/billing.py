@@ -72,8 +72,8 @@ def create_intent(uow: UnitOfWork, d: Deps, team: Team, member_ids: list[int], p
     uow.commit()
     content = transfer_content(team.bank_name, code)
     return {"code": code, "content": content, "amount": amount,
-            "qr_url": d.qr.url(team.bank_name, team.bank_account, amount, content),
-            "bank_name": team.bank_name, "bank_account": team.bank_account, "bank_holder": team.bank_holder,
+            "qr_url": d.qr.url(team.bank_name, team.pay_to(), amount, content),
+            "bank_name": team.bank_name, "bank_account": team.pay_to(), "bank_holder": team.bank_holder,
             "members": intent.member_names, "expires_at": d.clock.fmt(intent.expires_at)}
 
 

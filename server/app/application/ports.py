@@ -167,6 +167,14 @@ class SepayBankAccount:
     bank_code: str
     holder: str
     active: bool
+    va_only: bool = False     # the bank reports only transfers to a VA, never to the main account number
+
+
+@dataclass(frozen=True)
+class SepayVirtualAccount:
+    va: str
+    active: bool
+    official: bool
 
 
 @dataclass(frozen=True)
@@ -187,6 +195,7 @@ class SepayWebhookSpec:
 class SepayApi(Protocol):
     """The owner's SePay account, reached with an API token they created in my.sepay.vn. Raises SepayError."""
     def bank_accounts(self, token: str) -> list[SepayBankAccount]: ...
+    def virtual_accounts(self, token: str, bank_account_xid: str) -> list[SepayVirtualAccount]: ...
     def webhooks(self, token: str) -> list[SepayWebhook]: ...
     def create_webhook(self, token: str, spec: SepayWebhookSpec) -> str: ...
     def update_webhook(self, token: str, webhook_id: str, spec: SepayWebhookSpec) -> None: ...

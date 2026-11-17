@@ -267,3 +267,37 @@ def test_web_pay_page(world):
 
     new_url = teams.web_link(tid, OWNER, reset=True)["url"]
     assert new_url != url and code(web.page, token) == "not_found"
+
+
+def test_va_only_bank_uses_the_virtual_account():
+    """BIDV personal: SePay never reports transfers to the main number, so the QR must use a VA."""
+    from app.application.ports import SepayBankAccount, SepayVirtualAccount
+
+    from .fakes import FakeSepay
+    sepay = FakeSepay()
+    sepay.accounts = [SepayBankAccount("bidv-1", "5101630799", "BIDV", "BIDV", "TRAN LE HIEP", True, va_only=True)]
+    svc, _, _ = make_services(datetime(2026, 11, 17, 10, 0), sepay=sepay)
+    tid = setup_team(svc)
+    teams = svc.teams
+    teams.set_bank(tid, OWNER, "BIDV", "5101630799", "tran le hiep")
+    teams.set_sepay_token(tid, OWNER, FakeSepay.TOKEN)
+    assert code(teams.sync_sepay, tid, OWNER) == "sepay_va_missing" and not sepay.hooks
+
+    sepay.vas["bidv-1"] = [SepayVirtualAccount("OLD1", False, True), SepayVirtualAccount("96247TLH2203", True, True)]
+    r = teams.sync_sepay(tid, OWNER)
+    assert r["va"] == "96247TLH2203" and r["account"] == "5101630799"
+    info = teams.team_info(tid, OWNER)
+    assert info["pay_account"] == "96247TLH2203" and info["bank_account"] == "5101630799"
+
+    teams.update_settings(tid, OWNER, fee=2000)
+    m = svc.members.add_members(tid, OWNER, [{"name": "Khoa"}])[0]
+    svc.money.unpaid(tid)  # /start: makes this month's bills
+    intent = svc.money.create_intent(tid, MEMBER, [m["id"]])
+    assert intent["bank_account"] == "96247TLH2203" and "acc=96247TLH2203" in intent["qr_url"]
+    assert intent["content"].startswith("TF")  # BIDV needs no keyword
+    token = teams.web_link(tid, OWNER)["url"].rstrip("/").rsplit("/", 1)[1]
+    assert svc.web.page(token)["bank_account"] == "96247TLH2203"
+
+    # a new bank account drops the old VA until /sepay finds the new account's
+    teams.set_bank(tid, OWNER, "VietinBank", "101003630278", "tran le hiep")
+    assert teams.team_info(tid, OWNER)["pay_account"] == "101003630278"

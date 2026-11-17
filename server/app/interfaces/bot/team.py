@@ -472,8 +472,10 @@ async def cmd_bank(message: Message, entry, lang):
     if not s["bank_account"]:
         await message.answer(t(lang, "bank.not_set"))
         return
-    text = t(lang, "bank.text", bank=esc(s["bank_name"]), account=esc(s["bank_account"]),
+    text = t(lang, "bank.text", bank=esc(s["bank_name"]), account=esc(s["pay_account"]),
              holder=esc(s["bank_holder"]))
+    if s["pay_account"] != s["bank_account"]:
+        text += "\n" + t(lang, "bank.va_note", account=esc(s["bank_account"]))
     if is_private(message) and s["role"] in ("owner", "manager"):
         text += "\n" + t(lang, "bank.sepay_on" if s["sepay_connected"] else "bank.sepay_off")
     await message.answer(text)
@@ -658,6 +660,8 @@ async def cmd_settings(message: Message, entry, lang):
     none = t(lang, "settings.not_set")
     bank = (f"{esc(s['bank_name'])} · {esc(s['bank_account'])} · {esc(s['bank_holder'])}"
             if s["bank_account"] else none)
+    if s["bank_account"] and s["pay_account"] != s["bank_account"]:
+        bank += f" · VA {esc(s['pay_account'])}"
     await message.answer(t(lang, "settings.text", team=esc(s["name"]), fee=money(s["fee"], lang) if s["fee"] else none,
                            due=s["due_day"], bank=bank, sepay="✅" if s["sepay_connected"] else none,
                            group=t(lang, "settings.linked") if s["group_chat_id"] else none,
@@ -775,9 +779,11 @@ async def sync_sepay(msg: Message, entry, lang, actor: int):
     except DomainError as e:
         await wait.edit_text(error_text(lang, e), reply_markup=buttons)
         return
-    await wait.edit_text(t(lang, "sepay.synced_new" if r["created"] else "sepay.synced_updated",
-                           bank=esc(r["bank"]), account=esc(r["account"]), holder=esc(r["holder"]),
-                           url=esc(r["url"])), reply_markup=buttons)
+    text = t(lang, "sepay.synced_new" if r["created"] else "sepay.synced_updated", bank=esc(r["bank"]),
+             account=esc(r["account"]), holder=esc(r["holder"]), url=esc(r["url"]))
+    if r["va"]:
+        text += "\n\n" + t(lang, "sepay.va_used", va=esc(r["va"]), bank=esc(r["bank"]))
+    await wait.edit_text(text, reply_markup=buttons)
 
 
 @router.callback_query(F.data.in_({"s:sync", "s:tok", "s:man"}))

@@ -679,7 +679,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
     </tbody>
   </table>
   </div>
-  <p>A bank missing from the table doesn't send webhooks. For an account already linked, SePay's bank-account API answers directly and overrules the table: <code>va_only: true</code> means VA only. Today Team Fund handles the <code>SEVQR</code> keyword (<code>domain/rules.py</code> <code>transfer_content</code>) but always puts the main account number in the QR, so the "VA number" rows need work before a team on those banks can use it. Planned: <code>/sepay</code> reads <code>va_only</code>, and for VA-only accounts uses the account's VA in the QR, <code>/bank</code> and the webhook, or asks the owner to create one first.</p>
+  <p>A bank missing from the table doesn't send webhooks. For an account already linked, SePay's bank-account API answers directly and overrules the table: <code>va_only: true</code> means VA only. Team Fund handles both cases. The <code>SEVQR</code> keyword comes from <code>domain/rules.py</code> <code>transfer_content</code>. For VA-only accounts, <code>/sepay</code> reads <code>va_only</code>, takes the account's active official VA from SePay (<code>GET /v2/bank-accounts/{xid}/va</code>) and stores it as the team's <code>pay_account</code>; the QR, its caption, <code>/bank</code> and the pay page then show the VA, and money sent there lands in the same account. With no VA yet, <code>/sepay</code> stops and asks the owner to create one in my.sepay.vn. <code>/setbank</code> clears the VA until the next <code>/sepay</code>.</p>
 </section>
 
 <section>

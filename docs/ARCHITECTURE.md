@@ -136,7 +136,7 @@ SePay only confirms money it can see, and what it can see depends on the bank an
 | TPBank | All | Yes | No | Main account |
 | Shinhan Bank | Doanh nghiệp | Yes | Yes | Main account |
 
-A bank missing from the table doesn't send webhooks. For an account already linked, SePay's bank-account API answers directly and overrules the table: `va_only: true` means VA only. Today Team Fund handles the `SEVQR` keyword (`domain/rules.py` `transfer_content`) but always puts the main account number in the QR, so the "VA number" rows need work before a team on those banks can use it. Planned: `/sepay` reads `va_only`, and for VA-only accounts uses the account's VA in the QR, `/bank` and the webhook, or asks the owner to create one first.
+A bank missing from the table doesn't send webhooks. For an account already linked, SePay's bank-account API answers directly and overrules the table: `va_only: true` means VA only. Team Fund handles both cases. The `SEVQR` keyword comes from `domain/rules.py` `transfer_content`. For VA-only accounts, `/sepay` reads `va_only`, takes the account's active official VA from SePay (`GET /v2/bank-accounts/{xid}/va`) and stores it as the team's `pay_account`; the QR, its caption, `/bank` and the pay page then show the VA, and money sent there lands in the same account. With no VA yet, `/sepay` stops and asks the owner to create one in my.sepay.vn. `/setbank` clears the VA until the next `/sepay`.
 
 ## Roles in a team bot
 

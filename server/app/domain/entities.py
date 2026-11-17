@@ -54,6 +54,7 @@ class Team:
     sepay_token_enc: str | None = None     # owner's SePay API token, encrypted; lets us manage the webhook
     sepay_webhook_id: str | None = None    # the team's one webhook in that SePay account
     public_token: str | None = None        # secret part of the team's pay page URL (/p/<token>/)
+    pay_account: str | None = None         # VA to pay into, for banks that only report transfers to a VA
     last_billed_period: str | None = None
     active: bool = True
     created_at: datetime | None = None
@@ -61,6 +62,10 @@ class Team:
 
     def has_bank(self) -> bool:
         return bool(self.bank_name and self.bank_account)
+
+    def pay_to(self) -> str | None:
+        """The account number payers transfer to: the VA when the bank needs one, else the account itself."""
+        return self.pay_account or self.bank_account
 
 
 @dataclass(eq=False)

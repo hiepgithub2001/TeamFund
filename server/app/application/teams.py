@@ -50,6 +50,7 @@ class TeamUseCases:
             t = get_team(uow, team_id)
             return {"team_id": t.id, "name": t.name, "bot_username": t.bot_username, "fee": t.fee,
                     "due_day": t.due_day, "lang": t.lang, "bank_name": t.bank_name, "bank_account": t.bank_account,
+                    "pay_account": t.pay_to(),
                     "bank_holder": t.bank_holder, "sepay_connected": bool(t.sepay_key_hash),
                     "sepay_url": self._webhook_url(t), "group_chat_id": t.group_chat_id,
                     "role": role_of(uow, t.id, actor)}
@@ -84,6 +85,7 @@ class TeamUseCases:
                 raise invalid()
             before = {"bank_name": team.bank_name, "bank_account": team.bank_account, "bank_holder": team.bank_holder}
             team.bank_name, team.bank_account, team.bank_holder = bank_name, bank_account, bank_holder
+            team.pay_account = None  # a VA belongs to the old account; /sepay finds the new one
             after = {"bank_name": bank_name, "bank_account": bank_account, "bank_holder": bank_holder}
             audit(uow, self.d.clock, team.id, actor, "team.bank", before=before, after=after)
             uow.commit()
@@ -131,6 +133,13 @@ class TeamUseCases:
                                None)
                 if not account:
                     raise DomainError(404, "sepay_bank_missing", bank=team.bank_name, account=team.bank_account)
+                pay_account = None
+                if account.va_only:  # e.g. BIDV personal: SePay never sees transfers to the main number
+                    vas = [v.va for v in api.virtual_accounts(token, account.xid) if v.active and v.official]
+                    if not vas:
+                        raise DomainError(400, "sepay_va_missing", bank=account.bank_short_name,
+                                          account=account.account_number)
+                    pay_account = team.pay_account if team.pay_account in vas else vas[0]
                 key = secrets.token_urlsafe(24)
                 spec = SepayWebhookSpec(name=f"Team Fund · {team.name}"[:100], url=url,
                                         bank_account_xid=account.xid, api_key=key)
@@ -157,11 +166,12 @@ class TeamUseCases:
             except SepayError as e:
                 raise _sepay_failed(e) from e
             team.sepay_webhook_id, team.sepay_key_hash = webhook_id, hash_secret(key)
+            team.pay_account = pay_account
             audit(uow, self.d.clock, team.id, actor, "team.sepay_webhook",
                   after={"webhook_id": webhook_id, "account": team.bank_account, "created": created})
             uow.commit()
             return {"webhook_id": webhook_id, "created": created, "url": url, "bank": account.bank_short_name,
-                    "account": account.account_number, "holder": account.holder}
+                    "account": account.account_number, "holder": account.holder, "va": pay_account}
 
     def new_sepay_key(self, team_id: int, actor: int) -> dict:
         with self.d.uow() as uow:
