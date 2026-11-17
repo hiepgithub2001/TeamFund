@@ -328,7 +328,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
     <li><span><b>Create the team bot in @BotFather</b> with <code>/newbot</code> and copy the token.</span></li>
     <li><span><b>Register it with the master bot.</b> Send <code>/newteam</code> and paste the token. The server checks it, creates the team, sets the webhook to <code>/tg/{botId}</code>, and makes the sender the owner.</span></li>
     <li><span><b>Set the bank account</b> in the team bot with <code>/setbank</code>. Only the owner can do this. Anyone can check it with <code>/bank</code>.</span></li>
-    <li><span><b>Connect SePay.</b> Link the team's bank account in my.sepay.vn, create an API token there (Cấu hình công ty → API Access), then send <code>/sepay</code> in the team bot and paste the token. The bot creates the team's webhook in SePay itself. After changing the account with <code>/setbank</code>, send <code>/sepay</code> again and the same webhook is pointed at the new account.</span></li>
+    <li><span><b>Connect SePay.</b> Link the team's bank account in my.sepay.vn, create an API token there (Cấu hình công ty → API Access), then send <code>/sepaytoken &lt;token&gt;</code> in the team bot (or <code>/sepay</code> and paste it as a reply). The bot creates the team's webhook in SePay itself. After changing the account with <code>/setbank</code>, send <code>/sepay</code> again and the same webhook is pointed at the new account.</span></li>
     <li><span><b>Add the bot to the team group</b> and send <code>/linkgroup</code> there.</span></li>
     <li><span><b>Add members and the fee</b> with <code>/add</code>, <code>/setfee</code> and <code>/setdue</code>.</span></li>
   </ol>
@@ -611,7 +611,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
   <table>
     <thead><tr><th>Role</th><th>Who</th><th>Can do</th></tr></thead>
     <tbody>
-      <tr><td>Owner</td><td>Whoever registered the bot with <code>/newteam</code></td><td>Everything a manager can, plus <code>/setbank</code>, approve or remove managers, <code>/transferowner</code>, <code>/log</code></td></tr>
+      <tr><td>Owner</td><td>Whoever registered the bot with <code>/newteam</code></td><td>Everything a manager can, plus <code>/setbank</code>, <code>/sepay</code>, <code>/sepaytoken</code>, approve or remove managers, <code>/transferowner</code>, <code>/log</code></td></tr>
       <tr><td>Manager</td><td>Approved by the owner</td><td><code>/add</code> <code>/edit</code> <code>/remove</code> members, <code>/setfee</code> <code>/setdue</code>, <code>/markpaid</code>, <code>/expense</code>, <code>/charge</code> <code>/split</code>, <code>/remind</code>, assign unmatched payments, <code>/export</code></td></tr>
       <tr><td>Everyone</td><td>Anyone who opens the bot</td><td><code>/start</code> and pay, <code>/status</code>, <code>/fund</code>, <code>/history</code>, <code>/bank</code> (the team account; managers also see whether SePay is connected), <code>/lang</code>, <code>/requestmanager</code></td></tr>
     </tbody>
@@ -978,7 +978,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <tr><td>MASTER_WEBHOOK_SECRET</td><td><code>.env</code></td><td>Telegram sends it on every master bot update; team bots each get their own, stored in the database</td></tr>
       <tr><td>POSTGRES_PASSWORD</td><td><code>.env</code></td><td>Only used inside the Docker network</td></tr>
       <tr><td>SePay webhook keys</td><td>database (SHA-256 hash)</td><td>One per team. <code>/sepay</code> makes a new one and gives it straight to SePay; the manual fallback shows it once.</td></tr>
-      <tr><td>SePay API tokens</td><td>database (Fernet, <code>TOKEN_ENC_KEY</code>)</td><td>One per team, pasted by the owner into <code>/sepay</code>; the message is deleted. Lets the server manage only that team's webhook. Revoke it in my.sepay.vn → API Access.</td></tr>
+      <tr><td>SePay API tokens</td><td>database (Fernet, <code>TOKEN_ENC_KEY</code>)</td><td>One per team, sent by the owner with <code>/sepaytoken &lt;token&gt;</code> (or as a reply to <code>/sepay</code>); the message is deleted. Lets the server manage only that team's webhook. Revoke it in my.sepay.vn → API Access.</td></tr>
       <tr><td>All team data</td><td>volume <code>db_data</code></td><td>Backed up daily by <code>scripts/backup.sh</code> to <code>~/backups</code>, kept 14 days</td></tr>
       <tr><td>TLS certificate</td><td>volume <code>caddy_data</code></td><td>Renewed automatically by Caddy</td></tr>
       <tr><td>GitHub SSH key</td><td><code>~/.ssh/id_ed25519_github</code></td><td>Lets this VPS push and pull the repo; remove it from GitHub to revoke</td></tr>

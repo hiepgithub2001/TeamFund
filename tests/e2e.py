@@ -295,9 +295,12 @@ async def main():
         await wait_sent(to(OWNER, "API Access"), "asks for SePay token")
         await T(text_update(OWNER, "W" * 40))
         await wait_sent(to(OWNER, "didn't accept the API token"), "bad SePay token refused")
-        await T(text_update(OWNER, "/sepay"))
-        await T(text_update(OWNER, SEPAY_TOKEN))
+        await T(text_update(OWNER, "/sepaytoken"))
+        await wait_sent(lambda c: to(OWNER, "/sepaytoken YOUR_TOKEN")(c), "sepaytoken without a token explains")
+        deletes = sum(c["method"] == "deleteMessage" for c in calls)
+        await T(text_update(OWNER, f"/sepaytoken {SEPAY_TOKEN}"))
         await wait_sent(to(OWNER, "SePay connected"), "webhook created")
+        assert sum(c["method"] == "deleteMessage" for c in calls) == deletes + 1, "token message deleted"
         assert len(sepay_hooks) == 1, sepay_hooks
         hook = sepay_hooks["wh-1"]
         assert hook["url"] == "https://teamfund.test/sepay/1" and hook["bank_account_xid"] == "acc-1"

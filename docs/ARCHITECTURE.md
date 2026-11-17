@@ -51,7 +51,7 @@ _Control flows outward and back (a webhook calls a use case, the use case saves 
 2. **Create the team bot in @BotFather** with `/newbot` and copy the token.
 3. **Register it with the master bot.** Send `/newteam` and paste the token. The server checks it, creates the team, sets the webhook to `/tg/{botId}`, and makes the sender the owner.
 4. **Set the bank account** in the team bot with `/setbank`. Only the owner can do this. Anyone can check it with `/bank`.
-5. **Connect SePay.** Link the team's bank account in my.sepay.vn, create an API token there (Cấu hình công ty → API Access), then send `/sepay` in the team bot and paste the token. The bot creates the team's webhook in SePay itself. After changing the account with `/setbank`, send `/sepay` again and the same webhook is pointed at the new account.
+5. **Connect SePay.** Link the team's bank account in my.sepay.vn, create an API token there (Cấu hình công ty → API Access), then send `/sepaytoken <token>` in the team bot (or `/sepay` and paste it as a reply). The bot creates the team's webhook in SePay itself. After changing the account with `/setbank`, send `/sepay` again and the same webhook is pointed at the new account.
 6. **Add the bot to the team group** and send `/linkgroup` there.
 7. **Add members and the fee** with `/add`, `/setfee` and `/setdue`.
 
@@ -125,7 +125,7 @@ Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID
 
 | Role | Who | Can do |
 |---|---|---|
-| Owner | Whoever registered the bot with `/newteam` | Everything a manager can, plus `/setbank`, approve or remove managers, `/transferowner`, `/log` |
+| Owner | Whoever registered the bot with `/newteam` | Everything a manager can, plus `/setbank`, `/sepay`, `/sepaytoken`, approve or remove managers, `/transferowner`, `/log` |
 | Manager | Approved by the owner | `/add` `/edit` `/remove` members, `/setfee` `/setdue`, `/markpaid`, `/expense`, `/charge` `/split`, `/remind`, assign unmatched payments, `/export` |
 | Everyone | Anyone who opens the bot | `/start` and pay, `/status`, `/fund`, `/history`, `/bank` (the team account; managers also see whether SePay is connected), `/lang`, `/requestmanager` |
 
@@ -179,7 +179,7 @@ _Pushing to GitHub doesn't deploy anything by itself; running `scripts/deploy.sh
 | MASTER_WEBHOOK_SECRET | `.env` | Telegram sends it on every master bot update; team bots each get their own, stored in the database |
 | POSTGRES_PASSWORD | `.env` | Only used inside the Docker network |
 | SePay webhook keys | database (SHA-256 hash) | One per team. `/sepay` makes a new one and gives it straight to SePay; the manual fallback shows it once. |
-| SePay API tokens | database (Fernet, `TOKEN_ENC_KEY`) | One per team, pasted by the owner into `/sepay`; the message is deleted. Lets the server manage only that team's webhook. Revoke it in my.sepay.vn → API Access. |
+| SePay API tokens | database (Fernet, `TOKEN_ENC_KEY`) | One per team, sent by the owner with `/sepaytoken <token>` (or as a reply to `/sepay`); the message is deleted. Lets the server manage only that team's webhook. Revoke it in my.sepay.vn → API Access. |
 | All team data | volume `db_data` | Backed up daily by `scripts/backup.sh` to `~/backups`, kept 14 days |
 | TLS certificate | volume `caddy_data` | Renewed automatically by Caddy |
 | GitHub SSH key | `~/.ssh/id_ed25519_github` | Lets this VPS push and pull the repo; remove it from GitHub to revoke |

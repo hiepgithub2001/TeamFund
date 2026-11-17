@@ -720,6 +720,23 @@ async def cmd_sepay(message: Message, entry, lang):
         await sync_sepay(message, entry, lang, message.from_user.id)
 
 
+@router.message(Command("sepaytoken"))
+async def cmd_sepaytoken(message: Message, command: CommandObject, entry, lang):
+    """/sepaytoken <SePay API token>: save the owner's token and set up the webhook. No token: show how to get one."""
+    token = (command.args or "").strip()
+    if token:
+        try:  # remove it from the chat first, whoever sent it and wherever
+            await message.delete()
+        except Exception:
+            pass
+    if not await allow(message, entry, lang, "owner"):
+        return
+    if not token:
+        await ask_sepay_token(message, entry, lang)
+        return
+    await save_sepay_token(message, entry, lang, token, delete=False)
+
+
 async def ask_sepay_token(ev, entry, lang):
     msg = ev.message if isinstance(ev, CallbackQuery) else ev
     set_state(input_key(msg.bot.id, msg.chat.id), {"type": "sepay_token"}, 600)
@@ -757,11 +774,12 @@ async def on_sepay_button(cq: CallbackQuery, entry, lang):
                                 reply_markup=kb([(t(lang, "btn.gen_key"), "s:gen")]))
 
 
-async def save_sepay_token(message: Message, entry, lang, text: str):
-    try:  # the token gives access to the SePay account: don't leave it in the chat
-        await message.delete()
-    except Exception:
-        pass
+async def save_sepay_token(message: Message, entry, lang, text: str, delete: bool = True):
+    if delete:
+        try:  # the token gives access to the SePay account: don't leave it in the chat
+            await message.delete()
+        except Exception:
+            pass
     r = await call(S.teams.set_sepay_token, tid(entry), message.from_user.id, text)
     await message.answer(t(lang, "sepay.token_saved", n=r["bank_accounts"]))
     await sync_sepay(message, entry, lang, message.from_user.id)
