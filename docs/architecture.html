@@ -79,6 +79,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
 .lb.m{fill:var(--money)}
 .lb.z{fill:var(--tg)}
 .ln{fill:none;stroke:currentColor;stroke-width:1.4}
+.ln.dash{stroke-dasharray:3 3;opacity:.6}
 .ln.m{stroke:var(--money);stroke-width:2}
 .ln.d{stroke-dasharray:5 4}
 .life{stroke:var(--line);stroke-width:1.2;stroke-dasharray:4 4}
@@ -182,8 +183,8 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
 
       <rect class="box" x="830" y="145" width="160" height="60" rx="6"/>
       <text class="t" x="910" y="166" text-anchor="middle">interfaces/scheduler</text>
-      <text class="s" x="910" y="183" text-anchor="middle">bills, reminders,</text>
-      <text class="s" x="910" y="198" text-anchor="middle">month-end report</text>
+      <text class="s" x="910" y="183" text-anchor="middle">bills, late fees,</text>
+      <text class="s" x="910" y="198" text-anchor="middle">reminders, report</text>
 
       <rect class="box hot" x="655" y="235" width="335" height="74" rx="6"/>
       <text class="t" x="822" y="256" text-anchor="middle">application/ use cases + domain/</text>
@@ -745,6 +746,48 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
 
 
 <section>
+  <h2>Scheduled jobs</h2>
+  <p>The app runs its own scheduler: APScheduler inside the FastAPI process, started by <code>main.py</code> through <code>interfaces/scheduler.py</code>. It only says <i>when</i>; each job is a use case in <code>application/jobs.py</code> and runs in a worker thread, so the bots and webhooks never wait for it. A failure for one team is logged and the others carry on.</p>
+  <figure>
+    <div class="frame">
+    <svg viewBox="0 0 1010 240" role="img" aria-label="One day of scheduled jobs in team time. Every hour at minute 5, open_month creates the month's bills and announces each package on its announcement day; every hour at minute 30, clean_up expires old QR codes and manager requests. Once a day: 00:05 late_fees adds the new day to overdue bills' late fees, 09:00 remind sends one reminder to followers when a package is due soon or overdue, 20:00 month_report sends the month report on the last day of the month. When the server starts, open_month and late_fees run once right away.">
+      <line class="life" x1="150" y1="40" x2="150" y2="222"/><text class="lb" x="150" y="32" text-anchor="middle">00:00</text><line class="life" x1="255" y1="40" x2="255" y2="222"/><text class="lb" x="255" y="32" text-anchor="middle">03:00</text><line class="life" x1="360" y1="40" x2="360" y2="222"/><text class="lb" x="360" y="32" text-anchor="middle">06:00</text><line class="life" x1="465" y1="40" x2="465" y2="222"/><text class="lb" x="465" y="32" text-anchor="middle">09:00</text><line class="life" x1="570" y1="40" x2="570" y2="222"/><text class="lb" x="570" y="32" text-anchor="middle">12:00</text><line class="life" x1="675" y1="40" x2="675" y2="222"/><text class="lb" x="675" y="32" text-anchor="middle">15:00</text><line class="life" x1="780" y1="40" x2="780" y2="222"/><text class="lb" x="780" y="32" text-anchor="middle">18:00</text><line class="life" x1="885" y1="40" x2="885" y2="222"/><text class="lb" x="885" y="32" text-anchor="middle">21:00</text><line class="life" x1="990" y1="40" x2="990" y2="222"/><text class="lb" x="990" y="32" text-anchor="middle">24:00</text>
+      <text class="t" x="20" y="72">Every hour</text>
+      <text class="s" x="20" y="88">:05 open_month</text>
+      <text class="s" x="20" y="102">:30 clean_up (dashed)</text>
+      <line class="ln" x1="152.9" y1="64" x2="152.9" y2="84"/><line class="ln" x1="187.9" y1="64" x2="187.9" y2="84"/><line class="ln" x1="222.9" y1="64" x2="222.9" y2="84"/><line class="ln" x1="257.9" y1="64" x2="257.9" y2="84"/><line class="ln" x1="292.9" y1="64" x2="292.9" y2="84"/><line class="ln" x1="327.9" y1="64" x2="327.9" y2="84"/><line class="ln" x1="362.9" y1="64" x2="362.9" y2="84"/><line class="ln" x1="397.9" y1="64" x2="397.9" y2="84"/><line class="ln" x1="432.9" y1="64" x2="432.9" y2="84"/><line class="ln" x1="467.9" y1="64" x2="467.9" y2="84"/><line class="ln" x1="502.9" y1="64" x2="502.9" y2="84"/><line class="ln" x1="537.9" y1="64" x2="537.9" y2="84"/><line class="ln" x1="572.9" y1="64" x2="572.9" y2="84"/><line class="ln" x1="607.9" y1="64" x2="607.9" y2="84"/><line class="ln" x1="642.9" y1="64" x2="642.9" y2="84"/><line class="ln" x1="677.9" y1="64" x2="677.9" y2="84"/><line class="ln" x1="712.9" y1="64" x2="712.9" y2="84"/><line class="ln" x1="747.9" y1="64" x2="747.9" y2="84"/><line class="ln" x1="782.9" y1="64" x2="782.9" y2="84"/><line class="ln" x1="817.9" y1="64" x2="817.9" y2="84"/><line class="ln" x1="852.9" y1="64" x2="852.9" y2="84"/><line class="ln" x1="887.9" y1="64" x2="887.9" y2="84"/><line class="ln" x1="922.9" y1="64" x2="922.9" y2="84"/><line class="ln" x1="957.9" y1="64" x2="957.9" y2="84"/>
+      <line class="ln dash" x1="167.5" y1="64" x2="167.5" y2="84"/><line class="ln dash" x1="202.5" y1="64" x2="202.5" y2="84"/><line class="ln dash" x1="237.5" y1="64" x2="237.5" y2="84"/><line class="ln dash" x1="272.5" y1="64" x2="272.5" y2="84"/><line class="ln dash" x1="307.5" y1="64" x2="307.5" y2="84"/><line class="ln dash" x1="342.5" y1="64" x2="342.5" y2="84"/><line class="ln dash" x1="377.5" y1="64" x2="377.5" y2="84"/><line class="ln dash" x1="412.5" y1="64" x2="412.5" y2="84"/><line class="ln dash" x1="447.5" y1="64" x2="447.5" y2="84"/><line class="ln dash" x1="482.5" y1="64" x2="482.5" y2="84"/><line class="ln dash" x1="517.5" y1="64" x2="517.5" y2="84"/><line class="ln dash" x1="552.5" y1="64" x2="552.5" y2="84"/><line class="ln dash" x1="587.5" y1="64" x2="587.5" y2="84"/><line class="ln dash" x1="622.5" y1="64" x2="622.5" y2="84"/><line class="ln dash" x1="657.5" y1="64" x2="657.5" y2="84"/><line class="ln dash" x1="692.5" y1="64" x2="692.5" y2="84"/><line class="ln dash" x1="727.5" y1="64" x2="727.5" y2="84"/><line class="ln dash" x1="762.5" y1="64" x2="762.5" y2="84"/><line class="ln dash" x1="797.5" y1="64" x2="797.5" y2="84"/><line class="ln dash" x1="832.5" y1="64" x2="832.5" y2="84"/><line class="ln dash" x1="867.5" y1="64" x2="867.5" y2="84"/><line class="ln dash" x1="902.5" y1="64" x2="902.5" y2="84"/><line class="ln dash" x1="937.5" y1="64" x2="937.5" y2="84"/><line class="ln dash" x1="972.5" y1="64" x2="972.5" y2="84"/>
+      <text class="t" x="20" y="146">Every day</text>
+      <circle class="box mo" cx="152.9" cy="140" r="7"/><text class="t" x="164.9" y="144">late_fees</text><text class="s" x="164.9" y="159">+1 day of fines</text>
+      <circle class="box mo" cx="465.0" cy="140" r="7"/><text class="t" x="477.0" y="144">remind</text><text class="s" x="477.0" y="159">3 days before, on, every 3 days after</text>
+      <circle class="box mo" cx="850.0" cy="180" r="7"/><text class="t" x="862.0" y="184">month_report</text><text class="s" x="862.0" y="199">last day of the month only</text>
+      <text class="t" x="20" y="214">On start</text>
+      <text class="s" x="162" y="214">open_month and late_fees run once, so a restart never skips a day or a month</text>
+    </svg>
+    </div>
+    <figcaption>All times are team time (<code>TEAM_TIMEZONE</code>, Asia/Ho_Chi_Minh). The jobs run inside the app process: there's no system crontab for them, so a deploy or restart carries them along.</figcaption>
+  </figure>
+  <div class="tbl">
+  <table>
+    <thead><tr><th>Job</th><th>When</th><th>What it does</th><th>Never twice because</th></tr></thead>
+    <tbody>
+      <tr><td><code>open_month</code></td><td>every hour at :05, and once at start</td><td>Creates the fee bills each active member needs for this month (standard periods: a quarter's bill opens in Jan/Apr/Jul/Oct). On each package's announcement day, tells the followers its new bills, due date and late fee.</td><td>Bills: one per member per period (<code>monthly_key</code>). Posts: a <code>job_log</code> key per team, package and period.</td></tr>
+      <tr><td><code>late_fees</code></td><td>00:05 every day, and once at start</td><td>Sets each overdue fee bill's "Phạt trễ N ngày" line to the days past its real due date × its package's rate. Paid bills stop; paused members freeze; a rate of 0 waives what's left. Also runs right after a package's deadline or late fee changes in <code>/plans</code>.</td><td>It recomputes from dates, so running it again the same day changes nothing.</td></tr>
+      <tr><td><code>remind</code></td><td>09:00 every day</td><td>If any package is 3 days before its due date, on it, or a multiple of 3 days past it (and announced), sends followers one message listing everyone who still owes, with a pay button.</td><td><code>job_log</code> key per team per day.</td></tr>
+      <tr><td><code>month_report</code></td><td>20:00, acts only on the last day of the month</td><td>Sends followers the month's money in and out, the balance, how many paid and who still owes.</td><td><code>job_log</code> key per team per month.</td></tr>
+      <tr><td><code>clean_up</code></td><td>every hour at :30</td><td>Expires QR codes older than 24 hours and manager requests older than 7 days.</td><td>Only changes what's still pending.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <ul class="rules">
+    <li>Nothing about fines changes on reads: opening the bot or the pay page shows what the last <code>late_fees</code> run set. A QR made one day and paid after the next run is accepted at the QR's amount.</li>
+    <li>Only one app process runs the scheduler (one uvicorn worker). <code>RUN_JOBS=0</code> turns it off, which the tests use; they call the jobs directly with a fixed clock.</li>
+    <li>Backups are the one thing scheduled outside the app: <code>scripts/backup.sh</code> from the host's crontab (see First deploy).</li>
+  </ul>
+</section>
+
+
+<section>
   <h2>Roles in a team bot</h2>
   <p>Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID comes with every message and button tap and can't be faked, so the use cases check it before every manager action.</p>
   <div class="tbl">
@@ -916,7 +959,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <rect class="box in" x="956" y="204" width="168" height="62" rx="6"/>
       <text class="t" x="1040" y="224" text-anchor="middle">interfaces/scheduler</text>
       <text class="s" x="1040" y="241" text-anchor="middle">APScheduler in-process</text>
-      <text class="s" x="1040" y="256" text-anchor="middle">:05 bills · 09:00 · 20:00</text>
+      <text class="s" x="1040" y="256" text-anchor="middle">00:05 · :05 · :30 · 09:00 · 20:00</text>
       <rect class="box hot" x="776" y="280" width="348" height="62" rx="6"/>
       <text class="t" x="950" y="300" text-anchor="middle">application/ + domain/</text>
       <text class="s" x="950" y="317" text-anchor="middle">use cases and ports · entities and rules</text>

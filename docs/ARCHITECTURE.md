@@ -182,6 +182,26 @@ Team bots don't work in groups. Everyone who opens a team bot privately **follow
 - Not undoable, so never offered: anything about the bank, SePay, managers, the owner, the pay page link, and SePay payments themselves (the money really arrived). The undo itself is logged in `/log` (as `undo`) and can't be undone; undone actions show ↩️ there.
 - A manager sees and undoes only their own actions; the owner can undo anyone's.
 
+## Scheduled jobs
+
+The app runs its own scheduler: APScheduler inside the FastAPI process, started by `main.py` through `interfaces/scheduler.py`. It only says when; each job is a use case in `application/jobs.py` and runs in a worker thread, so the bots and webhooks never wait for it. A failure for one team is logged and the others carry on.
+
+![One day of scheduled jobs in team time. Every hour at minute 5, open_month creates the month's bills and announces each ](diagrams/09-scheduled-jobs.svg)
+
+_All times are team time (`TEAM_TIMEZONE`, Asia/Ho_Chi_Minh). The jobs run inside the app process: there's no system crontab for them, so a deploy or restart carries them along._
+
+| Job | When | What it does | Never twice because |
+|---|---|---|---|
+| `open_month` | every hour at :05, and once at start | Creates the fee bills each active member needs for this month (standard periods: a quarter's bill opens in Jan/Apr/Jul/Oct). On each package's announcement day, tells the followers its new bills, due date and late fee. | Bills: one per member per period (`monthly_key`). Posts: a `job_log` key per team, package and period. |
+| `late_fees` | 00:05 every day, and once at start | Sets each overdue fee bill's "Phạt trễ N ngày" line to the days past its real due date × its package's rate. Paid bills stop; paused members freeze; a rate of 0 waives what's left. Also runs right after a package's deadline or late fee changes in `/plans`. | It recomputes from dates, so running it again the same day changes nothing. |
+| `remind` | 09:00 every day | If any package is 3 days before its due date, on it, or a multiple of 3 days past it (and announced), sends followers one message listing everyone who still owes, with a pay button. | `job_log` key per team per day. |
+| `month_report` | 20:00, acts only on the last day of the month | Sends followers the month's money in and out, the balance, how many paid and who still owes. | `job_log` key per team per month. |
+| `clean_up` | every hour at :30 | Expires QR codes older than 24 hours and manager requests older than 7 days. | Only changes what's still pending. |
+
+- Nothing about fines changes on reads: opening the bot or the pay page shows what the last `late_fees` run set. A QR made one day and paid after the next run is accepted at the QR's amount.
+- Only one app process runs the scheduler (one uvicorn worker). `RUN_JOBS=0` turns it off, which the tests use; they call the jobs directly with a fixed clock.
+- Backups are the one thing scheduled outside the app: `scripts/backup.sh` from the host's crontab (see First deploy).
+
 ## Roles in a team bot
 
 Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID comes with every message and button tap and can't be faked, so the use cases check it before every manager action.
@@ -194,7 +214,7 @@ Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID
 
 ### Becoming a manager: request and approve
 
-![Sequence: a person sends /requestmanager to the team bot, a use case records the request and the bot sends the owner a c](diagrams/09-roles-in-a-team-bot.svg)
+![Sequence: a person sends /requestmanager to the team bot, a use case records the request and the bot sends the owner a c](diagrams/10-roles-in-a-team-bot.svg)
 
 _The role check in step 7 runs on the server, so a forwarded Approve button does nothing for anyone but the owner. Requests that get no answer expire after 7 days._
 
@@ -208,7 +228,7 @@ _The role check in step 7 runs on the server, so a forwarded Approve button does
 
 Everything runs on the one VPS with Docker Compose. Only port 443 is added to the internet. The services that were already on the server (nginx on 80, the app on 8000, the host Postgres, Tailscale) are left alone.
 
-![Deployment: the sslip.io hostname resolves to 103.90.225.28. Telegram, SePay and Let's Encrypt reach port 443, where Doc](diagrams/10-deployment-on-the-vps.svg)
+![Deployment: the sslip.io hostname resolves to 103.90.225.28. Telegram, SePay and Let's Encrypt reach port 443, where Doc](diagrams/11-deployment-on-the-vps.svg)
 
 Legend: Telegram traffic · Money path · Other traffic, mounts, builds · Already on the server, not part of Team Fund
 
@@ -218,7 +238,7 @@ _Requests from Telegram, SePay and Let's Encrypt arrive on port 443 and Docker f
 
 The code goes to GitHub first, then the VPS pulls it and Compose rebuilds only what changed.
 
-![Deploy pipeline in four lanes: change and test the code, commit, push to GitHub over SSH, on the VPS run deploy.sh which](diagrams/11-how-a-deploy-works.svg)
+![Deploy pipeline in four lanes: change and test the code, commit, push to GitHub over SSH, on the VPS run deploy.sh which](diagrams/12-how-a-deploy-works.svg)
 
 _Pushing to GitHub doesn't deploy anything by itself; running `scripts/deploy.sh` on the VPS does. If the health check fails, the script stops and prints the log command. Database rows and certificates survive every deploy because they live in volumes, not in the containers._
 

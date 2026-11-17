@@ -27,6 +27,7 @@
 .lb.m{fill:var(--money)}
 .lb.z{fill:var(--tg)}
 .ln{fill:none;stroke:currentColor;stroke-width:1.4}
+.ln.dash{stroke-dasharray:3 3;opacity:.6}
 .ln.m{stroke:var(--money);stroke-width:2}
 .ln.d{stroke-dasharray:5 4}
 .life{stroke:var(--line);stroke-width:1.2;stroke-dasharray:4 4}
@@ -115,8 +116,8 @@
 
       <rect class="box" x="830" y="145" width="160" height="60" rx="6"/>
       <text class="t" x="910" y="166" text-anchor="middle">interfaces/scheduler</text>
-      <text class="s" x="910" y="183" text-anchor="middle">bills, reminders,</text>
-      <text class="s" x="910" y="198" text-anchor="middle">month-end report</text>
+      <text class="s" x="910" y="183" text-anchor="middle">bills, late fees,</text>
+      <text class="s" x="910" y="198" text-anchor="middle">reminders, report</text>
 
       <rect class="box hot" x="655" y="235" width="335" height="74" rx="6"/>
       <text class="t" x="822" y="256" text-anchor="middle">application/ use cases + domain/</text>

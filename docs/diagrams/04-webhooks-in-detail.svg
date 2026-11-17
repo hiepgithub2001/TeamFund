@@ -27,6 +27,7 @@
 .lb.m{fill:var(--money)}
 .lb.z{fill:var(--tg)}
 .ln{fill:none;stroke:currentColor;stroke-width:1.4}
+.ln.dash{stroke-dasharray:3 3;opacity:.6}
 .ln.m{stroke:var(--money);stroke-width:2}
 .ln.d{stroke-dasharray:5 4}
 .life{stroke:var(--line);stroke-width:1.2;stroke-dasharray:4 4}
