@@ -13,6 +13,16 @@
 
 	# Telegram updates for the master bot and every team bot,
 	# SePay webhooks (one URL per team), and the health check
+	# Services like SePay check a URL by opening it (GET) before they accept it.
+	# Answer those visits with 200; the real webhook calls are POSTs.
+	@probe {
+		method GET HEAD
+		path / /sepay/*
+	}
+	handle @probe {
+		respond "Team Fund is running." 200
+	}
+
 	@public path /tg/* /sepay/* /health
 	handle @public {
 		reverse_proxy app:8000

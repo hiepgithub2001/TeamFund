@@ -675,9 +675,9 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <text class="t" x="605" y="292" text-anchor="middle">caddy</text>
       <text class="s" x="605" y="309" text-anchor="middle">caddy:2.8.4</text>
       <text class="s" x="605" y="325" text-anchor="middle">TLS termination, HTTP/2</text>
-      <text class="s" x="605" y="341" text-anchor="middle">/tg/* → app:8000</text>
-      <text class="s" x="605" y="357" text-anchor="middle">/sepay/* → app:8000</text>
-      <text class="s" x="605" y="373" text-anchor="middle">/health → ok, else 404</text>
+      <text class="s" x="605" y="341" text-anchor="middle">/tg/* /sepay/* /health → app</text>
+      <text class="s" x="605" y="357" text-anchor="middle">GET / or /sepay/* → 200 text</text>
+      <text class="s" x="605" y="373" text-anchor="middle">anything else → 404</text>
 
       <rect class="box tg" x="760" y="90" width="380" height="332" rx="8"/>
       <text class="t" x="950" y="112" text-anchor="middle">app</text>
@@ -783,7 +783,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <span><i class="sw"></i>Other traffic, mounts, builds</span>
       <span><i class="sw" style="border-top:2px dashed var(--line)"></i>Already on the server, not part of Team Fund</span>
     </div>
-    <figcaption>Requests from Telegram, SePay and Let's Encrypt arrive on port 443 and Docker forwards them to Caddy. Caddy holds the certificate and passes <code>/tg/*</code> and <code>/sepay/*</code> to the app over the private Docker network; nothing else is public. The app is the only code container: three containers in total. All state lives in three named volumes, so rebuilding or recreating containers loses nothing.</figcaption>
+    <figcaption>Requests from Telegram, SePay and Let's Encrypt arrive on port 443 and Docker forwards them to Caddy. Caddy holds the certificate and passes <code>/tg/*</code>, <code>/sepay/*</code> and <code>/health</code> to the app over the private Docker network; nothing else is public. A plain visit (GET) to <code>/</code> or <code>/sepay/*</code> gets a 200 text reply from Caddy itself, because SePay opens a URL to check that it exists before accepting it; the real webhook calls are POSTs and still need the team's API key. The app is the only code container: three containers in total. All state lives in three named volumes, so rebuilding or recreating containers loses nothing.</figcaption>
   </figure>
 </section>
 

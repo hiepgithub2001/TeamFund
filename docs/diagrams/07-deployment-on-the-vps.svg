@@ -119,9 +119,9 @@
       <text class="t" x="605" y="292" text-anchor="middle">caddy</text>
       <text class="s" x="605" y="309" text-anchor="middle">caddy:2.8.4</text>
       <text class="s" x="605" y="325" text-anchor="middle">TLS termination, HTTP/2</text>
-      <text class="s" x="605" y="341" text-anchor="middle">/tg/* → app:8000</text>
-      <text class="s" x="605" y="357" text-anchor="middle">/sepay/* → app:8000</text>
-      <text class="s" x="605" y="373" text-anchor="middle">/health → ok, else 404</text>
+      <text class="s" x="605" y="341" text-anchor="middle">/tg/* /sepay/* /health → app</text>
+      <text class="s" x="605" y="357" text-anchor="middle">GET / or /sepay/* → 200 text</text>
+      <text class="s" x="605" y="373" text-anchor="middle">anything else → 404</text>
 
       <rect class="box tg" x="760" y="90" width="380" height="332" rx="8"/>
       <text class="t" x="950" y="112" text-anchor="middle">app</text>
