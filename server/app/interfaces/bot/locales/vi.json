@@ -30,7 +30,7 @@
  "pay.none": "🎉 Mọi người đã đóng đủ. Hiện không có khoản nào cần đóng.",
  "pay.button": "💳 Thanh toán {count} · {amount}",
  "pay.select_first": "Hãy chọn ít nhất một người.",
- "pay.qr_caption": "🧾 <b>Đóng cho:</b> {members}\n💵 <b>Số tiền:</b> {amount}\n🏦 {bank} · <code>{account}</code>\n👤 {holder}\n📝 <b>Nội dung chuyển khoản:</b> <code>{code}</code>\n\nQuét mã QR bằng ứng dụng ngân hàng và giữ nguyên số tiền, nội dung. Xác nhận sẽ tự động gửi về đây, thường trong vòng 1 phút.\n⏳ Hiệu lực đến {expires}.",
+ "pay.qr_caption": "🧾 <b>Đóng cho:</b> {members}\n💵 <b>Số tiền:</b> {amount}\n🏦 {bank} · <code>{account}</code>\n👤 {holder}\n📝 <b>Nội dung chuyển khoản:</b> <code>{code}</code>\n\nQuét mã QR bằng ứng dụng ngân hàng và giữ nguyên số tiền, nội dung. Xác nhận sẽ tự động gửi về đây, thường trong vòng 5 phút.\n⏳ Hiệu lực đến {expires}.",
  "pay.qr_failed": "Không tải được ảnh QR. Hãy chuyển khoản thủ công theo thông tin trên.",
  "pay.receipt": "✅ Đã nhận <b>{amount}</b> cho {members}. Cảm ơn bạn!",
  "bill.monthly": "Quỹ tháng {period}",

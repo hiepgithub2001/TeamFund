@@ -30,7 +30,7 @@
  "pay.none": "🎉 Everyone has paid. There is nothing to pay right now.",
  "pay.button": "💳 Pay {count} · {amount}",
  "pay.select_first": "Select at least one name first.",
- "pay.qr_caption": "🧾 <b>For:</b> {members}\n💵 <b>Amount:</b> {amount}\n🏦 {bank} · <code>{account}</code>\n👤 {holder}\n📝 <b>Transfer content:</b> <code>{code}</code>\n\nScan the QR code in your banking app and keep the amount and content exactly as shown. You will get a confirmation here automatically, usually within a minute.\n⏳ Valid until {expires}.",
+ "pay.qr_caption": "🧾 <b>For:</b> {members}\n💵 <b>Amount:</b> {amount}\n🏦 {bank} · <code>{account}</code>\n👤 {holder}\n📝 <b>Transfer content:</b> <code>{code}</code>\n\nScan the QR code in your banking app and keep the amount and content exactly as shown. You will get a confirmation here automatically, usually within 5 minutes.\n⏳ Valid until {expires}.",
  "pay.qr_failed": "The QR image could not be loaded. Transfer manually with the details above.",
  "pay.receipt": "✅ Payment received: <b>{amount}</b> for {members}. Thank you!",
  "bill.monthly": "Fee {period}",
