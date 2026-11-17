@@ -6,6 +6,10 @@ Telegram bots that collect a football team's monthly fee and confirm payments au
 - Each team gets its **own bot**. Members open it, tap the names they're paying for, and get a SePay QR code with a unique transfer code. SePay's webhook confirms the payment, the payer gets a receipt and the team group gets a post.
 - The **owner** sets the bank account and SePay key and approves managers. **Managers** handle members, fees, charges, cash payments, expenses and reports.
 
+## Architecture
+
+Diagrams and the full design are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (open [docs/architecture.html](docs/architecture.html) in a browser for the interactive page). Rebuild them after changing the page with `python3 scripts/build-docs.py docs/architecture.html`.
+
 ## Services
 
 | Service | Stack | Job |
