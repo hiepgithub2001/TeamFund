@@ -127,7 +127,7 @@ async def on_picker_confirm(cq: CallbackQuery, entry, lang, st, key) -> None:
         caption = t(lang, "pay.qr_caption", members=esc(", ".join(intent["members"])),
                     amount=money(intent["amount"], lang), bank=esc(intent["bank_name"]),
                     account=esc(intent["bank_account"]), holder=esc(intent["bank_holder"] or ""),
-                    code=intent["code"], expires=intent["expires_at"])
+                    code=esc(intent["content"]), expires=intent["expires_at"])
         try:
             await cq.bot.send_photo(cq.message.chat.id, intent["qr_url"], caption=caption)
         except Exception:

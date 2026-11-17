@@ -55,6 +55,18 @@ def find_payment_codes(text: str) -> list[str]:
     return [m.group(1) for m in _CODE_RE.finditer(normalized)]
 
 
+# Banks whose SePay link only reports transfers whose content starts with this keyword
+# (SePay's VietinBank guide: "mọi giao dịch ... phải bắt đầu bằng từ khóa SEVQR").
+SEPAY_KEYWORD = "SEVQR"
+_KEYWORD_BANKS = {"vietinbank", "icb", "ctg"}
+
+
+def transfer_content(bank_name: str | None, code: str) -> str:
+    """What the payer types as the transfer content: the code, plus SePay's keyword where the bank needs it."""
+    bank = re.sub(r"[^a-z]", "", (bank_name or "").lower())
+    return f"{SEPAY_KEYWORD} {code}" if bank in _KEYWORD_BANKS else code
+
+
 def hash_secret(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
 

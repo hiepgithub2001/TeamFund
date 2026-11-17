@@ -387,7 +387,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <text class="lb" x="175" y="561" text-anchor="middle">14 · receipt + group post</text>
     </svg>
     </div>
-    <figcaption>The unique code in the transfer memo is what lets the server match money to bills with no human check. Each intent expires after 24 hours. If the amount doesn't match or the code is missing, the transaction is still saved and a manager is asked to assign it. SePay's transaction id is stored, so a repeated webhook can't count the same payment twice.</figcaption>
+    <figcaption>The unique code in the transfer memo is what lets the server match money to bills with no human check. Each intent expires after 24 hours. If the amount doesn't match or the code is missing, the transaction is still saved and a manager is asked to assign it. SePay's transaction id is stored, so a repeated webhook can't count the same payment twice. For VietinBank accounts the memo is <code>SEVQR TF…</code>: SePay's VietinBank link only reports transfers whose content starts with <code>SEVQR</code>, and the server finds the TF code anywhere in the text.</figcaption>
   </figure>
 </section>
 

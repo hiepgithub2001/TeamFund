@@ -3,7 +3,7 @@ from datetime import timedelta
 
 from ..domain.entities import Bill, IncomingTransfer, Member, Payment, PaymentIntent, Team
 from ..domain.errors import DomainError
-from ..domain.rules import effective_fee, find_payment_codes, new_payment_code, period_label, split_share
+from ..domain.rules import effective_fee, find_payment_codes, new_payment_code, period_label, split_share, transfer_content
 from .ports import Conflict, Deps, UnitOfWork
 
 INTENT_TTL = timedelta(hours=24)
@@ -70,7 +70,9 @@ def create_intent(uow: UnitOfWork, d: Deps, team: Team, member_ids: list[int], p
                            created_at=now, expires_at=now + INTENT_TTL)
     uow.intents.add(intent)
     uow.commit()
-    return {"code": code, "amount": amount, "qr_url": d.qr.url(team.bank_name, team.bank_account, amount, code),
+    content = transfer_content(team.bank_name, code)
+    return {"code": code, "content": content, "amount": amount,
+            "qr_url": d.qr.url(team.bank_name, team.bank_account, amount, content),
             "bank_name": team.bank_name, "bank_account": team.bank_account, "bank_holder": team.bank_holder,
             "members": intent.member_names, "expires_at": d.clock.fmt(intent.expires_at)}
 

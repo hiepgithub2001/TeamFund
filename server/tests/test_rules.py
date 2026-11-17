@@ -1,7 +1,8 @@
 """Domain rules: pure functions, no database."""
 from app.domain.entities import Member, Team
 from app.domain.rules import (due_day_in_month, effective_fee, find_payment_codes, is_last_day_of_month,
-                              new_payment_code, period_label, should_remind, split_share, valid_bank)
+                              new_payment_code, period_label, should_remind, split_share, transfer_content,
+                              valid_bank)
 
 
 def team(fee=200000):
@@ -23,6 +24,14 @@ def test_payment_codes():
     assert find_payment_codes(f"NGUYEN VAN A chuyen tien {code[:4]}-{code[4:]} FT123") == [code]
     assert find_payment_codes("GIFT" + code)[-1] == code  # an earlier "TF" doesn't hide the real code
     assert find_payment_codes("no code here") == []
+
+
+def test_transfer_content():
+    # SePay only reports VietinBank transfers whose content starts with SEVQR
+    for bank in ("VietinBank", "Vietinbank", "ICB", "CTG"):
+        assert transfer_content(bank, "TFABCDEFGH") == "SEVQR TFABCDEFGH"
+    assert transfer_content("MBBank", "TFABCDEFGH") == "TFABCDEFGH"
+    assert find_payment_codes("CT DEN:440T26B0 SEVQR TFABCDEFGH chuyen khoan") == ["TFABCDEFGH"]
 
 
 def test_reminder_schedule():
