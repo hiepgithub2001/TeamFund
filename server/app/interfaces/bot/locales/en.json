@@ -256,7 +256,7 @@
  "plans.default_none": "Default: not set · {n} people",
  "plans.line": "• <b>{fee}</b>: {names}",
  "plans.empty_line": "• <b>{fee}</b>: (nobody yet)",
- "plans.help": "Each person is on one plan; everyone else is on the default package. Each package has its own deadline and late fee (or the default's). A person's cycle starts the first month they are billed on the plan.\nQuick create: <code>/plans 300k quarter</code>",
+ "plans.help": "Each person is on one plan; everyone else is on the default package. Each package has its own deadline and late fee (or the default's). Standard periods: quarters Jan–Mar, Apr–Jun, Jul–Sep, Oct–Dec; half-years Jan–Jun, Jul–Dec; years Jan–Dec. Months already paid aren't billed again; the rest is priced pro rata.\nQuick create: <code>/plans 300k quarter</code>",
  "plans.none": "No plans yet: everyone pays the default fee every month.",
  "plans.choose_cycle": "New plan: how often do they pay?",
  "plans.ask_amount": "Send the amount per {cycle}, e.g. <code>300k</code>.",

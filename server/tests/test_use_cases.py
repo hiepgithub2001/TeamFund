@@ -374,7 +374,7 @@ def test_fee_plans():
 
     owed = {g["name"]: g for g in svc.money.unpaid(tid)}
     assert owed["An"]["total"] == 150000 and owed["Cường"]["total"] == 300000
-    assert owed["Cường"]["bills"][0]["period_label"] == "11/2026–01/2027"
+    assert owed["Cường"]["bills"][0]["period_label"] == "10/2026–12/2026", "standard quarter, Oct–Dec"
     s = svc.money.status(tid)
     assert {(f["amount"], f["months"], f["count"]) for f in s["fees"]} == {(150000, 1, 2), (300000, 3, 2)}
     svc.money.markpaid(tid, OWNER, [an, cuong])
@@ -388,7 +388,7 @@ def test_fee_plans():
     # February: a new quarter for Cường
     clock.local = clock.local.replace(year=2027, month=2)
     cu = next(g for g in svc.money.unpaid(tid) if g["name"] == "Cường")
-    assert [b["period_label"] for b in cu["bills"]] == ["02/2027–04/2027"]
+    assert [b["period_label"] for b in cu["bills"]] == ["01/2027–03/2027"]
 
     # changing a plan reprices this month's unpaid bills; members left out go back to the team fee
     svc.plans.save_plan(tid, OWNER, 350000, 3, [cuong], plan_id=quarter["id"])
@@ -567,7 +567,7 @@ def test_each_package_has_its_own_terms():
 
     fees = {f["amount"]: f for f in svc.money.status(tid)["fees"]}
     assert (fees[200000]["due"], fees[200000]["late_fee"]) == ("20/11", 1000)
-    assert (fees[600000]["due"], fees[600000]["late_fee"]) == ("11/11", 2000)
+    assert (fees[600000]["due"], fees[600000]["late_fee"]) == ("11/10", 2000), "the quarter's own due date"
 
     svc.jobs.open_month()  # the 1st: only the quarterly plan is announced
     posts = [e for e in notifier.events if e["type"] == "bills_created"]
@@ -580,11 +580,11 @@ def test_each_package_has_its_own_terms():
 
     clock.local = clock.local.replace(day=23)
     owed = {g["name"]: g["total"] for g in svc.money.unpaid(tid)}
-    # Cường: due 11/11 under the plan, 2k a day for 12 days; An: due 20/11, 1k a day for 3 days
-    assert owed == {"An": 203000, "Cường": 624000}
+    # Cường: due 11/10 under the plan, fined from when the plan's late fee was set (1/11): 22 days x 2k
+    assert owed == {"An": 203000, "Cường": 644000}
     # the plan goes back to the default's terms: due 20/11, 1k/day from the 1st -> 3 days
     svc.plans.set_terms(tid, OWNER, q["id"], inherit_schedule=True, inherit_late=True)
-    assert {g["name"]: g["total"] for g in svc.money.unpaid(tid)} == {"An": 203000, "Cường": 603000}
+    assert {g["name"]: g["total"] for g in svc.money.unpaid(tid)} == {"An": 203000, "Cường": 622000}
 
 
 def test_followers():
@@ -660,3 +660,23 @@ def test_undo():
     assert "team.web_link" not in [a["action"] for a in svc.undo.recent(tid, OWNER)]
     clock.advance(days=8)
     assert svc.undo.recent(tid, OWNER) == [] and code(svc.undo.undo, tid, OWNER, tip["id"]) == "undo_too_old"
+
+
+def test_standard_quarters():
+    """Quarters are Jan–Mar … Oct–Dec; months already paid aren't billed again, the rest is priced pro rata."""
+    from app.domain.rules import cycle_bill, cycle_start
+    assert [cycle_start(p, 3) for p in ("2026-10", "2026-11", "2026-12", "2027-01")] == ["2026-10"] * 3 + ["2027-01"]
+    assert cycle_start("2026-08", 6) == "2026-07" and cycle_start("2026-08", 12) == "2026-01"
+    assert cycle_bill(600000, 3, "2026-10") == (3, 600000) and cycle_bill(600000, 3, "2026-11") == (2, 400000)
+    svc, clock, _ = make_services(datetime(2026, 10, 3, 10, 0))
+    tid = setup_team(svc)
+    svc.teams.update_settings(tid, OWNER, fee=200000)
+    an, = [m["id"] for m in svc.members.add_members(tid, OWNER, [{"name": "An"}])]
+    svc.money.unpaid(tid)
+    svc.money.markpaid(tid, OWNER, [an])  # October paid, monthly
+    clock.local = clock.local.replace(month=11)
+    svc.plans.save_plan(tid, OWNER, 600000, 3, [an])
+    bills = svc.money.unpaid(tid)[0]["bills"]
+    assert [(b["period_label"], b["amount"]) for b in bills] == [("11/2026–12/2026", 400000)], "Nov–Dec only"
+    clock.local = clock.local.replace(year=2027, month=1)
+    assert [b["period_label"] for b in svc.money.unpaid(tid)[0]["bills"]][-1] == "01/2027–03/2027"

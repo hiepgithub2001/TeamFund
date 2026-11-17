@@ -256,7 +256,7 @@
  "plans.default_none": "Mặc định: chưa đặt · {n} người",
  "plans.line": "• <b>{fee}</b>: {names}",
  "plans.empty_line": "• <b>{fee}</b>: (chưa có ai)",
- "plans.help": "Mỗi người theo một gói; ai không ở gói nào theo gói mặc định. Mỗi gói có hạn đóng và tiền phạt trễ riêng (hoặc như mặc định). Chu kỳ của mỗi người bắt đầu từ tháng đầu tiên họ được tính phí theo gói.\nTạo nhanh: <code>/plans 300k quý</code>",
+ "plans.help": "Mỗi người theo một gói; ai không ở gói nào theo gói mặc định. Mỗi gói có hạn đóng và tiền phạt trễ riêng (hoặc như mặc định). Kỳ theo chuẩn: quý 1–3, 4–6, 7–9, 10–12; nửa năm 1–6, 7–12; năm 1–12. Ai vào giữa kỳ mà đã đóng các tháng trước thì chỉ tính các tháng còn lại.\nTạo nhanh: <code>/plans 300k quý</code>",
  "plans.none": "Chưa có gói nào: mọi người đóng mức mặc định mỗi tháng.",
  "plans.choose_cycle": "Gói mới: đóng theo chu kỳ nào?",
  "plans.ask_amount": "Gửi số tiền mỗi {cycle}, ví dụ <code>300k</code>.",

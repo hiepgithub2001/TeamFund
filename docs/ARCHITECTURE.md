@@ -143,9 +143,9 @@ A bank missing from the table doesn't send webhooks. For an account already link
 
 Every member pays one fee: their **fee plan** if they're on one, else their own monthly fee (set on the member screen), else the team's default fee (`/plans` → 💰 Default fee). A plan is an amount plus a cycle (month, quarter, 6 months, year), so "An, Bình, Cường pay 150k a month, Dũng, Em, Phúc pay 300k a quarter" is two plans. Money that isn't anyone's fee (a prize, a sponsor, the balance from before the bot) goes in with `/income`.
 
-![Timeline from 11/2026 to 04/2027. An, on a 150,000đ monthly plan, gets a bill every month. Cường, on a 300,000đ quarterl](diagrams/08-fees-plans-and-other-income.svg)
+![Timeline from 10/2026 to 03/2027. An, on a 150,000đ monthly plan, gets a bill every month. Cường, on a 300,000đ quarterl](diagrams/08-fees-plans-and-other-income.svg)
 
-_One bill per cycle: a quarterly bill covers its three months, so Cường counts as paid in December and January without a new bill. Other income and expenses are no one's bill: they only move the fund balance, in the month of the date they carry._
+_One bill per cycle: a quarterly bill covers its three months, so Cường counts as paid in November and December without a new bill. Other income and expenses are no one's bill: they only move the fund balance, in the month of the date they carry._
 
 | Command (managers) | What it does |
 |---|---|
@@ -155,7 +155,7 @@ _One bill per cycle: a quarterly bill covers its three months, so Cường count
 | `/income 1.5tr Số dư đầu kỳ 31/10``/expense 300k Sân bóng 15-10-2026` | A date at the end (`dd/mm/yyyy`, `dd-mm-yyyy`, `dd/mm/yy`, `dd-mm-yy`, `dd/mm` / `dd-mm` for this year, or `mm/yyyy` / `mm-yyyy` for the 1st of that month) records it on that day (noon, team time); without one it's now. Being stored at that time, it sorts into place in the transaction log and falls under its own month in `/history 10/2026`, the month totals and the pay page's month blocks. Not in the future, at most 3 years back. Amounts can be `450k`, `1tr`, `1.5M`, `1tr5`, `5M`, `450.000`…; `/money` lists every form. A bare `/income` or `/expense` explains the format and takes the answer as a reply. |
 
 - A member is on at most one plan. Picking them for a plan moves them off any other; a plan nobody is left on is deleted.
-- A member's cycle starts the first month they're billed on the plan. Joining a quarterly plan in November means one bill for 11/2026–01/2027 and the next in February. Members on the same plan can be on different cycles.
+- Bills follow standard periods: quarters Jan–Mar, Apr–Jun, Jul–Sep, Oct–Dec; half-years Jan–Jun and Jul–Dec; years Jan–Dec. A bill opens at the start of its period and is due on that month's announcement day plus the deadline (Oct–Dec: e.g. 05/10). A member whose earlier months in the period are already paid (say, October as a monthly member) is billed only for the rest, priced pro rata (600k a quarter from November: 400k); a new member who joins mid-period is billed the whole period, and `/markpaid` can record less.
 - A month counts as paid for a member when the fee bill that covers it is paid, so a quarter paid in November shows them as paid in December and January.
 - Changing a plan, the team fee or a member's own fee reprices only unpaid fee bills opened this month. A quarter that's already running keeps its amount; the new fee starts when it runs out. Waive it on the member's bills screen if it should stop sooner.
 - Cash that differs from the bill: pick one person in `/markpaid`, then ✏️ Another amount (at most what they owe). The money goes to their oldest bills first, and the fund grows by that amount only. For the rest, ✔️ **let it go** settles that bill at what was paid (someone who joined mid-quarter pays 300k of 600k), or ⏳ **still owes** keeps the rest as a new unpaid bill. More than owed: record the extra with `/income`. A SePay transfer below the amount goes to `/unmatched`, where assigning it closes the bills with the amount that actually arrived.

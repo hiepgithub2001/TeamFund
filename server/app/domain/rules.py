@@ -51,6 +51,20 @@ def months_between(start: str, end: str) -> int:
     return (y2 - y1) * 12 + m2 - m1
 
 
+def cycle_start(period: str, months: int) -> str:
+    """The standard period a month falls in: quarters Jan/Apr/Jul/Oct, half-years Jan/Jul, years Jan."""
+    y, m = map(int, period.split("-"))
+    return f"{y:04d}-{(m - 1) // months * months + 1:02d}"
+
+
+def cycle_bill(amount: int, months: int, first: str) -> tuple[int, int]:
+    """(months, amount) of a fee bill starting in `first`: to the end of its standard period, priced for
+    the months it covers (600,000đ a quarter from November: 2 months, 400,000đ), rounded up to 1,000đ."""
+    end = add_months(cycle_start(first, months), months)
+    k = months_between(first, end)
+    return k, amount if k == months else int(math.ceil(amount * k / months / 1000) * 1000)
+
+
 def covers(bill_period: str, months: int | None, period: str) -> bool:
     """Does a fee bill starting in bill_period for `months` months cover `period`?"""
     return 0 <= months_between(bill_period, period) < (months or 1)

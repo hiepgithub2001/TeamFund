@@ -1,9 +1,9 @@
 """Use cases: fee plans. Managers put members on a plan (amount + cycle, e.g. 300,000đ per quarter);
 everyone else pays the team fee (or their own monthly fee) every month.
 
-A member is on at most one plan. Their cycle starts the first month they are billed on it, so one bill covers
-that month and the next ones: a quarterly member who joins in November gets one bill for 11/2026–01/2027 and
-the next in February. Changing a plan reprices only unpaid bills opened this month (like the default fee)."""
+A member is on at most one plan. Bills follow standard periods (quarters Jan–Mar … Oct–Dec, half-years,
+years): one bill covers the period. Months a member already paid aren't billed again; the rest of the period
+is priced pro rata. Changing a plan reprices the unpaid bill covering this month (like the default fee)."""
 from ..domain.entities import FeePlan, Team
 from ..domain.errors import DomainError, invalid
 from ..domain.rules import CYCLES, MAX_DUE_DAYS, MAX_FEE, MAX_LATE_FEE, terms
@@ -132,8 +132,11 @@ class PlanUseCases:
             if inherit_late:
                 p.late_fee = p.late_fee_since = None
             elif late_fee is not None:
-                if late_fee and not terms(team, p).late_fee:
-                    p.late_fee_since = self.d.clock.local_now().date()
+                prev, today = terms(team, p), self.d.clock.local_now().date()
+                if late_fee and not prev.late_fee:
+                    p.late_fee_since = today  # turned on now: fines count from today
+                elif late_fee and p.late_fee is None:
+                    p.late_fee_since = prev.late_since or today  # was following the default's: same start
                 p.late_fee = late_fee
             audit(uow, self.d.clock, team.id, actor, "plan.terms", target=_label(p), before=before,
                   after={"notify_day": p.notify_day, "due_days": p.due_days, "late_fee": p.late_fee})

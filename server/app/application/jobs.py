@@ -33,11 +33,11 @@ class JobUseCases:
                     if team.last_billed_period == period or not to:
                         continue  # announced the old way already this month, or nobody to tell
                     keys, due = [], []
-                    for g in billing.opened_groups(uow, team, period):
-                        key = f"announce:{team.id}:{g['plan_id'] or 0}:{g['months']}:{g['amount']}:{period}"
+                    for g in billing.opened_groups(uow, self.d, team, period):
+                        key = f"announce:{team.id}:{g['plan_id'] or 0}:{g['months']}:{g['amount']}:{g['period']}"
                         if today >= g["notify"] and not self._ran(uow, key):
                             keys.append(key)
-                            due.append({k: v for k, v in g.items() if k not in ("notify", "due_on")})
+                            due.append({k: v for k, v in g.items() if k not in ("notify", "due_on", "period")})
                     if due and self.d.notifier.deliver({
                             "type": "bills_created", "team_id": team.id, "period_label": period_label(period),
                             "fee": team.fee, "fees": due, "to": to}):
@@ -63,7 +63,7 @@ class JobUseCases:
                     billing.ensure_bills(uow, self.d, team)
                     hit = None
                     for p in (period, add_months(period, -1)):
-                        for g in billing.opened_groups(uow, team, p):
+                        for g in billing.opened_groups(uow, self.d, team, p):
                             due = g["due_on"]
                             if should_remind(today, g["notify"], due):
                                 hit = hit or (p, g, due)
