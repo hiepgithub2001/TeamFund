@@ -566,6 +566,45 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
 </section>
 
 <section>
+  <h2>Banks and SePay</h2>
+  <p>SePay only confirms money it can see, and what it can see depends on the bank and on the account type chosen when the account was linked. Two things vary: whether a transfer to the <b>main account number</b> is reported at all, and whether the transfer content needs a keyword. Check this table before setting up a team on a new bank. Source: <a href="https://developer.sepay.vn/vi/sepay-webhooks/tai-khoan-ngan-hang#ngan-hang-ho-tro">developer.sepay.vn › Ngân hàng hỗ trợ</a>, read 17/11/2026; SePay changes it, so re-check there.</p>
+
+  <h3 class="sub">What a VA is</h3>
+  <ul>
+    <li><span><b>VA (virtual account, tài khoản ảo)</b>: an extra account number that belongs to the same real bank account. Money sent to it lands in the main account, but the bank tells SePay which VA it came through (the webhook's <code>subAccount</code> field). Created in my.sepay.vn → <b>Tài khoản ngân hàng</b> → the account → <b>Tài khoản ảo</b>.</span></li>
+    <li><span><b>VA chính thức</b> (official VA): the bank issues it; it has its own number, and payers transfer to that number.</span></li>
+    <li><span><b>VA nội dung (TKP)</b>: no own number; payers transfer to the main account with a <code>TKP…</code> code in the content. For banks that don't issue official VAs.</span></li>
+    <li><span><b>"Không, chỉ qua VA"</b> in the table below means a transfer straight to the main account number is <b>never reported</b>: the team needs at least one official VA, and the QR must carry the VA number instead of the account number. Accounts linked by <b>SMS banking</b> are the exception: they report main-account transfers at every bank.</span></li>
+  </ul>
+
+  <h3 class="sub">Supported banks (API link)</h3>
+  <div class="tbl">
+  <table>
+    <thead><tr><th>Bank</th><th>Account type</th><th>Main account reported</th><th>Official VA</th><th>What Team Fund's QR needs</th></tr></thead>
+    <tbody>
+      <tr><td>VietinBank</td><td>Cá nhân, hộ kinh doanh</td><td>Yes</td><td>No</td><td>Content must contain <code>SEVQR</code> (done: <code>SEVQR TF…</code>)</td></tr>
+      <tr><td>VietinBank</td><td>Doanh nghiệp with Thu hộ định danh MAP</td><td><b>No, VA only</b></td><td>Yes</td><td>VA number</td></tr>
+      <tr><td>VietinBank</td><td>Doanh nghiệp without MAP</td><td>Yes</td><td>Yes</td><td>Main account</td></tr>
+      <tr><td>BIDV</td><td>Cá nhân, hộ kinh doanh</td><td><b>No, VA only</b></td><td>Yes</td><td>VA number</td></tr>
+      <tr><td>BIDV</td><td>Doanh nghiệp</td><td>Yes</td><td>Yes</td><td>Main account</td></tr>
+      <tr><td>Vietcombank</td><td>Doanh nghiệp, hộ kinh doanh</td><td><b>No, VA only</b></td><td>Yes</td><td>VA number</td></tr>
+      <tr><td>MSB</td><td>All</td><td><b>No, VA only</b></td><td>Yes</td><td>VA number</td></tr>
+      <tr><td>OCB</td><td>All</td><td><b>No, VA only</b></td><td>Yes</td><td>VA number</td></tr>
+      <tr><td>KienlongBank</td><td>All</td><td><b>No, VA only</b></td><td>Yes</td><td>VA number</td></tr>
+      <tr><td>VPBank</td><td>Cá nhân, hộ kinh doanh (NEO / NEOBiz)</td><td>Depends on the link: only if <b>Đồng bộ tài khoản chính</b> was chosen</td><td>Yes</td><td>VA number, unless the main account is synced</td></tr>
+      <tr><td>VPBank</td><td>Doanh nghiệp (NEOBiz)</td><td>Yes</td><td>No</td><td>Main account</td></tr>
+      <tr><td>ACB</td><td>All</td><td>Yes</td><td>Yes</td><td>Main account</td></tr>
+      <tr><td>MBBank</td><td>All</td><td>Yes</td><td>Yes</td><td>Main account</td></tr>
+      <tr><td>Sacombank</td><td>Cá nhân, hộ kinh doanh</td><td>Yes</td><td>Yes</td><td>Main account</td></tr>
+      <tr><td>TPBank</td><td>All</td><td>Yes</td><td>No</td><td>Main account</td></tr>
+      <tr><td>Shinhan Bank</td><td>Doanh nghiệp</td><td>Yes</td><td>Yes</td><td>Main account</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>A bank missing from the table doesn't send webhooks. For an account already linked, SePay's bank-account API answers directly and overrules the table: <code>va_only: true</code> means VA only. Today Team Fund handles the <code>SEVQR</code> keyword (<code>domain/rules.py</code> <code>transfer_content</code>) but always puts the main account number in the QR, so the "VA number" rows need work before a team on those banks can use it. Planned: <code>/sepay</code> reads <code>va_only</code>, and for VA-only accounts uses the account's VA in the QR, <code>/bank</code> and the webhook, or asks the owner to create one first.</p>
+</section>
+
+<section>
   <h2>Roles in a team bot</h2>
   <p>Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID comes with every message and button tap and can't be faked, so the use cases check it before every manager action.</p>
   <div class="tbl">

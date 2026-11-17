@@ -85,6 +85,40 @@ _SePay watches the team's bank account and calls the webhook within seconds of m
 
 _The owner does only what SePay can't let anyone else do: link the bank account (with the bank's OTP) and create one API token. The bot does the rest. The token is checked against SePay, then stored encrypted. Each sync makes a fresh key and hands it to SePay and the server in one step, so the old key stops working at once. There is always one webhook per team: the stored id is reused, a webhook already pointing at the team's URL is adopted, and one deleted in SePay is recreated. SePay's v2 user API isn't in its public docs yet; `infrastructure/sepay.py` follows what it answers today (updates are `PUT`, writes need an `X-Idempotency-Key`)._
 
+## Banks and SePay
+
+SePay only confirms money it can see, and what it can see depends on the bank and on the account type chosen when the account was linked. Two things vary: whether a transfer to the **main account number** is reported at all, and whether the transfer content needs a keyword. Check this table before setting up a team on a new bank. Source: developer.sepay.vn › Ngân hàng hỗ trợ, read 17/11/2026; SePay changes it, so re-check there.
+
+### What a VA is
+
+- **VA (virtual account, tài khoản ảo)**: an extra account number that belongs to the same real bank account. Money sent to it lands in the main account, but the bank tells SePay which VA it came through (the webhook's `subAccount` field). Created in my.sepay.vn → **Tài khoản ngân hàng** → the account → **Tài khoản ảo**.
+- **VA chính thức** (official VA): the bank issues it; it has its own number, and payers transfer to that number.
+- **VA nội dung (TKP)**: no own number; payers transfer to the main account with a `TKP…` code in the content. For banks that don't issue official VAs.
+- **"Không, chỉ qua VA"** in the table below means a transfer straight to the main account number is **never reported**: the team needs at least one official VA, and the QR must carry the VA number instead of the account number. Accounts linked by **SMS banking** are the exception: they report main-account transfers at every bank.
+
+### Supported banks (API link)
+
+| Bank | Account type | Main account reported | Official VA | What Team Fund's QR needs |
+|---|---|---|---|---|
+| VietinBank | Cá nhân, hộ kinh doanh | Yes | No | Content must contain `SEVQR` (done: `SEVQR TF…`) |
+| VietinBank | Doanh nghiệp with Thu hộ định danh MAP | **No, VA only** | Yes | VA number |
+| VietinBank | Doanh nghiệp without MAP | Yes | Yes | Main account |
+| BIDV | Cá nhân, hộ kinh doanh | **No, VA only** | Yes | VA number |
+| BIDV | Doanh nghiệp | Yes | Yes | Main account |
+| Vietcombank | Doanh nghiệp, hộ kinh doanh | **No, VA only** | Yes | VA number |
+| MSB | All | **No, VA only** | Yes | VA number |
+| OCB | All | **No, VA only** | Yes | VA number |
+| KienlongBank | All | **No, VA only** | Yes | VA number |
+| VPBank | Cá nhân, hộ kinh doanh (NEO / NEOBiz) | Depends on the link: only if **Đồng bộ tài khoản chính** was chosen | Yes | VA number, unless the main account is synced |
+| VPBank | Doanh nghiệp (NEOBiz) | Yes | No | Main account |
+| ACB | All | Yes | Yes | Main account |
+| MBBank | All | Yes | Yes | Main account |
+| Sacombank | Cá nhân, hộ kinh doanh | Yes | Yes | Main account |
+| TPBank | All | Yes | No | Main account |
+| Shinhan Bank | Doanh nghiệp | Yes | Yes | Main account |
+
+A bank missing from the table doesn't send webhooks. For an account already linked, SePay's bank-account API answers directly and overrules the table: `va_only: true` means VA only. Today Team Fund handles the `SEVQR` keyword (`domain/rules.py` `transfer_content`) but always puts the main account number in the QR, so the "VA number" rows need work before a team on those banks can use it. Planned: `/sepay` reads `va_only`, and for VA-only accounts uses the account's VA in the QR, `/bank` and the webhook, or asks the owner to create one first.
+
 ## Roles in a team bot
 
 Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID comes with every message and button tap and can't be faked, so the use cases check it before every manager action.
