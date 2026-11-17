@@ -71,13 +71,13 @@ def ensure_bills(uow: UnitOfWork, d: Deps, team: Team, period: str | None = None
         except Conflict:  # the scheduler and a request raced; reread and fill the gaps
             uow.rollback()
             return ensure_bills(uow, d, team, period, _retry=False) if _retry else 0
-    update_late_fees(uow, d, team)
     return created
 
 
 def update_late_fees(uow: UnitOfWork, d: Deps, team: Team) -> None:
-    """Keep each overdue fee bill's late fee (its own "late" bill) at days past its due date × its package's
+    """Set each overdue fee bill's late fee (its own "late" bill) to days past its due date × its package's
     rate, counted from the bill's real due date (a quarter's: its first month's), whenever the fee was set.
+    Runs once a day (the late_fees job, just after midnight) and right after a package's terms change.
     Runs with ensure_bills, so amounts are current whenever someone looks or pays. A late bill stops
     growing once the fee is paid, and stays as it is for paused members; turning the fee off waives
     the late bills still unpaid."""

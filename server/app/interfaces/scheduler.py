@@ -19,7 +19,9 @@ def start(jobs, timezone: str) -> AsyncIOScheduler:
     sched.add_job(threaded(jobs.remind), "cron", hour=9, minute=0, id="remind")
     sched.add_job(threaded(jobs.month_report), "cron", hour=20, minute=0, id="month_report")
     sched.add_job(threaded(jobs.clean_up), "cron", minute=30, id="clean_up")
+    sched.add_job(threaded(jobs.late_fees), "cron", hour=0, minute=5, id="late_fees")  # once a day
     sched.add_job(threaded(jobs.open_month), id="open_month_at_start")  # once, right away
+    sched.add_job(threaded(jobs.late_fees), id="late_fees_at_start")  # a restart never skips a day
     sched.start()
     log.info("scheduler started (%s)", timezone)
     return sched

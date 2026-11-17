@@ -58,7 +58,8 @@ Port 443 must be reachable from the internet; Telegram and SePay both call it. P
 
 ## Schedule (Asia/Ho_Chi_Minh)
 
-- Every hour: create this month's bills and keep late fees current; announce each package once, on its announcement day, to the followers.
+- Every hour: create this month's bills; announce each package once, on its announcement day, to the followers.
+- 00:05: update every overdue bill's late fee (days past its due date × the package's rate).
 - 09:00: reminder to the followers 3 days before a package's due date, on it, then every 3 days while someone owes.
 - 20:00 on the last day of the month: report (collected, spent, balance, who still owes).
 

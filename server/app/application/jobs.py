@@ -105,6 +105,16 @@ class JobUseCases:
                     uow.rollback()
                     log.exception("month_report failed for team %s", team.id)
 
+    def late_fees(self) -> None:
+        """Once a day, just after midnight: add the new day to every overdue fee bill's late fee."""
+        with self.d.uow() as uow:
+            for team in uow.teams.active():
+                try:
+                    billing.update_late_fees(uow, self.d, team)
+                except Exception:
+                    uow.rollback()
+                    log.exception("late_fees failed for team %s", team.id)
+
     def clean_up(self) -> None:
         """Expire payment intents after 24 hours and manager requests after 7 days."""
         now = self.d.clock.now()

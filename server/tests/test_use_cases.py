@@ -516,6 +516,8 @@ def test_schedule_and_late_fee():
     svc.teams.update_settings(tid, OWNER, late_fee=1000)  # turned on on the 22nd: still counts from the 20th
     assert {g["name"]: g["total"] for g in svc.money.unpaid(tid)} == {"An": 202000, "Bình": 202000}
     clock.local = clock.local.replace(day=25)
+    assert svc.money.unpaid(tid)[0]["total"] == 202000, "looking doesn't change fines; the daily job does"
+    svc.jobs.late_fees()
     owed = {g["name"]: g for g in svc.money.unpaid(tid)}
     assert owed["An"]["total"] == 205000
     late = [b for b in owed["An"]["bills"] if b["kind"] == "late"][0]
@@ -527,12 +529,13 @@ def test_schedule_and_late_fee():
     intent = svc.money.create_intent(tid, MEMBER, [an])
     assert intent["amount"] == 205000
     clock.local = clock.local.replace(day=26)
-    svc.money.unpaid(tid)  # the late fee grows to 4,000đ
+    svc.jobs.late_fees()  # the next day's run: An's fine grows to 6,000đ
     assert svc.money.record_transfer(tid, key, IncomingTransfer("tx-late", 205000, intent["content"])) == \
         "payment_confirmed"
     owed = {g["name"]: g["total"] for g in svc.money.unpaid(tid)}
     assert "An" not in owed and owed["Bình"] == 206000
     clock.local = clock.local.replace(day=28)
+    svc.jobs.late_fees()
     assert {g["name"]: g["total"] for g in svc.money.unpaid(tid)} == {"Bình": 208000}, "An's fine stopped"
 
     # waiving the fee waives its fine; turning the late fee off waives the fines left
@@ -579,6 +582,7 @@ def test_each_package_has_its_own_terms():
     assert len(posts) == 2 and [f["amount"] for f in posts[1]["fees"]] == [200000], "each package once"
 
     clock.local = clock.local.replace(day=23)
+    svc.jobs.late_fees()
     owed = {g["name"]: g["total"] for g in svc.money.unpaid(tid)}
     # Cường: due 11/10 under the plan, 43 days x 2k; An: due 20/11, 3 days x 1k
     assert owed == {"An": 203000, "Cường": 686000}
