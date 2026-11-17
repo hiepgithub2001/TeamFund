@@ -75,15 +75,15 @@ _Each bot has its own webhook URL and secret token, set when the server starts a
 
 ### SePay → payment confirmed
 
-![SePay webhook flow. Once per team the owner sends /sepay with a SePay API token and the server creates the webhook in Se](diagrams/05-webhooks-in-detail-2.svg)
+![SePay webhook flow. Once per team the owner picks the account in /setbank and the server creates the webhook in SePay wi](diagrams/05-webhooks-in-detail-2.svg)
 
 _SePay watches the team's bank account and calls the webhook within seconds of money arriving. Only the use case decides what the transfer means: the key is compared by its hash, a transaction already recorded is skipped (so SePay's retries are harmless), and money with no code or too little is kept and sent to the managers to assign. The server answers `{"success": true}` as soon as the payment is saved; the receipt and the group post go out in the background through the notifier port, so a slow Telegram call can't make SePay time out and resend._
 
-### /sepay → the team's webhook, created or updated
+### /setbank → the team's account and webhook, in one tap
 
-![Sequence: the owner sends /sepay in the team bot and, the first time, pastes a SePay API token, which the bot deletes fr](diagrams/06-webhooks-in-detail-3.svg)
+![Sequence: once, the owner sends /sepaytoken with a SePay API token, which the bot deletes from the chat and stores encry](diagrams/06-webhooks-in-detail-3.svg)
 
-_The owner does only what SePay can't let anyone else do: link the bank account (with the bank's OTP) and create one API token. The bot does the rest. The token is checked against SePay, then stored encrypted. Each sync makes a fresh key and hands it to SePay and the server in one step, so the old key stops working at once. There is always one webhook per team: the stored id is reused, a webhook already pointing at the team's URL is adopted, and one deleted in SePay is recreated. SePay's v2 user API isn't in its public docs yet; `infrastructure/sepay.py` follows what it answers today (updates are `PUT`, writes need an `X-Idempotency-Key`)._
+_The owner does only what SePay can't let anyone else do: link the bank account (with the bank's OTP), create a VA for VA-only banks, and create one API token. One tap in `/setbank` does the rest, and the chat shows every action as it happens (reading SePay, the account found, the VA, a new key, "creating / overwriting webhook …", saving, telling the group); the same steps go to the server log and `/log`. If a step fails, the message names it and the reason, and nothing is saved, so the old key keeps working. Tapping the current account again repairs a webhook that was edited or deleted in SePay. There is always one webhook per team: the stored id is reused, a webhook already pointing at the team's URL is adopted, and one deleted in SePay is recreated. SePay's v2 user API isn't in its public docs yet; `infrastructure/sepay.py` follows what it answers today (updates are `PUT`, writes need an `X-Idempotency-Key`)._
 
 ## Pay page for members without Telegram
 
@@ -144,7 +144,7 @@ Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID
 
 | Role | Who | Can do |
 |---|---|---|
-| Owner | Whoever registered the bot with `/newteam` | Everything a manager can, plus `/setbank` (pick from SePay), `/sepay`, `/sepaytoken`, approve or remove managers, `/transferowner`, `/log` |
+| Owner | Whoever registered the bot with `/newteam` | Everything a manager can, plus `/sepaytoken`, `/setbank` (pick from SePay; also sets up the webhook), approve or remove managers, `/transferowner`, `/log` |
 | Manager | Approved by the owner | `/weblink` (the pay page link), `/add` `/edit` `/remove` members, `/setfee` `/setdue`, `/markpaid`, `/expense`, `/charge` `/split`, `/remind`, assign unmatched payments, `/export` |
 | Everyone | Anyone who opens the bot | `/start` and pay (or the pay page in a browser, no Telegram needed), `/status`, `/fund`, `/history`, `/bank` (the team account; managers also see whether SePay is connected), `/lang`, `/requestmanager` |
 
@@ -198,8 +198,8 @@ _Pushing to GitHub doesn't deploy anything by itself; running `scripts/deploy.sh
 | MASTER_WEBHOOK_SECRET | `.env` | Telegram sends it on every master bot update; team bots each get their own, stored in the database |
 | POSTGRES_PASSWORD | `.env` | Only used inside the Docker network |
 | Pay page links | database (`teams.public_token`) | One per team, from `/weblink`. Anyone with it can see who owes and pay; a manager replaces it with **🔄 Make a new link**. |
-| SePay webhook keys | database (SHA-256 hash) | One per team. `/sepay` makes a new one and gives it straight to SePay; the manual fallback shows it once. |
-| SePay API tokens | database (Fernet, `TOKEN_ENC_KEY`) | One per team, sent by the owner with `/sepaytoken <token>` (or as a reply to `/sepay`); the message is deleted. Lets the server manage only that team's webhook. Revoke it in my.sepay.vn → API Access. |
+| SePay webhook keys | database (SHA-256 hash) | One per team. Each pick in `/setbank` makes a new one and hands it straight to SePay; nobody sees it. |
+| SePay API tokens | database (Fernet, `TOKEN_ENC_KEY`) | One per team, sent by the owner with `/sepaytoken <token>` (or as a reply to its prompt); the message is deleted. Lets the server manage only that team's webhook. Revoke it in my.sepay.vn → API Access. |
 | All team data | volume `db_data` | Backed up daily by `scripts/backup.sh` to `~/backups`, kept 14 days |
 | TLS certificate | volume `caddy_data` | Renewed automatically by Caddy |
 | GitHub SSH key | `~/.ssh/id_ed25519_github` | Lets this VPS push and pull the repo; remove it from GitHub to revoke |

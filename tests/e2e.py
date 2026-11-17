@@ -65,6 +65,7 @@ async def fake_telegram(request: web.Request):
 
 SEPAY_TOKEN = "S" * 40
 sepay_hooks: dict[str, dict] = {}
+sepay_down = {"writes": False}  # make webhook writes fail, to see how the bot reports it
 
 
 async def fake_sepay(request: web.Request):
@@ -74,6 +75,8 @@ async def fake_sepay(request: web.Request):
     page = {"meta": {"pagination": {"current_page": 1, "last_page": 1, "has_more": False}}}
     if method != "GET" and not request.headers.get("X-Idempotency-Key"):
         return web.json_response({"status": "error", "error_code": "idempotency_key_required"}, status=400)
+    if method != "GET" and sepay_down["writes"]:
+        return web.json_response({"status": "error", "error_code": "server_error"}, status=503)
     if path == "bank-accounts":
         return web.json_response({"status": "success", "data": [
             {"id": "acc-1", "account_number": "0123456789", "bank_short_name": "MBBank", "bank_code": "MB",
@@ -222,8 +225,14 @@ async def main():
         assert buttons(picker) == ["b:0", "b:x"], buttons(picker)
         loading = next(c for c in calls if c["method"] == "sendMessage" and "Reading your SePay" in c["params"]["text"])
         await T(cb_update(OWNER, "b:0", loading["message_id"]))
-        await wait_sent(lambda c: c["method"] == "editMessageText" and "Team bank account" in c["params"]["text"]
-                        and "0123456789" in c["params"]["text"], "bank picked")
+        done = await wait_sent(lambda c: c["method"] == "editMessageText" and "Done." in c["params"]["text"],
+                               "bank picked")
+        for line in ("✅ Read your SePay: 1 bank account", "✅ Found MBBank …6789", "✅ Made a new security key",
+                     "✅ Created webhook “Team Fund - FC Test” → https://teamfund.test/sepay/1",
+                     "✅ Saved the team's bank account", "pay into <code>0123456789</code>"):
+            assert line in done["params"]["text"], (line, done["params"]["text"])
+        assert any(c["method"] == "editMessageText" and "Working…" in c["params"]["text"]
+                   and "Read your SePay" in c["params"]["text"] for c in calls), "steps shown while working"
         assert len(sepay_hooks) == 1, sepay_hooks
         hook = sepay_hooks["wh-1"]
         assert hook["url"] == "https://teamfund.test/sepay/1" and hook["bank_account_xid"] == "acc-1"
@@ -237,12 +246,9 @@ async def main():
         await wait_sent(to(GROUP, "linked"), "group linked")
         await T(text_update(OWNER, "/bank"))
         await wait_sent(to(OWNER, "Account: <code>0123456789</code>"), "bank shown")
-        await T(text_update(OWNER, "/sepay"))
-        await T(cb_update(OWNER, "s:gen", 1))
         await T(text_update(OWNER, "/bank"))
         await wait_sent(to(OWNER, "SePay: ✅ connected"), "bank shows sepay status")
-        key_msg = await wait_sent(to(OWNER, "New SePay API key"), "sepay key")
-        api_key = re.search(r"<code>([^<]+)</code>", key_msg["params"]["text"]).group(1)
+        api_key = hook["secret"]  # what SePay sends with every webhook call
 
         # non-managers are refused
         await T(text_update(MEMBER, "/setfee 1"))
@@ -309,12 +315,41 @@ async def main():
         await T(text_update(OWNER, "/export"))
         await until(lambda: any(c["method"] == "sendDocument" for c in calls), "export sent")
 
-        # 8. /sepay re-syncs the webhook with a fresh key; the manual key stops working
+        # 8a. SePay fails while writing the webhook: the chat names the step and the reason, nothing is saved
+        sepay_down["writes"] = True
+        await T(cb_update(OWNER, "l:en", 78))
+        before = len(calls)
+        await T(text_update(OWNER, "/setbank"))
+        loading = await until(lambda: next((c for c in calls[before:] if c["method"] == "sendMessage"
+                                            and "Reading your SePay" in c["params"]["text"]), None), "picker")
+        await until(lambda: any(c["method"] == "editMessageText" and "Choose the team's bank account" in c["params"]["text"]
+                                for c in calls[before:]), "picker shown")
+        await T(cb_update(OWNER, "b:0", loading["message_id"]))
+        failed = await wait_sent(lambda c: c["method"] == "editMessageText" and "❌" in c["params"]["text"], "failure shown")
+        for part in ("✅ Read your SePay", "❌ Creating / overwriting webhook “Team Fund - FC Test”",
+                     "Couldn't reach SePay", "Nothing was changed"):
+            assert part in failed["params"]["text"], (part, failed["params"]["text"])
+        assert any(c["method"] == "editMessageText" and "⏳ Creating / overwriting webhook" in c["params"]["text"]
+                   for c in calls[before:]), "the webhook step is shown while it runs"
+        sepay_down["writes"] = False
+        async with http.post(f"http://127.0.0.1:{PORT}/sepay/1", headers=sepay_headers, json={
+                "id": 49, "transferType": "in", "transferAmount": 1000, "content": "x"}) as r:
+            assert await r.json() == {"success": True}, "the failed attempt kept the working key"
+
+        # 8. picking the same account again repairs the webhook with a fresh key; the old key stops working
         await T(cb_update(OWNER, "l:en", 79))
         await T(text_update(OWNER, "/sepaytoken"))
         await wait_sent(lambda c: to(OWNER, "/sepaytoken YOUR_TOKEN")(c), "sepaytoken without a token explains")
-        await T(text_update(OWNER, "/sepay"))
-        await wait_sent(to(OWNER, "SePay updated"), "webhook re-synced")
+        before = len(calls)
+        await T(text_update(OWNER, "/setbank"))
+        picker = await until(lambda: next((c for c in calls[before:] if c["method"] == "editMessageText"
+                                           and "Choose the team's bank account" in c["params"]["text"]), None),
+                             "picker again")
+        assert picker["params"]["reply_markup"]["inline_keyboard"][0][0]["text"].startswith("✅ "), "current account marked"
+        loading = next(c for c in calls[before:] if c["method"] == "sendMessage" and "Reading your SePay" in c["params"]["text"])
+        await T(cb_update(OWNER, "b:0", loading["message_id"]))
+        await wait_sent(lambda c: c["method"] == "editMessageText" and "Done." in c["params"]["text"]
+                        and "✅ Updated webhook" in c["params"]["text"], "webhook repaired")
         assert list(sepay_hooks) == ["wh-1"]
         new_key = sepay_hooks["wh-1"]["secret"]
         async with http.post(f"http://127.0.0.1:{PORT}/sepay/1", headers=sepay_headers, json={

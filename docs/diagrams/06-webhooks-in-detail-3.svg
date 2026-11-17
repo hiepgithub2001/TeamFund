@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="530" viewBox="0 0 1000 530" role="img" aria-label="Sequence: the owner sends /sepay in the team bot and, the first time, pastes a SePay API token, which the bot deletes from the chat. The sync_sepay use case asks the SePay API for the linked bank accounts. If the team's account is not linked, it stops and tells the owner to add it in my.sepay.vn. Otherwise it finds the team's webhook (the stored id, or one already pointing at /sepay/{teamId}), updates it with PUT or creates it with POST: the team's URL, that bank account, incoming money, API Key authentication with a new key. It saves the webhook id and the key's hash, commits, and the bot tells the owner SePay is connected."><style>svg{
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="530" viewBox="0 0 1000 530" role="img" aria-label="Sequence: once, the owner sends /sepaytoken with a SePay API token, which the bot deletes from the chat and stores encrypted. Then /setbank lists the bank accounts linked in that SePay, one button per VA for VA-only banks, and the owner taps one. The choose_bank use case asks SePay again for the accounts and VAs, reports each step to the chat as it starts and finishes, finds the team's webhook (the stored id, or one already pointing at /sepay/{teamId}) and updates it with PUT or creates it with POST: the team's URL, that account, incoming money, API Key with a new key. It saves the account, the VA, the webhook id and the key's hash, then the bot shows Done, or the failed step and the reason, with nothing saved."><style>svg{
   --bg:#f5f7f8; --surface:#ffffff; --fg:#17212b; --muted:#5b6b78; --line:#c9d3db;
   --tg:#2b7bb9; --tg-soft:#eaf3fa; --money:#b8730f; --money-soft:#fbf1df;
   --display:"Space Grotesk",system-ui,sans-serif;
@@ -39,7 +39,7 @@
       </defs>
       <rect class="box tg" x="20" y="12" width="140" height="44" rx="8"/><text class="t" x="90" y="31" text-anchor="middle">Owner</text><text class="s" x="90" y="47" text-anchor="middle">private chat</text>
       <rect class="box tg" x="260" y="12" width="140" height="44" rx="8"/><text class="t" x="330" y="31" text-anchor="middle">team bot</text><text class="s" x="330" y="47" text-anchor="middle">interfaces/bot</text>
-      <rect class="box hot" x="530" y="12" width="140" height="44" rx="8"/><text class="t" x="600" y="31" text-anchor="middle">sync_sepay</text><text class="s" x="600" y="47" text-anchor="middle">use case</text>
+      <rect class="box hot" x="530" y="12" width="140" height="44" rx="8"/><text class="t" x="600" y="31" text-anchor="middle">choose_bank</text><text class="s" x="600" y="47" text-anchor="middle">use case</text>
       <rect class="box mo" x="810" y="12" width="150" height="44" rx="8"/><text class="t" x="885" y="31" text-anchor="middle">SePay API</text><text class="s" x="885" y="47" text-anchor="middle">userapi.sepay.vn/v2</text>
       <line class="life" x1="90" y1="56" x2="90" y2="520"/>
       <line class="life" x1="330" y1="56" x2="330" y2="520"/>
@@ -47,17 +47,17 @@
       <line class="life" x1="885" y1="56" x2="885" y2="520"/>
 
       <line class="ln tg" x1="90" y1="96" x2="328" y2="96" marker-end="url(#s3t)"/>
-      <text class="lb tgc" x="210" y="89" text-anchor="middle">/sepay</text>
+      <text class="lb tgc" x="210" y="89" text-anchor="middle">/sepaytoken (once; deleted)</text>
       <line class="ln tg" x1="90" y1="132" x2="328" y2="132" marker-end="url(#s3t)"/>
-      <text class="lb tgc" x="210" y="125" text-anchor="middle">API token (first time; deleted)</text>
+      <text class="lb tgc" x="210" y="125" text-anchor="middle">/setbank → tap account or VA</text>
       <line class="ln" x1="330" y1="168" x2="598" y2="168" marker-end="url(#s3h)"/>
-      <text class="lb" x="465" y="161" text-anchor="middle">sync_sepay(team, owner)</text>
+      <text class="lb" x="465" y="161" text-anchor="middle">choose_bank(…, progress)</text>
       <line class="ln m" x1="600" y1="204" x2="883" y2="204" marker-end="url(#s3m)"/>
-      <text class="lb m" x="742" y="197" text-anchor="middle">GET /bank-accounts</text>
+      <text class="lb m" x="742" y="197" text-anchor="middle">GET /bank-accounts (+ /va)</text>
       <line class="ln d" x1="885" y1="240" x2="602" y2="240" marker-end="url(#s3h)"/>
-      <text class="lb" x="742" y="233" text-anchor="middle">linked accounts</text>
-      <line class="ln d" x1="600" y1="282" x2="92" y2="282" marker-end="url(#s3h)"/>
-      <text class="lb" x="345" y="275" text-anchor="middle">team account not linked → “add it in my.sepay.vn → Ngân hàng”, stop</text>
+      <text class="lb" x="742" y="233" text-anchor="middle">accounts, VAs</text>
+      <line class="ln tg d" x1="600" y1="282" x2="92" y2="282" marker-end="url(#s3t)"/>
+      <text class="lb tgc" x="345" y="275" text-anchor="middle">⏳ step… → ✅ step, live in the same message</text>
       <line class="ln m" x1="600" y1="324" x2="883" y2="324" marker-end="url(#s3m)"/>
       <text class="lb m" x="742" y="317" text-anchor="middle">GET /webhooks (adopt ours, once)</text>
       <line class="ln m" x1="600" y1="366" x2="883" y2="366" marker-end="url(#s3m)"/>
@@ -65,8 +65,8 @@
       <text class="s" x="742" y="384" text-anchor="middle">/sepay/{team}, that account, money in, new key</text>
       <line class="ln d" x1="885" y1="414" x2="602" y2="414" marker-end="url(#s3h)"/>
       <text class="lb" x="742" y="407" text-anchor="middle">webhook id</text>
-      <rect class="box file" x="470" y="430" width="260" height="34" rx="6"/>
-      <text class="s" x="600" y="452" text-anchor="middle">save webhook id + key hash · commit</text>
+      <rect class="box file" x="440" y="430" width="320" height="34" rx="6"/>
+      <text class="s" x="600" y="452" text-anchor="middle">save account, VA, webhook id, key hash · commit</text>
       <line class="ln tg d" x1="600" y1="494" x2="92" y2="494" marker-end="url(#s3t)"/>
-      <text class="lb tgc" x="345" y="487" text-anchor="middle">✅ SePay connected (or updated)</text>
+      <text class="lb tgc" x="345" y="487" text-anchor="middle">✅ Done — or ❌ failed step + reason, nothing saved</text>
     </svg>

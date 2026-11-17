@@ -29,6 +29,13 @@ def link_bank(svc, tid, xid="acc-1", va=None) -> dict:
     return svc.teams.choose_bank(tid, OWNER, xid, va)
 
 
+def sepay_key(svc, tid) -> str:
+    """The key SePay sends with each webhook call: the one /setbank gave the team's webhook."""
+    with svc.teams.d.uow() as uow:
+        hook_id = uow.teams.get(tid).sepay_webhook_id
+    return svc.teams.d.sepay.hooks[hook_id]["key"]
+
+
 def setup_team(svc) -> int:
     for uid, name in ((OWNER, "Owner"), (MANAGER, "Mgr"), (MEMBER, "Mem")):
         svc.users.upsert_user(uid, name, None, None)
@@ -73,7 +80,7 @@ def test_full_flow(world):
     assert code(teams.bank_options, tid, OWNER) == "sepay_token_missing"
     link_bank(svc, tid)
     assert code(teams.choose_bank, tid, OWNER, "not-in-sepay") == "not_found"
-    key = teams.new_sepay_key(tid, OWNER)["api_key"]
+    key = sepay_key(svc, tid)
     teams.update_settings(tid, MANAGER, fee=200000, due_day=5)
     assert code(teams.update_settings, tid, MANAGER, due_day=31) == "invalid"
     an, binh, cuong = (m["id"] for m in members.add_members(
@@ -194,8 +201,8 @@ def test_sepay_webhook_sync():
     tid = setup_team(svc)
     teams, url = svc.teams, f"https://example.test/sepay/{tid}"
 
-    assert code(teams.sync_sepay, tid, OWNER) == "bank_not_set"
     assert code(teams.bank_options, tid, OWNER) == "sepay_token_missing"
+    assert code(teams.choose_bank, tid, OWNER, "acc-1") == "sepay_token_missing"
     assert code(teams.set_sepay_token, tid, OWNER, "short") == "invalid"
     assert code(teams.set_sepay_token, tid, OWNER, "W" * 40) == "sepay_token_invalid"
     assert code(teams.set_sepay_token, tid, MANAGER, FakeSepay.TOKEN) in ("not_owner", "not_manager")
@@ -207,8 +214,14 @@ def test_sepay_webhook_sync():
 
     # picking adopts a webhook made by hand for this team, not a second one
     sepay.hooks["manual"] = {"url": url, "bank": "acc-1", "key": "old"}
-    r = teams.choose_bank(tid, OWNER, "acc-1")
-    assert r["webhook_id"] == "manual" and not r["created"] and r["changed"] and list(sepay.hooks) == ["manual"]
+    seen = []
+    r = teams.choose_bank(tid, OWNER, "acc-1", progress=lambda step, info: seen.append((step, info.get("action"))))
+    assert r["webhook_id"] == "manual" and r["action"] == "adopted" and r["changed"] and list(sepay.hooks) == ["manual"]
+    # every action is reported as it happens, in order
+    assert seen == [("start:accounts", None), ("accounts", None), ("account", None), ("key", None),
+                    ("start:webhook", None), ("webhook", "adopted"), ("start:save", None), ("saved", None)]
+    assert [x["step"] for x in r["steps"]] == [step for step, _ in seen if not step.startswith("start:")]
+    assert [a["action"] for a in teams.audit_log(tid, OWNER)[:2]] == ["team.sepay_webhook", "team.bank"]
     info = teams.team_info(tid, OWNER)
     assert (info["bank_name"], info["bank_account"], info["bank_holder"]) == ("VietinBank", "101003630278", "TRAN LE HIEP")
     key = sepay.hooks["manual"]["key"]
@@ -220,23 +233,27 @@ def test_sepay_webhook_sync():
     sepay.accounts.append(type(sepay.accounts[0])("acc-2", "999 888 777", "MBBank", "MB", "TRAN LE HIEP", True))
     r = teams.choose_bank(tid, OWNER, "acc-2")
     assert r["webhook_id"] == "manual" and sepay.hooks["manual"]["bank"] == "acc-2" and len(sepay.hooks) == 1
-    # the account was unlinked in SePay: sync says so, and nothing changes
+    # an account unlinked in SePay can't be picked, and nothing changes
     sepay.accounts.pop()
-    assert code(teams.sync_sepay, tid, OWNER) == "sepay_bank_missing"
+    assert code(teams.choose_bank, tid, OWNER, "acc-2") == "not_found"
+    assert teams.team_info(tid, OWNER)["bank_account"] == "999888777"
     teams.choose_bank(tid, OWNER, "acc-1")
 
-    # deleted in SePay: a new one is created
+    # picking the same account again repairs the webhook: deleted in SePay -> a new one
     sepay.hooks.clear()
-    r = teams.sync_sepay(tid, OWNER)
-    assert r["created"] and list(sepay.hooks) == [r["webhook_id"]]
+    r = teams.choose_bank(tid, OWNER, "acc-1")
+    assert r["action"] == "created" and not r["changed"] and list(sepay.hooks) == [r["webhook_id"]]
     # SePay won't change it in place: replaced, still one webhook
     sepay.fail_update = "invalid"
     old = r["webhook_id"]
-    r = teams.sync_sepay(tid, OWNER)
-    assert r["created"] and r["webhook_id"] != old and list(sepay.hooks) == [r["webhook_id"]]
-    # SePay down: a clear error
+    r = teams.choose_bank(tid, OWNER, "acc-1")
+    assert r["action"] == "replaced" and r["webhook_id"] != old and list(sepay.hooks) == [r["webhook_id"]]
+    # SePay down: a clear error, and the team keeps the key SePay already has
+    before = sepay_key(svc, tid)
     sepay.fail_update = "unavailable"
-    assert code(teams.sync_sepay, tid, OWNER) == "sepay_unavailable"
+    assert code(teams.choose_bank, tid, OWNER, "acc-1") == "sepay_unavailable"
+    with svc.teams.d.uow() as uow:
+        assert uow.teams.get(tid).sepay_key_hash == hash_secret(before)
 
 
 def test_web_pay_page(world):
@@ -267,7 +284,7 @@ def test_web_pay_page(world):
     assert web.intent_status(token, intent["code"])["status"] == "pending"
     assert code(web.intent_status, token, "TFNOTREAL1") == "not_found"
 
-    key = teams.new_sepay_key(tid, OWNER)["api_key"]
+    key = sepay_key(svc, tid)
     svc.money.record_transfer(tid, key, IncomingTransfer("tx-web", 200000, f"x {intent['content']} y"))
     st = web.intent_status(token, intent["code"])
     assert st["status"] == "paid" and st["members"] == ["An"]

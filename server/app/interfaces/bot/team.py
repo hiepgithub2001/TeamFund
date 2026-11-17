@@ -1,4 +1,5 @@
 """Handlers shared by every team bot. The registry's middleware passes `entry` (bot + team) and `lang`."""
+import asyncio
 import logging
 import re
 from datetime import date
@@ -61,17 +62,20 @@ async def allow(ev, entry, lang, level: str, private_only: bool = True) -> bool:
     return ok
 
 
-async def post_to_group(entry, text: str, photo: str | None = None, reply_markup=None) -> None:
+async def post_to_group(entry, text: str, photo: str | None = None, reply_markup=None) -> bool:
+    """Post in the team group if one is linked. True if the message went out."""
     chat_id = entry.team.get("group_chat_id")
     if not chat_id:
-        return
+        return False
     try:
         if photo:
             await entry.bot.send_photo(chat_id, photo, caption=text, reply_markup=reply_markup)
         else:
             await entry.bot.send_message(chat_id, text, reply_markup=reply_markup)
+        return True
     except Exception as e:
         log.warning("group post failed for team %s: %s", entry.team["team_id"], e)
+        return False
 
 
 # ---- multi-select picker (pay, charge, split, cash, assign) ------------------------------------------
@@ -777,41 +781,63 @@ async def on_bank_pick(cq: CallbackQuery, m, entry, lang):
                   disable_web_page_preview=True)
         return
     del_state(key)
-    await edit(cq, t(lang, "setbank.saving"))
+    await apply_bank(cq, entry, lang, o)
+
+
+async def apply_bank(cq: CallbackQuery, entry, lang, o: dict):
+    """Run the choice and show every action as it happens, in the picker message itself."""
+    choice = t(lang, "setbank.opt_va", bank=o["bank"], va=o["va"], account="…" + o["account"][-4:]) if o["va"] \
+        else f"{o['bank']} · …{o['account'][-4:]}"
+    head = f"🏦 <b>{esc(choice)}</b>"
+    lines: list[str] = []
+    now = {"text": t(lang, "setbank.working")}  # the step in progress
+    loop, lock, pending = asyncio.get_running_loop(), asyncio.Lock(), []
+
+    async def show(tail: str):
+        async with lock:  # one edit at a time, always showing the latest lines
+            await edit(cq, "\n".join([head, *lines, tail]))
+
+    def progress(step: str, info: dict):  # called from the worker thread as each step starts and finishes
+        if step.startswith("start:"):
+            now["text"] = step_text(lang, step.replace(":", "_"), info)
+        else:
+            lines.append("✅ " + step_text(lang, step, info))
+            now["text"] = t(lang, "setbank.working")
+        pending.append(asyncio.run_coroutine_threadsafe(show("⏳ " + now["text"]), loop))
+
+    async def settle():  # let the live edits finish, so they can't overwrite the final message
+        await asyncio.gather(*(asyncio.wrap_future(f) for f in pending), return_exceptions=True)
+
+    await show("⏳ " + now["text"])
     try:
-        r = await call(S.teams.choose_bank, tid(entry), cq.from_user.id, o["xid"], o["va"])
+        r = await call(S.teams.choose_bank, tid(entry), cq.from_user.id, o["xid"], o["va"], progress)
     except DomainError as e:
-        await edit(cq, error_text(lang, e))
+        await settle()
+        await show(f"❌ {now['text']}\n{error_text(lang, e)}\n\n" + t(lang, "setbank.nothing_saved"))
         return
-    text = t(lang, "setbank.chosen", bank=esc(r["bank"]), account=esc(r["account"]), holder=esc(r["holder"]))
+    await settle()
+    if r["changed"] and await post_to_group(entry, t(group_lang(entry), "group.bank_changed", by=esc(r["by"]),
+                                                     bank=esc(r["bank"]), account=esc(r["va"] or r["account"]),
+                                                     holder=esc(r["holder"]))):
+        lines.append("✅ " + t(lang, "step.group"))
+    tail = t(lang, "setbank.done", account=esc(r["va"] or r["account"]))
     if r["va"]:
-        text += "\n\n" + t(lang, "sepay.va_used", va=esc(r["va"]), bank=esc(r["bank"]))
-    text += "\n\n" + t(lang, "setbank.hook_created" if r["created"] else "setbank.hook_updated", url=esc(r["url"]))
-    await edit(cq, text)
-    if r["changed"]:
-        entry.team.update(bank_name=r["bank"], bank_account=r["account"], bank_holder=r["holder"])
-        G = group_lang(entry)
-        await post_to_group(entry, t(G, "group.bank_changed", by=esc(r["by"]), bank=esc(r["bank"]),
-                                     account=esc(r["va"] or r["account"]), holder=esc(r["holder"])))
+        tail += "\n" + t(lang, "setbank.va_note", bank=esc(r["bank"]), account=esc(r["account"]))
+    await show("\n" + tail)
 
 
-@router.message(Command("sepay"))
-async def cmd_sepay(message: Message, entry, lang):
-    """Connect SePay: with the owner's SePay API token, create or update the team's one webhook."""
-    if not await allow(message, entry, lang, "owner"):
-        return
-    info = await call(S.teams.sepay_info, tid(entry), message.from_user.id)
-    if not info["token_set"]:
-        await ask_sepay_token(message, entry, lang)
-    elif not info["has_bank"]:
-        await show_bank_picker(message, entry, lang, message.from_user.id)
-    else:
-        await sync_sepay(message, entry, lang, message.from_user.id)
+def step_text(lang: str, step: str, info: dict) -> str:
+    if step == "account":
+        return t(lang, "step.account_va" if info["va_only"] else "step.account", bank=esc(info["bank"]),
+                 account=esc("…" + info["account"][-4:]))
+    if step == "webhook":
+        return t(lang, f"step.webhook_{info['action']}", name=esc(info["name"]), url=esc(info["url"]))
+    return t(lang, f"step.{step}", **{k: esc(str(v)) for k, v in info.items()})
 
 
 @router.message(Command("sepaytoken"))
 async def cmd_sepaytoken(message: Message, command: CommandObject, entry, lang):
-    """/sepaytoken <SePay API token>: save the owner's token and set up the webhook. No token: show how to get one."""
+    """/sepaytoken <SePay API token>: save the owner's token, then pick the account. No token: how to get one."""
     token = (command.args or "").strip()
     if token:
         try:  # remove it from the chat first, whoever sent it and wherever
@@ -832,39 +858,6 @@ async def ask_sepay_token(ev, entry, lang):
     await msg.answer(t(lang, "sepay.ask_token"), reply_markup=FORCE, disable_web_page_preview=True)
 
 
-async def sync_sepay(msg: Message, entry, lang, actor: int):
-    """Create or overwrite the team's webhook in SePay and report the result with the follow-up buttons."""
-    buttons = kb([(t(lang, "btn.sepay_sync"), "s:sync")], [(t(lang, "btn.sepay_token"), "s:tok")],
-                 [(t(lang, "btn.sepay_manual"), "s:man")])
-    wait = await msg.answer(t(lang, "sepay.syncing"))
-    try:
-        r = await call(S.teams.sync_sepay, tid(entry), actor)
-    except DomainError as e:
-        await wait.edit_text(error_text(lang, e), reply_markup=buttons)
-        return
-    text = t(lang, "sepay.synced_new" if r["created"] else "sepay.synced_updated", bank=esc(r["bank"]),
-             account=esc(r["account"]), holder=esc(r["holder"]), url=esc(r["url"]))
-    if r["va"]:
-        text += "\n\n" + t(lang, "sepay.va_used", va=esc(r["va"]), bank=esc(r["bank"]))
-    await wait.edit_text(text, reply_markup=buttons)
-
-
-@router.callback_query(F.data.in_({"s:sync", "s:tok", "s:man"}))
-async def on_sepay_button(cq: CallbackQuery, entry, lang):
-    if not await allow(cq, entry, lang, "owner"):
-        return
-    await cq.answer()
-    if cq.data == "s:sync":
-        await sync_sepay(cq.message, entry, lang, cq.from_user.id)
-    elif cq.data == "s:tok":
-        await ask_sepay_token(cq, entry, lang)
-    else:
-        s = await call(S.teams.sepay_info, tid(entry), cq.from_user.id)
-        await cq.message.answer(t(lang, "sepay.info", url=esc(s["webhook_url"]),
-                                  status=t(lang, "sepay.connected" if s["connected"] else "sepay.not_connected")),
-                                reply_markup=kb([(t(lang, "btn.gen_key"), "s:gen")]))
-
-
 async def save_sepay_token(message: Message, entry, lang, text: str, delete: bool = True):
     if delete:
         try:  # the token gives access to the SePay account: don't leave it in the chat
@@ -873,20 +866,7 @@ async def save_sepay_token(message: Message, entry, lang, text: str, delete: boo
             pass
     r = await call(S.teams.set_sepay_token, tid(entry), message.from_user.id, text)
     await message.answer(t(lang, "sepay.token_saved", n=r["bank_accounts"]))
-    info = await call(S.teams.sepay_info, tid(entry), message.from_user.id)
-    if info["has_bank"]:
-        await sync_sepay(message, entry, lang, message.from_user.id)
-    else:  # first time: choose the team's account from this SePay
-        await show_bank_picker(message, entry, lang, message.from_user.id)
-
-
-@router.callback_query(F.data == "s:gen")
-async def on_sepay_key(cq: CallbackQuery, entry, lang):
-    if not await allow(cq, entry, lang, "owner"):
-        return
-    r = await call(S.teams.new_sepay_key, tid(entry), cq.from_user.id)
-    await cq.answer()
-    await say(cq, t(lang, "sepay.key", key=esc(r["api_key"])))
+    await show_bank_picker(message, entry, lang, message.from_user.id)
 
 
 @router.message(Command("requests"))

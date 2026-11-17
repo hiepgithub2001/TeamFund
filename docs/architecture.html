@@ -455,7 +455,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
   <h3 class="sub">SePay → payment confirmed</h3>
   <figure>
     <div class="frame">
-    <svg viewBox="0 0 1000 640" role="img" aria-label="SePay webhook flow. Once per team the owner sends /sepay with a SePay API token and the server creates the webhook in SePay with a new API key. On every transfer, SePay sees the money arrive in the team account and POSTs the transaction to /sepay/{teamId} with an Apikey header. Caddy proxies to the app; the controller checks the header scheme and turns the JSON into an IncomingTransfer; the record_transfer use case checks the key hash, skips duplicate transactions and outgoing transfers, finds the TF code, checks the amount, marks the bills paid and commits, then publishes an event. The controller answers SePay with 200 success right away, and the notifier sends the payer a receipt and posts to the team group through Telegram in the background.">
+    <svg viewBox="0 0 1000 640" role="img" aria-label="SePay webhook flow. Once per team the owner picks the account in /setbank and the server creates the webhook in SePay with a new API key. On every transfer, SePay sees the money arrive in the team account and POSTs the transaction to /sepay/{teamId} with an Apikey header. Caddy proxies to the app; the controller checks the header scheme and turns the JSON into an IncomingTransfer; the record_transfer use case checks the key hash, skips duplicate transactions and outgoing transfers, finds the TF code, checks the amount, marks the bills paid and commits, then publishes an event. The controller answers SePay with 200 success right away, and the notifier sends the payer a receipt and posts to the team group through Telegram in the background.">
       <defs>
         <marker id="w2h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-fg"/></marker>
         <marker id="w2m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-m"/></marker>
@@ -481,7 +481,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <line class="life" x1="925" y1="56" x2="925" y2="630"/>
       <rect class="box file" x="20" y="72" width="960" height="64" rx="8"/>
       <text class="t" x="36" y="93">Once per team, by the owner</text>
-      <text class="s" x="36" y="110">/sepay in the team bot + the owner's SePay API token → the server creates or updates the team's one webhook in SePay</text>
+      <text class="s" x="36" y="110">/setbank in the team bot: the owner taps an account from their SePay → the server creates or updates the team's one webhook</text>
       <text class="s" x="36" y="126">(URL /sepay/{teamId}, money in, authentication: API Key with a new key; only its SHA-256 hash is stored). Diagram below.</text>
       <line class="ln m" x1="75" y1="190" x2="213" y2="190" marker-end="url(#w2m)"/>
       <text class="lb m" x="145.0" y="183" text-anchor="middle">money in, content TFK7Q2M9</text>
@@ -518,10 +518,10 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
     </div>
     <figcaption>SePay watches the team's bank account and calls the webhook within seconds of money arriving. Only the use case decides what the transfer means: the key is compared by its hash, a transaction already recorded is skipped (so SePay's retries are harmless), and money with no code or too little is kept and sent to the managers to assign. The server answers <code>{"success": true}</code> as soon as the payment is saved; the receipt and the group post go out in the background through the notifier port, so a slow Telegram call can't make SePay time out and resend.</figcaption>
   </figure>
-  <h3 class="sub">/sepay → the team's webhook, created or updated</h3>
+  <h3 class="sub">/setbank → the team's account and webhook, in one tap</h3>
   <figure>
     <div class="frame">
-    <svg viewBox="0 0 1000 530" role="img" aria-label="Sequence: the owner sends /sepay in the team bot and, the first time, pastes a SePay API token, which the bot deletes from the chat. The sync_sepay use case asks the SePay API for the linked bank accounts. If the team's account is not linked, it stops and tells the owner to add it in my.sepay.vn. Otherwise it finds the team's webhook (the stored id, or one already pointing at /sepay/{teamId}), updates it with PUT or creates it with POST: the team's URL, that bank account, incoming money, API Key authentication with a new key. It saves the webhook id and the key's hash, commits, and the bot tells the owner SePay is connected.">
+    <svg viewBox="0 0 1000 530" role="img" aria-label="Sequence: once, the owner sends /sepaytoken with a SePay API token, which the bot deletes from the chat and stores encrypted. Then /setbank lists the bank accounts linked in that SePay, one button per VA for VA-only banks, and the owner taps one. The choose_bank use case asks SePay again for the accounts and VAs, reports each step to the chat as it starts and finishes, finds the team's webhook (the stored id, or one already pointing at /sepay/{teamId}) and updates it with PUT or creates it with POST: the team's URL, that account, incoming money, API Key with a new key. It saves the account, the VA, the webhook id and the key's hash, then the bot shows Done, or the failed step and the reason, with nothing saved.">
       <defs>
         <marker id="s3h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-fg"/></marker>
         <marker id="s3m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-m"/></marker>
@@ -529,7 +529,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       </defs>
       <rect class="box tg" x="20" y="12" width="140" height="44" rx="8"/><text class="t" x="90" y="31" text-anchor="middle">Owner</text><text class="s" x="90" y="47" text-anchor="middle">private chat</text>
       <rect class="box tg" x="260" y="12" width="140" height="44" rx="8"/><text class="t" x="330" y="31" text-anchor="middle">team bot</text><text class="s" x="330" y="47" text-anchor="middle">interfaces/bot</text>
-      <rect class="box hot" x="530" y="12" width="140" height="44" rx="8"/><text class="t" x="600" y="31" text-anchor="middle">sync_sepay</text><text class="s" x="600" y="47" text-anchor="middle">use case</text>
+      <rect class="box hot" x="530" y="12" width="140" height="44" rx="8"/><text class="t" x="600" y="31" text-anchor="middle">choose_bank</text><text class="s" x="600" y="47" text-anchor="middle">use case</text>
       <rect class="box mo" x="810" y="12" width="150" height="44" rx="8"/><text class="t" x="885" y="31" text-anchor="middle">SePay API</text><text class="s" x="885" y="47" text-anchor="middle">userapi.sepay.vn/v2</text>
       <line class="life" x1="90" y1="56" x2="90" y2="520"/>
       <line class="life" x1="330" y1="56" x2="330" y2="520"/>
@@ -537,17 +537,17 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <line class="life" x1="885" y1="56" x2="885" y2="520"/>
 
       <line class="ln tg" x1="90" y1="96" x2="328" y2="96" marker-end="url(#s3t)"/>
-      <text class="lb tgc" x="210" y="89" text-anchor="middle">/sepay</text>
+      <text class="lb tgc" x="210" y="89" text-anchor="middle">/sepaytoken (once; deleted)</text>
       <line class="ln tg" x1="90" y1="132" x2="328" y2="132" marker-end="url(#s3t)"/>
-      <text class="lb tgc" x="210" y="125" text-anchor="middle">API token (first time; deleted)</text>
+      <text class="lb tgc" x="210" y="125" text-anchor="middle">/setbank → tap account or VA</text>
       <line class="ln" x1="330" y1="168" x2="598" y2="168" marker-end="url(#s3h)"/>
-      <text class="lb" x="465" y="161" text-anchor="middle">sync_sepay(team, owner)</text>
+      <text class="lb" x="465" y="161" text-anchor="middle">choose_bank(…, progress)</text>
       <line class="ln m" x1="600" y1="204" x2="883" y2="204" marker-end="url(#s3m)"/>
-      <text class="lb m" x="742" y="197" text-anchor="middle">GET /bank-accounts</text>
+      <text class="lb m" x="742" y="197" text-anchor="middle">GET /bank-accounts (+ /va)</text>
       <line class="ln d" x1="885" y1="240" x2="602" y2="240" marker-end="url(#s3h)"/>
-      <text class="lb" x="742" y="233" text-anchor="middle">linked accounts</text>
-      <line class="ln d" x1="600" y1="282" x2="92" y2="282" marker-end="url(#s3h)"/>
-      <text class="lb" x="345" y="275" text-anchor="middle">team account not linked → “add it in my.sepay.vn → Ngân hàng”, stop</text>
+      <text class="lb" x="742" y="233" text-anchor="middle">accounts, VAs</text>
+      <line class="ln tg d" x1="600" y1="282" x2="92" y2="282" marker-end="url(#s3t)"/>
+      <text class="lb tgc" x="345" y="275" text-anchor="middle">⏳ step… → ✅ step, live in the same message</text>
       <line class="ln m" x1="600" y1="324" x2="883" y2="324" marker-end="url(#s3m)"/>
       <text class="lb m" x="742" y="317" text-anchor="middle">GET /webhooks (adopt ours, once)</text>
       <line class="ln m" x1="600" y1="366" x2="883" y2="366" marker-end="url(#s3m)"/>
@@ -555,13 +555,13 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <text class="s" x="742" y="384" text-anchor="middle">/sepay/{team}, that account, money in, new key</text>
       <line class="ln d" x1="885" y1="414" x2="602" y2="414" marker-end="url(#s3h)"/>
       <text class="lb" x="742" y="407" text-anchor="middle">webhook id</text>
-      <rect class="box file" x="470" y="430" width="260" height="34" rx="6"/>
-      <text class="s" x="600" y="452" text-anchor="middle">save webhook id + key hash · commit</text>
+      <rect class="box file" x="440" y="430" width="320" height="34" rx="6"/>
+      <text class="s" x="600" y="452" text-anchor="middle">save account, VA, webhook id, key hash · commit</text>
       <line class="ln tg d" x1="600" y1="494" x2="92" y2="494" marker-end="url(#s3t)"/>
-      <text class="lb tgc" x="345" y="487" text-anchor="middle">✅ SePay connected (or updated)</text>
+      <text class="lb tgc" x="345" y="487" text-anchor="middle">✅ Done — or ❌ failed step + reason, nothing saved</text>
     </svg>
     </div>
-    <figcaption>The owner does only what SePay can't let anyone else do: link the bank account (with the bank's OTP) and create one API token. The bot does the rest. The token is checked against SePay, then stored encrypted. Each sync makes a fresh key and hands it to SePay and the server in one step, so the old key stops working at once. There is always one webhook per team: the stored id is reused, a webhook already pointing at the team's URL is adopted, and one deleted in SePay is recreated. SePay's v2 user API isn't in its public docs yet; <code>infrastructure/sepay.py</code> follows what it answers today (updates are <code>PUT</code>, writes need an <code>X-Idempotency-Key</code>).</figcaption>
+    <figcaption>The owner does only what SePay can't let anyone else do: link the bank account (with the bank's OTP), create a VA for VA-only banks, and create one API token. One tap in <code>/setbank</code> does the rest, and the chat shows every action as it happens (reading SePay, the account found, the VA, a new key, "creating / overwriting webhook …", saving, telling the group); the same steps go to the server log and <code>/log</code>. If a step fails, the message names it and the reason, and nothing is saved, so the old key keeps working. Tapping the current account again repairs a webhook that was edited or deleted in SePay. There is always one webhook per team: the stored id is reused, a webhook already pointing at the team's URL is adopted, and one deleted in SePay is recreated. SePay's v2 user API isn't in its public docs yet; <code>infrastructure/sepay.py</code> follows what it answers today (updates are <code>PUT</code>, writes need an <code>X-Idempotency-Key</code>).</figcaption>
   </figure>
 </section>
 
@@ -689,7 +689,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
   <table>
     <thead><tr><th>Role</th><th>Who</th><th>Can do</th></tr></thead>
     <tbody>
-      <tr><td>Owner</td><td>Whoever registered the bot with <code>/newteam</code></td><td>Everything a manager can, plus <code>/setbank</code> (pick from SePay), <code>/sepay</code>, <code>/sepaytoken</code>, approve or remove managers, <code>/transferowner</code>, <code>/log</code></td></tr>
+      <tr><td>Owner</td><td>Whoever registered the bot with <code>/newteam</code></td><td>Everything a manager can, plus <code>/sepaytoken</code>, <code>/setbank</code> (pick from SePay; also sets up the webhook), approve or remove managers, <code>/transferowner</code>, <code>/log</code></td></tr>
       <tr><td>Manager</td><td>Approved by the owner</td><td><code>/weblink</code> (the pay page link), <code>/add</code> <code>/edit</code> <code>/remove</code> members, <code>/setfee</code> <code>/setdue</code>, <code>/markpaid</code>, <code>/expense</code>, <code>/charge</code> <code>/split</code>, <code>/remind</code>, assign unmatched payments, <code>/export</code></td></tr>
       <tr><td>Everyone</td><td>Anyone who opens the bot</td><td><code>/start</code> and pay (or the pay page in a browser, no Telegram needed), <code>/status</code>, <code>/fund</code>, <code>/history</code>, <code>/bank</code> (the team account; managers also see whether SePay is connected), <code>/lang</code>, <code>/requestmanager</code></td></tr>
     </tbody>
@@ -1056,8 +1056,8 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <tr><td>MASTER_WEBHOOK_SECRET</td><td><code>.env</code></td><td>Telegram sends it on every master bot update; team bots each get their own, stored in the database</td></tr>
       <tr><td>POSTGRES_PASSWORD</td><td><code>.env</code></td><td>Only used inside the Docker network</td></tr>
       <tr><td>Pay page links</td><td>database (<code>teams.public_token</code>)</td><td>One per team, from <code>/weblink</code>. Anyone with it can see who owes and pay; a manager replaces it with <b>🔄 Make a new link</b>.</td></tr>
-      <tr><td>SePay webhook keys</td><td>database (SHA-256 hash)</td><td>One per team. <code>/sepay</code> makes a new one and gives it straight to SePay; the manual fallback shows it once.</td></tr>
-      <tr><td>SePay API tokens</td><td>database (Fernet, <code>TOKEN_ENC_KEY</code>)</td><td>One per team, sent by the owner with <code>/sepaytoken &lt;token&gt;</code> (or as a reply to <code>/sepay</code>); the message is deleted. Lets the server manage only that team's webhook. Revoke it in my.sepay.vn → API Access.</td></tr>
+      <tr><td>SePay webhook keys</td><td>database (SHA-256 hash)</td><td>One per team. Each pick in <code>/setbank</code> makes a new one and hands it straight to SePay; nobody sees it.</td></tr>
+      <tr><td>SePay API tokens</td><td>database (Fernet, <code>TOKEN_ENC_KEY</code>)</td><td>One per team, sent by the owner with <code>/sepaytoken &lt;token&gt;</code> (or as a reply to its prompt); the message is deleted. Lets the server manage only that team's webhook. Revoke it in my.sepay.vn → API Access.</td></tr>
       <tr><td>All team data</td><td>volume <code>db_data</code></td><td>Backed up daily by <code>scripts/backup.sh</code> to <code>~/backups</code>, kept 14 days</td></tr>
       <tr><td>TLS certificate</td><td>volume <code>caddy_data</code></td><td>Renewed automatically by Caddy</td></tr>
       <tr><td>GitHub SSH key</td><td><code>~/.ssh/id_ed25519_github</code></td><td>Lets this VPS push and pull the repo; remove it from GitHub to revoke</td></tr>

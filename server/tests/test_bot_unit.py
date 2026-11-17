@@ -29,7 +29,11 @@ def test_languages_match():
     for k in DICTS["en"]:
         assert ph(DICTS["vi"][k]) == ph(DICTS["en"][k]), k
     assert t("vi", "setdue.done", day=5) == "✅ Đã đặt hạn đóng là ngày 5."
-    assert "abc" in t("en", "sepay.key", key="abc")  # placeholders may be named like t()'s own arguments
+    DICTS["en"]["test.own_args"] = "{key} {lang}"  # placeholders may be named like t()'s own arguments
+    try:
+        assert t("en", "test.own_args", key="abc", lang="x") == "abc x"
+    finally:
+        del DICTS["en"]["test.own_args"]
 
 
 def test_member_lines():
