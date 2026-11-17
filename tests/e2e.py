@@ -446,8 +446,19 @@ async def main():
         await wait_sent(to(OWNER, r"Expense recorded on 01/01/\d{4}"), "backdated expense")
         await T(text_update(OWNER, "/income 5k Bad day 31/02"))
         await wait_sent(to(OWNER, "That date isn't valid"), "impossible date refused")
+        # a bare command explains the format and takes the answer as a reply
+        await T(text_update(OWNER, "/income"))
+        guide = await wait_sent(to(OWNER, "Reply to this message as"), "income guide")
+        assert "15-10-2026" in guide["params"]["text"] and "No date = now" in guide["params"]["text"]
+        await T(text_update(OWNER, "500k Sponsor 02-01-2026"))
+        await wait_sent(to(OWNER, "Income recorded on 02/01/2026"), "income from the reply, with its date")
+        await T(text_update(OWNER, "/expense lots"))
+        await wait_sent(lambda c: to(OWNER, "Not quite")(c) and "Reply to this message as" in c["params"]["text"],
+                        "malformed expense shows the guide again")
+        await T(text_update(OWNER, "120k Water"))
+        await wait_sent(to(OWNER, r"Expense recorded\. Fund balance"), "expense from the reply, now")
         await T(text_update(OWNER, "/fund"))
-        await wait_sent(to(OWNER, "Of which other income: 2,000,000đ"), "fund shows other income")
+        await wait_sent(to(OWNER, "Of which other income: 2,500,000đ"), "fund shows other income")
         await T(text_update(OWNER, "/history"))
         await wait_sent(to(OWNER, r"Championship prize \(other income\)"), "history labels other income")
         await T(text_update(OWNER, "/expense 50k Water 03-02-2026"))

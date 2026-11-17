@@ -659,46 +659,50 @@ def on_date_text(lang: str, r: dict, key: str) -> str:
     return t(lang, key, date=r["at"][:10]) if r.get("backdated") else ""
 
 
-@router.message(Command("expense"))  # also matches a receipt photo with the command as its caption
-async def cmd_expense(message: Message, command: CommandObject, entry, lang):
-    if not await allow(message, entry, lang, "manager"):
+async def ask_money(message: Message, lang: str, kind: str, error: str | None = None) -> None:
+    """Explain the format (amount, note, optional date) and wait for the reply."""
+    set_state(input_key(message.bot.id, message.chat.id), {"type": kind}, 600)
+    text = t(lang, f"ask.{kind}")
+    await message.answer(f"{t(lang, error)}\n\n{text}" if error else text, reply_markup=FORCE)
+
+
+async def record_money(message: Message, entry, lang: str, kind: str, text: str | None,
+                       photo: str | None = None) -> None:
+    """/expense or /income with "<amount> <note> [date]", typed after the command or as a reply to the guide."""
+    if not (text or "").strip():
+        await ask_money(message, lang, kind)
         return
-    amount, title, day, ok = amount_title_date(command.args)
+    amount, title, day, ok = amount_title_date(text)
     if not ok:
-        await message.answer(t(lang, "err.bad_date"))
+        await ask_money(message, lang, kind, "err.bad_date")
         return
     if not amount or not title:
-        await message.answer(t(lang, "usage.expense"))
+        await ask_money(message, lang, kind, "err.money_format")
         return
-    photo = message.photo[-1].file_id if message.photo else None
-    r = await call(S.money.add_expense, tid(entry), message.from_user.id, amount, title, photo, day)
-    await message.answer(t(lang, "expense.done", date=on_date_text(lang, r, "on_date"),
+    G, user = group_lang(entry), message.from_user.id
+    if kind == "expense":
+        r = await call(S.money.add_expense, tid(entry), user, amount, title, photo, day)
+    else:
+        r = await call(S.money.add_income, tid(entry), user, amount, title, day)
+    await message.answer(t(lang, f"{kind}.done", date=on_date_text(lang, r, "on_date"),
                            balance=money(r["balance"], lang)))
-    G = group_lang(entry)
-    await post_to_group(entry, t(G, "group.expense", amount=money(r["amount"], G), title=esc(r["title"]),
+    await post_to_group(entry, t(G, f"group.{kind}", amount=money(r["amount"], G), title=esc(r["title"]),
                                  by=esc(r["by"]), date=on_date_text(G, r, "group.on_date"),
                                  balance=money(r["balance"], G)), photo=photo)
+
+
+@router.message(Command("expense"))  # also matches a receipt photo with the command as its caption
+async def cmd_expense(message: Message, command: CommandObject, entry, lang):
+    if await allow(message, entry, lang, "manager"):
+        await record_money(message, entry, lang, "expense", command.args,
+                           message.photo[-1].file_id if message.photo else None)
 
 
 @router.message(Command("income"))
 async def cmd_income(message: Message, command: CommandObject, entry, lang):
     """Money into the fund that isn't a member's fee: a prize, a sponsor, the balance from before the bot."""
-    if not await allow(message, entry, lang, "manager"):
-        return
-    amount, title, day, ok = amount_title_date(command.args)
-    if not ok:
-        await message.answer(t(lang, "err.bad_date"))
-        return
-    if not amount or not title:
-        await message.answer(t(lang, "usage.income"))
-        return
-    r = await call(S.money.add_income, tid(entry), message.from_user.id, amount, title, day)
-    await message.answer(t(lang, "income.done", date=on_date_text(lang, r, "on_date"),
-                           balance=money(r["balance"], lang)))
-    G = group_lang(entry)
-    await post_to_group(entry, t(G, "group.income", amount=money(r["amount"], G), title=esc(r["title"]),
-                                 by=esc(r["by"]), date=on_date_text(G, r, "group.on_date"),
-                                 balance=money(r["balance"], G)))
+    if await allow(message, entry, lang, "manager"):
+        await record_money(message, entry, lang, "income", command.args)
 
 
 # ---- fee plans --------------------------------------------------------------------------------------
@@ -1157,6 +1161,8 @@ async def on_text(message: Message, entry, lang):
     text = message.text.strip()
     if st["type"] == "sepay_token":
         await save_sepay_token(message, entry, lang, text)
+    elif st["type"] in ("expense", "income"):
+        await record_money(message, entry, lang, st["type"], text)
     elif st["type"] == "plan_amount":
         await plan_amount_reply(message, entry, lang, st, text)
     elif st["type"] == "add":

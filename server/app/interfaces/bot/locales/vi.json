@@ -28,7 +28,6 @@
  "usage.setdue": "Cách dùng: <code>/setdue 5</code> (ngày từ 1 đến 28)",
  "usage.charge": "Cách dùng: <code>/charge 150000 Áo đấu</code> (mỗi người được chọn đóng số tiền này)",
  "usage.split": "Cách dùng: <code>/split 600000 Tiền sân</code> (tổng tiền chia đều cho người được chọn)",
- "usage.expense": "Cách dùng: <code>/expense 500000 Tiền sân</code>\nGhi cho ngày đã qua: thêm ngày ở cuối, ví dụ <code>/expense 300k Sân bóng 15/10</code> hoặc <code>15-10-2026</code>. Không ghi ngày: tính là bây giờ.\nBạn cũng có thể gửi ảnh hoá đơn kèm chú thích này.",
  "usage.teamlang": "Cách dùng: <code>/teamlang vi</code> hoặc <code>/teamlang en</code>",
  "pay.title": "💰 <b>{team}</b>\nChọn người bạn muốn đóng tiền, rồi bấm Thanh toán.",
  "pay.none": "🎉 Mọi người đã đóng đủ. Hiện không có khoản nào cần đóng.",
@@ -248,8 +247,7 @@
  "step.start_save": "Đang lưu tài khoản của đội…",
  "mr.wrong_command": "/requests là lệnh để chủ đội duyệt các yêu cầu làm quản lý.\n\nBạn muốn <b>xin làm quản lý</b>? Bấm nút bên dưới (hoặc gửi /requestmanager), chủ đội sẽ được hỏi để duyệt.",
  "btn.ask_manager": "🙋 Gửi yêu cầu làm quản lý",
- "usage.income": "Cách dùng: <code>/income 2tr Thưởng vô địch</code>\nDùng cho tiền vào quỹ không phải quỹ thành viên: tiền thưởng, tài trợ, số dư trước khi dùng bot…\nGhi cho ngày đã qua: <code>/income 1.5tr Số dư đầu kỳ 31/10</code>",
- "err.bad_date": "Ngày không hợp lệ: không được ở tương lai, và không quá 3 năm trước. Ví dụ <code>15/10</code> hoặc <code>15/10/2026</code>.",
+ "err.bad_date": "⚠️ Ngày không hợp lệ: phải là ngày có thật, không ở tương lai, không quá 3 năm trước.",
  "err.too_many_plans": "Đội đã có quá nhiều gói phí. Xoá bớt gói không dùng trong /plans.",
  "group.income": "➕ <b>Thu khác</b>: {amount} · {title} (bởi {by}){date}\nSố dư quỹ: {balance}",
  "group.on_date": "\nNgày: {date}",
@@ -303,5 +301,8 @@
  "err.botfather_taken": "❌ Các tên bot gợi ý cho đội này đều đã có người dùng.",
  "err.botfather_flood": "❌ @BotFather đang giới hạn số lần tạo. Thử lại sau ít phút.",
  "err.botfather_unavailable": "❌ Không liên lạc được với @BotFather lúc này. Thử lại sau.",
- "err.botfather_busy": "⏳ Bot của bạn đang được tạo, đợi chút nhé."
+ "err.botfather_busy": "⏳ Bot của bạn đang được tạo, đợi chút nhé.",
+ "ask.income": "➕ <b>Ghi khoản thu khác</b>: tiền thưởng, tài trợ, số dư trước khi dùng bot…\n\nTrả lời tin nhắn này theo mẫu:\n<code>số_tiền nội_dung [ngày]</code>\n\n• <b>Số tiền</b>: <code>300000</code>, <code>300k</code>, <code>1.5tr</code>\n• <b>Nội dung</b>: ghi gì cũng được\n• <b>Ngày</b> (không bắt buộc), ở cuối: <code>15/10</code>, <code>15-10-2026</code> hoặc <code>15/10/2026</code>. Không ghi ngày = tính là bây giờ. Không được là ngày tương lai.\n\nVí dụ:\n<code>2tr Thưởng vô địch</code>\n<code>1.5tr Số dư đầu kỳ 31/10/2026</code>",
+ "ask.expense": "➖ <b>Ghi khoản chi</b> của quỹ đội.\n\nTrả lời tin nhắn này theo mẫu:\n<code>số_tiền nội_dung [ngày]</code>\n\n• <b>Số tiền</b>: <code>300000</code>, <code>300k</code>, <code>1.5tr</code>\n• <b>Nội dung</b>: ghi gì cũng được\n• <b>Ngày</b> (không bắt buộc), ở cuối: <code>15/10</code>, <code>15-10-2026</code> hoặc <code>15/10/2026</code>. Không ghi ngày = tính là bây giờ. Không được là ngày tương lai.\n\nVí dụ:\n<code>500k Tiền sân</code>\n<code>300k Mua bóng 15-10-2026</code>\n\nCó ảnh hoá đơn? Gửi ảnh kèm chú thích <code>/expense 500k Tiền sân</code>.",
+ "err.money_format": "⚠️ Chưa đúng mẫu: cần số tiền rồi đến nội dung."
 }

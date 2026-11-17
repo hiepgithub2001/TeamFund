@@ -28,7 +28,6 @@
  "usage.setdue": "Usage: <code>/setdue 5</code> (a day from 1 to 28)",
  "usage.charge": "Usage: <code>/charge 150000 Jersey</code> (each chosen member pays this amount)",
  "usage.split": "Usage: <code>/split 600000 Pitch rental</code> (the total is shared by the chosen members)",
- "usage.expense": "Usage: <code>/expense 500000 Pitch rental</code>\nFor a past day, add the date at the end, e.g. <code>/expense 300k Pitch 15/10</code> or <code>15-10-2026</code>. No date: now.\nYou can also send a photo of the receipt with this as the caption.",
  "usage.teamlang": "Usage: <code>/teamlang vi</code> or <code>/teamlang en</code>",
  "pay.title": "💰 <b>{team}</b>\nChoose who you are paying for, then press Pay.",
  "pay.none": "🎉 Everyone has paid. There is nothing to pay right now.",
@@ -248,8 +247,7 @@
  "step.start_save": "Saving the team's bank account…",
  "mr.wrong_command": "/requests is for the team owner to review manager requests.\n\nWant to <b>become a manager</b> yourself? Tap below (or send /requestmanager) and the owner will be asked to approve.",
  "btn.ask_manager": "🙋 Ask to become a manager",
- "usage.income": "Usage: <code>/income 2m Championship prize</code>\nFor money into the fund that isn't a member's fee: prizes, sponsors, the balance from before the bot…\nFor a past day: <code>/income 1.5m Opening balance 31/10</code>",
- "err.bad_date": "That date isn't valid: it can't be in the future or more than 3 years ago. E.g. <code>15/10</code> or <code>15/10/2026</code>.",
+ "err.bad_date": "⚠️ That date isn't valid: it must be a real day, not in the future, at most 3 years ago.",
  "err.too_many_plans": "The team has too many fee plans. Delete unused ones in /plans.",
  "group.income": "➕ <b>Other income</b>: {amount} · {title} (by {by}){date}\nFund balance: {balance}",
  "group.on_date": "\nDate: {date}",
@@ -303,5 +301,8 @@
  "err.botfather_taken": "❌ All the suggested bot usernames for this team are taken.",
  "err.botfather_flood": "❌ @BotFather is limiting new bots right now. Try again in a few minutes.",
  "err.botfather_unavailable": "❌ Couldn't reach @BotFather right now. Try again later.",
- "err.botfather_busy": "⏳ Your bot is being created, one moment."
+ "err.botfather_busy": "⏳ Your bot is being created, one moment.",
+ "ask.income": "➕ <b>Record other income</b>: prizes, sponsors, the balance from before the bot…\n\nReply to this message as:\n<code>amount note [date]</code>\n\n• <b>Amount</b>: <code>300000</code>, <code>300k</code>, <code>1.5m</code>\n• <b>Note</b>: anything\n• <b>Date</b> (optional), at the end: <code>15/10</code>, <code>15-10-2026</code> or <code>15/10/2026</code>. No date = now. It can't be in the future.\n\nExamples:\n<code>2m Championship prize</code>\n<code>1.5m Opening balance 31/10/2026</code>",
+ "ask.expense": "➖ <b>Record a team expense.</b>\n\nReply to this message as:\n<code>amount note [date]</code>\n\n• <b>Amount</b>: <code>300000</code>, <code>300k</code>, <code>1.5m</code>\n• <b>Note</b>: anything\n• <b>Date</b> (optional), at the end: <code>15/10</code>, <code>15-10-2026</code> or <code>15/10/2026</code>. No date = now. It can't be in the future.\n\nExamples:\n<code>500k Pitch rental</code>\n<code>300k New balls 15-10-2026</code>\n\nHave a receipt photo? Send it with the caption <code>/expense 500k Pitch rental</code>.",
+ "err.money_format": "⚠️ Not quite: start with the amount, then the note."
 }
