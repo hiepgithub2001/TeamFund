@@ -97,6 +97,8 @@ def main(src: Path):
 
     DOCS.mkdir(exist_ok=True)
     (DOCS / "diagrams").mkdir(exist_ok=True)
+    for old in (DOCS / "diagrams").glob("*.svg"):  # numbering shifts when sections move
+        old.unlink()
 
     # 1. standalone page
     (DOCS / "architecture.html").write_text(
