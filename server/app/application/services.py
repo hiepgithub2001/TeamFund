@@ -8,6 +8,7 @@ from .plans import PlanUseCases
 from .ports import Deps
 from .registration import RegistrationUseCases
 from .teams import TeamUseCases
+from .undo import UndoUseCases
 from .users import UserUseCases
 from .web import WebUseCases
 
@@ -22,9 +23,10 @@ class Services:
     plans: PlanUseCases
     jobs: JobUseCases
     web: WebUseCases
+    undo: UndoUseCases
 
 
 def build_services(d: Deps) -> Services:
     return Services(users=UserUseCases(d), registration=RegistrationUseCases(d), teams=TeamUseCases(d),
                     members=MemberUseCases(d), money=MoneyUseCases(d), plans=PlanUseCases(d), jobs=JobUseCases(d),
-                    web=WebUseCases(d))
+                    web=WebUseCases(d), undo=UndoUseCases(d))

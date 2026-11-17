@@ -576,6 +576,31 @@ async def main():
         await wait_sent(lambda c: to(OWNER, "due ")(c) and "late fee 2,000đ/day" in c["params"]["text"]
                         and "late fee 1,000đ/day" in c["params"]["text"], "status lists each package's terms")
 
+        # 15. undo any recent action
+        await T(text_update(OWNER, "/expense 10k Typo"))
+        await wait_sent(to(OWNER, r"Expense recorded\. Fund balance"), "expense to undo")
+        await T(text_update(OWNER, "/income 5k Keep"))
+        await wait_sent(to(OWNER, r"Income recorded\. Fund balance"), "a later action")
+        await T(text_update(OWNER, "/undo"))
+        lst = await wait_sent(to(OWNER, "Pick an action to undo"), "undo list")
+        labels = [b["text"] for row in lst["params"]["reply_markup"]["inline_keyboard"] for b in row]
+        assert labels[0].startswith("Other income · Keep") and labels[1].startswith("Expense · Typo"), labels
+        typo = buttons(lst)[1]
+        await T(cb_update(OWNER, typo, lst["message_id"]))  # the one in the middle
+        await wait_sent(lambda c: c["method"] == "editMessageText" and "Undo this action?" in c["params"]["text"]
+                        and "Expense · Typo · 10,000đ" in c["params"]["text"], "confirm")
+        await T(cb_update(OWNER, "un:y:" + typo[3:], lst["message_id"]))
+        done = await wait_sent(lambda c: c["method"] == "editMessageText" and "Undone: Expense · Typo" in c["params"]["text"],
+                               "undone")
+        assert buttons(done) == ["un:l"]
+        await wait_sent(to(MEMBER, "Undone: Expense · Typo · 10,000đ"), "followers told about the undo")
+        await T(cb_update(OWNER, "un:y:" + typo[3:], lst["message_id"]))  # the same button again
+        await until(lambda: any(c["method"] == "answerCallbackQuery" and "already undone" in (c["params"].get("text") or "")
+                                for c in calls), "an undo can't happen twice")
+        await T(cb_update(OWNER, "un:l", lst["message_id"]))
+        await wait_sent(lambda c: c["method"] == "editMessageText" and "Pick an action to undo" in c["params"]["text"]
+                        and "Typo" not in json.dumps(c["params"].get("reply_markup")), "the list without it")
+
         print(f"e2e passed ({len(calls)} Telegram API calls)")
     finally:
         await http.close()

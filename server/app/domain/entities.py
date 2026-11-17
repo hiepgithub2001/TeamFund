@@ -208,6 +208,9 @@ class AuditEntry:
     before: dict | None = None
     after: dict | None = None
     created_at: datetime | None = None
+    undo: list | None = None          # the rows this action changed, to put back with /undo (undoable actions)
+    undone_at: datetime | None = None
+    undone_by: int | None = None
     id: int | None = None
 
 

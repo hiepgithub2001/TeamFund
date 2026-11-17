@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="860" height="400" viewBox="0 0 860 400" role="img" aria-label="Sequence: a person sends /requestmanager to the team bot, a use case records the request and the bot sends the owner a card with Approve and Reject buttons. When the owner taps Approve, the use case checks that the tapper is the owner, adds the manager role and writes the audit log, then the bot tells the person and posts to the group."><style>svg{
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="400" viewBox="0 0 860 400" role="img" aria-label="Sequence: a person sends /requestmanager to the team bot, a use case records the request and the bot sends the owner a card with Approve and Reject buttons. When the owner taps Approve, the use case checks that the tapper is the owner, adds the manager role and writes the audit log, then the bot tells the person and announces it."><style>svg{
   --bg:#f5f7f8; --surface:#ffffff; --fg:#17212b; --muted:#5b6b78; --line:#c9d3db;
   --tg:#2b7bb9; --tg-soft:#eaf3fa; --money:#b8730f; --money-soft:#fbf1df;
   --display:"Space Grotesk",system-ui,sans-serif;
@@ -61,5 +61,5 @@
       <text class="lb" x="558" y="307">7 · tapper is owner? add</text>
       <text class="lb" x="558" y="321">manager, write audit log</text>
       <line class="ln" x1="300" y1="360" x2="92" y2="360" marker-end="url(#c)"/>
-      <text class="lb" x="195" y="353" text-anchor="middle">8 · "You're a manager" + group post</text>
+      <text class="lb" x="195" y="353" text-anchor="middle">8 · "You're a manager" + announcement</text>
     </svg>

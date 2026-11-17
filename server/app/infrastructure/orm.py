@@ -120,6 +120,7 @@ audit_log = Table(
     "audit_log", metadata, _id(),
     Column("team_id", Integer, index=True), Column("actor_tg_id", BigInteger), Column("action", String(64), nullable=False),
     Column("target", String(200)), Column("before", JSON), Column("after", JSON), Column("created_at", DateTime),
+    Column("undo", JSON), Column("undone_at", DateTime), Column("undone_by", BigInteger),
 )
 
 # Infrastructure-only secrets (e.g. the admin's Telegram login for @BotFather), encrypted. Not a domain thing,

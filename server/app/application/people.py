@@ -15,6 +15,18 @@ def user_info(uow: UnitOfWork, tg_id: int) -> dict:
     return {"tg_id": tg_id, "name": display_name(uow, tg_id), "username": user.username if user else None}
 
 
+# actions /undo can take back. Others (bank, SePay, managers, owner, links) change things outside the
+# database or decide who may act, so undo stops at them.
+UNDOABLE = {"expense.add", "income.add", "payment.cash", "payment.assign", "payment.other_income", "bill.charge",
+            "bill.split", "bill.waive", "plan.save", "plan.delete", "plan.terms", "team.settings", "member.add",
+            "member.update", "member.remove"}
+
+
 def audit(uow: UnitOfWork, clock: Clock, team_id, actor, action, target=None, before=None, after=None) -> None:
+    """Log an action. An undoable one also keeps the rows it changed (call it before the commit)."""
+    undo = None
+    if action in UNDOABLE:
+        uow.flush()
+        undo = uow.changes()
     uow.audit.add(AuditEntry(team_id=team_id, actor_tg_id=actor, action=action, target=target,
-                             before=before, after=after, created_at=clock.now()))
+                             before=before, after=after, created_at=clock.now(), undo=undo))

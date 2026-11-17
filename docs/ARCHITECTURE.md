@@ -8,11 +8,11 @@ Every team gets its own Telegram bot for collecting the monthly fee. A master bo
 
 ## System overview
 
-![The owner creates bots in BotFather and registers a team bot with the master bot. Members and the team group use the tea](diagrams/01-system-overview.svg)
+![The owner creates bots in BotFather and registers a team bot with the master bot. Members and followers use the team bot](diagrams/01-system-overview.svg)
 
 Legend: Telegram traffic and calls inside the app · Money path: transfer to confirmation
 
-_The master bot's token is set once in `.env`. Team bot tokens come from owners through `/newteam` and are stored encrypted. The amber arrows are the money path: a SePay webhook enters through `interfaces/http`, which turns SePay's JSON into an `IncomingTransfer`; a use case checks the team's key, matches the transfer to bills with the domain rules and saves it through the repository ports; the resulting event goes out through the notifier port to `interfaces/bot` for the receipt and group post. The public address is `teamfund.103-90-225-28.sslip.io`; the existing nginx keeps port 80, so Caddy gets its certificate on 443._
+_The master bot's token is set once in `.env`. Team bot tokens come from owners through `/newteam` and are stored encrypted. The amber arrows are the money path: a SePay webhook enters through `interfaces/http`, which turns SePay's JSON into an `IncomingTransfer`; a use case checks the team's key, matches the transfer to bills with the domain rules and saves it through the repository ports; the resulting event goes out through the notifier port to `interfaces/bot` for the receipt and the followers' announcement. The public address is `teamfund.103-90-225-28.sslip.io`; the existing nginx keeps port 80, so Caddy gets its certificate on 443._
 
 ## Clean Architecture
 
@@ -53,7 +53,7 @@ _Control flows outward and back (a webhook calls a use case, the use case saves 
 3. **Registration** is the same either way: the server checks the token, creates the team, sets the webhook to `/tg/{botId}`, and makes the requester the owner.
 4. **Link the bank account in SePay** (my.sepay.vn → Ngân hàng → Thêm tài khoản, with the bank's OTP), and for VA-only banks such as BIDV personal create a VA there. Then create an API token (Cấu hình công ty → API Access).
 5. **Connect SePay and pick the account.** In the team bot, send `/sepaytoken <token>`. The bot lists the accounts linked in that SePay (one button per VA for VA-only banks); one tap saves the team's account and creates its webhook. Only the owner can do this, and the account can't be typed in: only an account SePay watches can confirm payments. To change it later, `/setbank` shows the same list. Anyone can check it with `/bank`.
-6. **Add the bot to the team group** and send `/linkgroup` there.
+6. **Share the bot's link with members.** Everyone who taps Start follows the team: they get its announcements privately (no group needed). `/notify` turns them off.
 7. **Add members and the fee:** `/members` → ➕ Add members, `/plans` → 💰 Default fee (and ➕ New plan for other amounts or cycles), then 📅 Deadline and ⏰ Late fee for each package.
 
 ## Payment flow
@@ -78,21 +78,21 @@ _Each bot has its own webhook URL and secret token, set when the server starts a
 
 ![SePay webhook flow. Once per team the owner picks the account in /setbank and the server creates the webhook in SePay wi](diagrams/05-webhooks-in-detail-2.svg)
 
-_SePay watches the team's bank account and calls the webhook within seconds of money arriving. Only the use case decides what the transfer means: the key is compared by its hash, a transaction already recorded is skipped (so SePay's retries are harmless), and money with no code or too little is kept and sent to the managers to assign. The server answers `{"success": true}` as soon as the payment is saved; the receipt and the group post go out in the background through the notifier port, so a slow Telegram call can't make SePay time out and resend._
+_SePay watches the team's bank account and calls the webhook within seconds of money arriving. Only the use case decides what the transfer means: the key is compared by its hash, a transaction already recorded is skipped (so SePay's retries are harmless), and money with no code or too little is kept and sent to the managers to assign. The server answers `{"success": true}` as soon as the payment is saved; the receipt and the followers' announcement go out in the background through the notifier port, so a slow Telegram call can't make SePay time out and resend._
 
 ### /setbank → the team's account and webhook, in one tap
 
 ![Sequence: once, the owner sends /sepaytoken with a SePay API token, which the bot deletes from the chat and stores encry](diagrams/06-webhooks-in-detail-3.svg)
 
-_The owner does only what SePay can't let anyone else do: link the bank account (with the bank's OTP), create a VA for VA-only banks, and create one API token. One tap in `/setbank` does the rest, and the chat shows every action as it happens (reading SePay, the account found, the VA, a new key, "creating / overwriting webhook …", saving, telling the group); the same steps go to the server log and `/log`. If a step fails, the message names it and the reason, and nothing is saved, so the old key keeps working. Tapping the current account again repairs a webhook that was edited or deleted in SePay. There is always one webhook per team: the stored id is reused, a webhook already pointing at the team's URL is adopted, and one deleted in SePay is recreated. SePay's v2 user API isn't in its public docs yet; `infrastructure/sepay.py` follows what it answers today (updates are `PUT`, writes need an `X-Idempotency-Key`)._
+_The owner does only what SePay can't let anyone else do: link the bank account (with the bank's OTP), create a VA for VA-only banks, and create one API token. One tap in `/setbank` does the rest, and the chat shows every action as it happens (reading SePay, the account found, the VA, a new key, "creating / overwriting webhook …", saving, telling the followers); the same steps go to the server log and `/log`. If a step fails, the message names it and the reason, and nothing is saved, so the old key keeps working. Tapping the current account again repairs a webhook that was edited or deleted in SePay. There is always one webhook per team: the stored id is reused, a webhook already pointing at the team's URL is adopted, and one deleted in SePay is recreated. SePay's v2 user API isn't in its public docs yet; `infrastructure/sepay.py` follows what it answers today (updates are `PUT`, writes need an `X-Idempotency-Key`)._
 
 ## Pay page for members without Telegram
 
-Some members won't install Telegram. Each team has a **pay page**, a small web app (PWA) at a secret link, with three tabs. **Đóng quỹ** (Pay) does what `/start` does in the bot: list who still owes, tick names, get the VietQR, and see it confirmed. The other two are read-only: **Quỹ** (Fund, like `/fund` and `/history 10/2026`: money in, money out and balance, then one collapsible block per month from the team's first record to now, each with that month's in, out and net; opening a month lists every transaction in it, newest first, and the current month starts open) and **Thành viên** (Members: everyone's total debt, biggest first, broken down into the bills behind it, plus shirt number, fee and cycle, and status). It reads and writes the same database through the same use cases, so a payment on the page shows up in the bot, `/status`, the reports and the group, and the other way round. Managing stays in Telegram: the page can't add members, change fees or record expenses.
+Some members won't install Telegram. Each team has a **pay page**, a small web app (PWA) at a secret link, with three tabs. **Đóng quỹ** (Pay) does what `/start` does in the bot: list who still owes, tick names, get the VietQR, and see it confirmed. The other two are read-only: **Quỹ** (Fund, like `/fund` and `/history 10/2026`: money in, money out and balance, then one collapsible block per month from the team's first record to now, each with that month's in, out and net; opening a month lists every transaction in it, newest first, and the current month starts open) and **Thành viên** (Members: everyone's total debt, biggest first, broken down into the bills behind it, plus shirt number, fee and cycle, and status). It reads and writes the same database through the same use cases, so a payment on the page shows up in the bot, `/status`, the reports and the announcements, and the other way round. Managing stays in Telegram: the page can't add members, change fees or record expenses.
 
 ![Sequence: a member opens the team's secret link in a browser. The page calls GET api/state through Caddy and http/web.py](diagrams/07-pay-page-for-members-without-telegram.svg)
 
-_The page is one HTML shell with plain JavaScript (no build step) in `interfaces/web/`, served by `interfaces/http/web.py`; `application/web.py` holds the only three things it may do. A payer on the page has no Telegram account, so there is no private receipt: the page itself shows ✅, and the group still gets the "paid" post. Everything else, from matching the TF code to expiry after 24 hours, is the same code path as the bot._
+_The page is one HTML shell with plain JavaScript (no build step) in `interfaces/web/`, served by `interfaces/http/web.py`; `application/web.py` holds the only three things it may do. A payer on the page has no Telegram account, so there is no private receipt: the page itself shows ✅, and the followers still get the "paid" announcement. Everything else, from matching the TF code to expiry after 24 hours, is the same code path as the bot._
 
 | Concern | How it's handled |
 |---|---|
@@ -151,7 +151,7 @@ _One bill per cycle: a quarterly bill covers its three months, so Cường count
 |---|---|
 | `/plans` | Lists the default fee and each plan with its members. Buttons: 💰 default fee (everyone not on a plan pays it monthly; replaces the old `/setfee`), ➕ new plan (cycle → amount → pick members), and per plan 👥 members, 💰 amount, 🔁 cycle, 🗑 delete. |
 | `/plans 300k quý` | Quick create: goes straight to picking members. Cycle words: tháng / quý / 6 tháng / năm, or month / quarter / 6 months / year. |
-| `/income 2tr Thưởng vô địch` | Records other income. Posted in the group; counts in `/fund` (shown as "of which other income"), `/history`, the month totals and the pay page. |
+| `/income 2tr Thưởng vô địch` | Records other income. Announced to followers; counts in `/fund` (shown as "of which other income"), `/history`, the month totals and the pay page. |
 | `/income 1.5tr Số dư đầu kỳ 31/10``/expense 300k Sân bóng 15-10-2026` | A date at the end (`dd/mm/yyyy`, `dd-mm-yyyy`, `dd/mm/yy`, `dd-mm-yy`, `dd/mm` / `dd-mm` for this year, or `mm/yyyy` / `mm-yyyy` for the 1st of that month) records it on that day (noon, team time); without one it's now. Being stored at that time, it sorts into place in the transaction log and falls under its own month in `/history 10/2026`, the month totals and the pay page's month blocks. Not in the future, at most 3 years back. Amounts can be `450k`, `1tr`, `1.5M`, `1tr5`, `5M`, `450.000`…; `/money` lists every form. A bare `/income` or `/expense` explains the format and takes the answer as a reply. |
 
 - A member is on at most one plan. Picking them for a plan moves them off any other; a plan nobody is left on is deleted.
@@ -161,10 +161,26 @@ _One bill per cycle: a quarterly bill covers its three months, so Cường count
 - Cash that differs from the bill: pick one person in `/markpaid`, then ✏️ Another amount (at most what they owe). The money goes to their oldest bills first, and the fund grows by that amount only. For the rest, ✔️ **let it go** settles that bill at what was paid (someone who joined mid-quarter pays 300k of 600k), or ⏳ **still owes** keeps the rest as a new unpaid bill. More than owed: record the extra with `/income`. A SePay transfer below the amount goes to `/unmatched`, where assigning it closes the bills with the amount that actually arrived.
 - Setting a member's own monthly fee takes them off their plan. Deleting a plan moves its members back to the default.
 - **Each package has its own terms** (the default package and every plan), set in `/plans` with 📅 Deadline and ⏰ Late fee. A plan follows the default package's until it gets its own; `-` puts it back. Bills remember the plan they were billed under, so their due date and fine follow that package. Each package's new bills are announced on its own announcement day (packages sharing a day share one post).
-- **Deadline:** `15 5` announces the fee on the 15th of each month and makes it due 5 days later (the 20th); the deadline may run into the next month (`/setdue 25 10` → the 5th). A bill's due date is the announcement day of its first month plus the deadline. Reminders: 3 days before the due date, on it, then every 3 days while someone owes, never before the announcement. Teams set up before this keep their old due day (announced on the 1st).
+- **Deadline:** `15 5` announces the fee on the 15th of each month and makes it due 5 days later (the 20th); the deadline may run into the next month (`/setdue 25 10` → the 5th). A bill's due date is the announcement day of its first month plus the deadline. Reminders: 3 days before the due date, on it, then every 3 days while someone owes, never before the announcement. Defaults for a new team (and any package without its own): announced on the 1st, due 5 days later, no late fee.
 - **Late fee:** `1k` adds 1,000đ per day to each overdue fee bill, as its own line "Phạt trễ N ngày" kept current whenever anyone looks or pays. Days are counted from the due date, or from the day the late fee was turned on if that's later, so turning it on never fines the past. It stops growing when the fee is paid, freezes for paused members, isn't charged on `/charge` costs, and goes away when the fee is waived or when the package's late fee is set to `0`. A QR made one day and paid the next is accepted at the QR's amount.
 - Reminders and the monthly "fee is open" post run when anyone has a fee: the team fee or a plan. The post lists each fee with how many people pay it.
 - Plan changes, other income and backdated records all go into `/log` (`plan.save`, `plan.delete`, `income.add`, with the date).
+
+## Announcements and undo
+
+### Followers instead of a group
+
+Team bots don't work in groups. Everyone who opens a team bot privately **follows** the team (a new follower is welcomed once). Whatever used to be posted in a team group now goes to each follower privately: the fee is open, reminders, the month report, who paid (except to the payer, who gets the receipt), expenses, other income, charges, a bank change, and undos of those. The person who caused an announcement doesn't get it again. `/notify` turns announcements off or on for yourself; someone who blocks the bot is muted. `/remind` sends the unpaid list to all followers and says how many got it.
+
+### Undo
+
+`/undo` (managers) lists the recent actions you can take back, newest first, from the last 7 days. Pick any of them, not only the newest, confirm, and it's undone; **↩️ Undo another action** goes back to the list. Followers are told when an announced action is undone.
+
+- Each undoable action's log entry keeps the rows it inserted, changed or deleted (the unit of work records them on every flush). Undo puts exactly those back.
+- It only happens if every one of those rows is still as the action left it. A charge whose bill was paid since, a cash payment whose bills changed, or members who already have fee bills: the undo is refused with a reason and nothing changes. Fix those with a normal command.
+- Undoable: expenses, other income, cash payments (also part amounts), assigning or dismissing a transfer, charges and splits, waiving a bill, fee plans (save, delete, deadline, late fee), team settings, adding, editing or removing members.
+- Not undoable, so never offered: anything about the bank, SePay, managers, the owner, the pay page link, and SePay payments themselves (the money really arrived). The undo itself is logged in `/log` (as `undo`) and can't be undone; undone actions show ↩️ there.
+- A manager sees and undoes only their own actions; the owner can undo anyone's.
 
 ## Roles in a team bot
 
@@ -173,8 +189,8 @@ Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID
 | Role | Who | Can do |
 |---|---|---|
 | Owner | Whoever registered the bot with `/newteam` | Everything a manager can, plus `/sepaytoken`, `/setbank` (pick from SePay; also sets up the webhook), approve or remove managers, `/transferowner`, `/log` |
-| Manager | Approved by the owner | `/weblink` (the pay page link), `/members` (view, ➕ add, edit, remove), `/plans` (default fee and plans), deadlines and late fees (in `/plans`), `/markpaid`, `/expense`, `/income`, `/charge` (each pays, or ➗ split), `/remind`, assign unmatched payments, `/export` |
-| Everyone | Anyone who opens the bot | `/start` and pay (or the pay page in a browser, no Telegram needed), `/status`, `/fund`, `/history` (or `/history 10/2026` for every transaction of one month), `/bank` (the team account; managers also see whether SePay is connected), `/lang`, `/requestmanager` |
+| Manager | Approved by the owner | `/weblink` (the pay page link), `/members` (view, ➕ add, edit, remove), `/plans` (default fee and plans), deadlines and late fees (in `/plans`), `/markpaid`, `/expense`, `/income`, `/charge` (each pays, or ➗ split), `/undo`, `/remind`, assign unmatched payments, `/export` |
+| Everyone | Anyone who opens the bot | `/start` and pay (or the pay page in a browser, no Telegram needed), `/status`, `/fund`, `/history` (or `/history 10/2026` for every transaction of one month), `/bank` (the team account; managers also see whether SePay is connected), `/notify`, `/lang`, `/requestmanager` |
 
 ### Becoming a manager: request and approve
 
@@ -185,7 +201,7 @@ _The role check in step 7 runs on the server, so a forwarded Approve button does
 - Only the owner approves or removes managers. Managers can't promote anyone.
 - One pending request per person. After a rejection they wait 24 hours before asking again.
 - `/requests` shows the owner every pending request, and `/managers` lists managers with Remove buttons.
-- A change to the bank account is announced in the group, so nobody can quietly redirect the fund.
+- A change to the bank account is announced to every follower, so nobody can quietly redirect the fund.
 - Every manager action goes into the audit log: who, what, when, and the old and new values.
 
 ## Deployment on the VPS

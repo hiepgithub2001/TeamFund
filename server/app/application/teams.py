@@ -387,5 +387,6 @@ class TeamUseCases:
         with self.d.uow() as uow:
             team = owner_team(uow, team_id, actor)
             return [{"at": self.d.clock.fmt(a.created_at), "actor": display_name(uow, a.actor_tg_id),
-                     "action": a.action, "target": a.target, "before": a.before, "after": a.after}
+                     "action": a.action, "target": a.target, "before": a.before, "after": a.after,
+                     "undone": a.undone_at is not None}
                     for a in uow.audit.latest(team.id, min(limit, 100))]

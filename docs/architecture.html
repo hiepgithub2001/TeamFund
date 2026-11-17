@@ -98,7 +98,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
   <h2>System overview</h2>
   <figure>
     <div class="frame">
-    <svg viewBox="0 0 1040 590" role="img" aria-label="The owner creates bots in BotFather and registers a team bot with the master bot. Members and the team group use the team bots. All bots send updates through Telegram's Bot API to Caddy on the VPS, which passes them and SePay webhooks to one app process. Inside it, the interface adapters (webhooks, bots, scheduler) call the use cases, which apply the domain rules and reach PostgreSQL only through ports implemented by the infrastructure adapters.">
+    <svg viewBox="0 0 1040 590" role="img" aria-label="The owner creates bots in BotFather and registers a team bot with the master bot. Members and followers use the team bots privately. All bots send updates through Telegram's Bot API to Caddy on the VPS, which passes them and SePay webhooks to one app process. Inside it, the interface adapters (webhooks, bots, scheduler) call the use cases, which apply the domain rules and reach PostgreSQL only through ports implemented by the infrastructure adapters.">
       <defs>
         <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="head-fg"/></marker>
         <marker id="am" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="head-m"/></marker>
@@ -111,7 +111,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <text class="s" x="95" y="145" text-anchor="middle">the team bot</text>
 
       <rect class="box" x="20" y="230" width="150" height="56" rx="8"/>
-      <text class="t" x="95" y="254" text-anchor="middle">Team group</text>
+      <text class="t" x="95" y="254" text-anchor="middle">Followers</text>
       <text class="s" x="95" y="271" text-anchor="middle">paid posts, reminders</text>
 
       <rect class="box" x="20" y="300" width="150" height="56" rx="8"/>
@@ -238,7 +238,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <span><i class="sw"></i>Telegram traffic and calls inside the app</span>
       <span><i class="sw m"></i>Money path: transfer to confirmation</span>
     </div>
-    <figcaption>The master bot's token is set once in <code>.env</code>. Team bot tokens come from owners through <code>/newteam</code> and are stored encrypted. The amber arrows are the money path: a SePay webhook enters through <code>interfaces/http</code>, which turns SePay's JSON into an <code>IncomingTransfer</code>; a use case checks the team's key, matches the transfer to bills with the domain rules and saves it through the repository ports; the resulting event goes out through the notifier port to <code>interfaces/bot</code> for the receipt and group post. The public address is <code>teamfund.103-90-225-28.sslip.io</code>; the existing nginx keeps port 80, so Caddy gets its certificate on 443.</figcaption>
+    <figcaption>The master bot's token is set once in <code>.env</code>. Team bot tokens come from owners through <code>/newteam</code> and are stored encrypted. The amber arrows are the money path: a SePay webhook enters through <code>interfaces/http</code>, which turns SePay's JSON into an <code>IncomingTransfer</code>; a use case checks the team's key, matches the transfer to bills with the domain rules and saves it through the repository ports; the resulting event goes out through the notifier port to <code>interfaces/bot</code> for the receipt and the followers' announcement. The public address is <code>teamfund.103-90-225-28.sslip.io</code>; the existing nginx keeps port 80, so Caddy gets its certificate on 443.</figcaption>
   </figure>
 </section>
 
@@ -330,7 +330,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
     <li><span><b>Registration</b> is the same either way: the server checks the token, creates the team, sets the webhook to <code>/tg/{botId}</code>, and makes the requester the owner.</span></li>
     <li><span><b>Link the bank account in SePay</b> (my.sepay.vn → Ngân hàng → Thêm tài khoản, with the bank's OTP), and for VA-only banks such as BIDV personal create a VA there. Then create an API token (Cấu hình công ty → API Access).</span></li>
     <li><span><b>Connect SePay and pick the account.</b> In the team bot, send <code>/sepaytoken &lt;token&gt;</code>. The bot lists the accounts linked in that SePay (one button per VA for VA-only banks); one tap saves the team's account and creates its webhook. Only the owner can do this, and the account can't be typed in: only an account SePay watches can confirm payments. To change it later, <code>/setbank</code> shows the same list. Anyone can check it with <code>/bank</code>.</span></li>
-    <li><span><b>Add the bot to the team group</b> and send <code>/linkgroup</code> there.</span></li>
+    <li><span><b>Share the bot's link with members.</b> Everyone who taps Start follows the team: they get its announcements privately (no group needed). <code>/notify</code> turns them off.</span></li>
     <li><span><b>Add members and the fee:</b> <code>/members</code> → ➕ Add members, <code>/plans</code> → 💰 Default fee (and ➕ New plan for other amounts or cycles), then 📅 Deadline and ⏰ Late fee for each package.</span></li>
   </ol>
 </section>
@@ -340,7 +340,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
   <p>No one signs in. Whoever opens the team bot sees this month's unpaid list and taps the names they are paying for, usually just their own.</p>
   <figure>
     <div class="frame">
-    <svg viewBox="0 0 940 600" role="img" aria-label="Sequence: a member starts the bot, selects names, receives a SePay QR with a unique code, transfers money, SePay sends a webhook to the server, whose use case matches the code and amount, marks the bills paid, and the bot sends a receipt and posts to the group.">
+    <svg viewBox="0 0 940 600" role="img" aria-label="Sequence: a member starts the bot, selects names, receives a SePay QR with a unique code, transfers money, SePay sends a webhook to the server, whose use case matches the code and amount, marks the bills paid, and the bot sends a receipt and tells the followers.">
       <defs>
         <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-fg"/></marker>
         <marker id="bm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-m"/></marker>
@@ -385,7 +385,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <line class="ln m" x1="460" y1="532" x2="272" y2="532" marker-end="url(#bm)"/>
       <text class="lb m" x="365" y="525" text-anchor="middle">13 · notify paid</text>
       <line class="ln" x1="270" y1="568" x2="82" y2="568" marker-end="url(#b)"/>
-      <text class="lb" x="175" y="561" text-anchor="middle">14 · receipt + group post</text>
+      <text class="lb" x="175" y="561" text-anchor="middle">14 · receipt + followers told</text>
     </svg>
     </div>
     <figcaption>The unique code in the transfer memo is what lets the server match money to bills with no human check. Each intent expires after 24 hours. If the amount doesn't match or the code is missing, the transaction is still saved and a manager is asked to assign it. SePay's transaction id is stored, so a repeated webhook can't count the same payment twice. For VietinBank accounts the memo is <code>SEVQR TF…</code>: SePay's VietinBank link only reports transfers whose content starts with <code>SEVQR</code>, and the server finds the TF code anywhere in the text.</figcaption>
@@ -456,7 +456,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
   <h3 class="sub">SePay → payment confirmed</h3>
   <figure>
     <div class="frame">
-    <svg viewBox="0 0 1000 640" role="img" aria-label="SePay webhook flow. Once per team the owner picks the account in /setbank and the server creates the webhook in SePay with a new API key. On every transfer, SePay sees the money arrive in the team account and POSTs the transaction to /sepay/{teamId} with an Apikey header. Caddy proxies to the app; the controller checks the header scheme and turns the JSON into an IncomingTransfer; the record_transfer use case checks the key hash, skips duplicate transactions and outgoing transfers, finds the TF code, checks the amount, marks the bills paid and commits, then publishes an event. The controller answers SePay with 200 success right away, and the notifier sends the payer a receipt and posts to the team group through Telegram in the background.">
+    <svg viewBox="0 0 1000 640" role="img" aria-label="SePay webhook flow. Once per team the owner picks the account in /setbank and the server creates the webhook in SePay with a new API key. On every transfer, SePay sees the money arrive in the team account and POSTs the transaction to /sepay/{teamId} with an Apikey header. Caddy proxies to the app; the controller checks the header scheme and turns the JSON into an IncomingTransfer; the record_transfer use case checks the key hash, skips duplicate transactions and outgoing transfers, finds the TF code, checks the amount, marks the bills paid and commits, then publishes an event. The controller answers SePay with 200 success right away, and the notifier sends the payer a receipt and tells the team's followers through Telegram in the background.">
       <defs>
         <marker id="w2h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-fg"/></marker>
         <marker id="w2m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-m"/></marker>
@@ -514,10 +514,10 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <line class="ln tg" x1="800" y1="584" x2="923" y2="584" marker-end="url(#w2t)"/>
       <text class="lb tgc" x="862.5" y="577" text-anchor="middle">receipt → payer</text>
       <line class="ln tg" x1="800" y1="616" x2="923" y2="616" marker-end="url(#w2t)"/>
-      <text class="lb tgc" x="862.5" y="609" text-anchor="middle">post → team group</text>
+      <text class="lb tgc" x="862.5" y="609" text-anchor="middle">tell followers</text>
     </svg>
     </div>
-    <figcaption>SePay watches the team's bank account and calls the webhook within seconds of money arriving. Only the use case decides what the transfer means: the key is compared by its hash, a transaction already recorded is skipped (so SePay's retries are harmless), and money with no code or too little is kept and sent to the managers to assign. The server answers <code>{"success": true}</code> as soon as the payment is saved; the receipt and the group post go out in the background through the notifier port, so a slow Telegram call can't make SePay time out and resend.</figcaption>
+    <figcaption>SePay watches the team's bank account and calls the webhook within seconds of money arriving. Only the use case decides what the transfer means: the key is compared by its hash, a transaction already recorded is skipped (so SePay's retries are harmless), and money with no code or too little is kept and sent to the managers to assign. The server answers <code>{"success": true}</code> as soon as the payment is saved; the receipt and the followers' announcement go out in the background through the notifier port, so a slow Telegram call can't make SePay time out and resend.</figcaption>
   </figure>
   <h3 class="sub">/setbank → the team's account and webhook, in one tap</h3>
   <figure>
@@ -562,16 +562,16 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <text class="lb tgc" x="345" y="487" text-anchor="middle">✅ Done — or ❌ failed step + reason, nothing saved</text>
     </svg>
     </div>
-    <figcaption>The owner does only what SePay can't let anyone else do: link the bank account (with the bank's OTP), create a VA for VA-only banks, and create one API token. One tap in <code>/setbank</code> does the rest, and the chat shows every action as it happens (reading SePay, the account found, the VA, a new key, "creating / overwriting webhook …", saving, telling the group); the same steps go to the server log and <code>/log</code>. If a step fails, the message names it and the reason, and nothing is saved, so the old key keeps working. Tapping the current account again repairs a webhook that was edited or deleted in SePay. There is always one webhook per team: the stored id is reused, a webhook already pointing at the team's URL is adopted, and one deleted in SePay is recreated. SePay's v2 user API isn't in its public docs yet; <code>infrastructure/sepay.py</code> follows what it answers today (updates are <code>PUT</code>, writes need an <code>X-Idempotency-Key</code>).</figcaption>
+    <figcaption>The owner does only what SePay can't let anyone else do: link the bank account (with the bank's OTP), create a VA for VA-only banks, and create one API token. One tap in <code>/setbank</code> does the rest, and the chat shows every action as it happens (reading SePay, the account found, the VA, a new key, "creating / overwriting webhook …", saving, telling the followers); the same steps go to the server log and <code>/log</code>. If a step fails, the message names it and the reason, and nothing is saved, so the old key keeps working. Tapping the current account again repairs a webhook that was edited or deleted in SePay. There is always one webhook per team: the stored id is reused, a webhook already pointing at the team's URL is adopted, and one deleted in SePay is recreated. SePay's v2 user API isn't in its public docs yet; <code>infrastructure/sepay.py</code> follows what it answers today (updates are <code>PUT</code>, writes need an <code>X-Idempotency-Key</code>).</figcaption>
   </figure>
 </section>
 
 <section>
   <h2>Pay page for members without Telegram</h2>
-  <p>Some members won't install Telegram. Each team has a <b>pay page</b>, a small web app (PWA) at a secret link, with three tabs. <b>Đóng quỹ</b> (Pay) does what <code>/start</code> does in the bot: list who still owes, tick names, get the VietQR, and see it confirmed. The other two are read-only: <b>Quỹ</b> (Fund, like <code>/fund</code> and <code>/history 10/2026</code>: money in, money out and balance, then one collapsible block per month from the team's first record to now, each with that month's in, out and net; opening a month lists every transaction in it, newest first, and the current month starts open) and <b>Thành viên</b> (Members: everyone's total debt, biggest first, broken down into the bills behind it, plus shirt number, fee and cycle, and status). It reads and writes the same database through the same use cases, so a payment on the page shows up in the bot, <code>/status</code>, the reports and the group, and the other way round. Managing stays in Telegram: the page can't add members, change fees or record expenses.</p>
+  <p>Some members won't install Telegram. Each team has a <b>pay page</b>, a small web app (PWA) at a secret link, with three tabs. <b>Đóng quỹ</b> (Pay) does what <code>/start</code> does in the bot: list who still owes, tick names, get the VietQR, and see it confirmed. The other two are read-only: <b>Quỹ</b> (Fund, like <code>/fund</code> and <code>/history 10/2026</code>: money in, money out and balance, then one collapsible block per month from the team's first record to now, each with that month's in, out and net; opening a month lists every transaction in it, newest first, and the current month starts open) and <b>Thành viên</b> (Members: everyone's total debt, biggest first, broken down into the bills behind it, plus shirt number, fee and cycle, and status). It reads and writes the same database through the same use cases, so a payment on the page shows up in the bot, <code>/status</code>, the reports and the announcements, and the other way round. Managing stays in Telegram: the page can't add members, change fees or record expenses.</p>
   <figure>
     <div class="frame">
-    <svg viewBox="0 0 1000 540" role="img" aria-label="Sequence: a member opens the team's secret link in a browser. The page calls GET api/state through Caddy and http/web.py; WebUseCases.page looks the team up by its token and reads the unpaid bills from PostgreSQL, and the page lists names and amounts. The member ticks names and the page calls POST api/pay; create_intent saves an intent with a TF code and returns the VietQR, bank and amount. The member pays in their banking app. SePay calls POST /sepay/{team}; record_transfer marks the bills and the intent paid and the bot posts in the team group. Meanwhile the page polls GET api/pay/{code} every 4 seconds and shows paid when the status changes.">
+    <svg viewBox="0 0 1000 540" role="img" aria-label="Sequence: a member opens the team's secret link in a browser. The page calls GET api/state through Caddy and http/web.py; WebUseCases.page looks the team up by its token and reads the unpaid bills from PostgreSQL, and the page lists names and amounts. The member ticks names and the page calls POST api/pay; create_intent saves an intent with a TF code and returns the VietQR, bank and amount. The member pays in their banking app. SePay calls POST /sepay/{team}; record_transfer marks the bills and the intent paid and the bot tells the team's followers. Meanwhile the page polls GET api/pay/{code} every 4 seconds and shows paid when the status changes.">
       <defs>
         <marker id="wpH" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-fg"/></marker>
         <marker id="wpM" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-m"/></marker>
@@ -615,7 +615,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <line class="ln m" x1="520" y1="366" x2="718" y2="366" marker-end="url(#wpM)"/>
       <text class="lb m" x="620" y="359" text-anchor="middle">bills + intent paid</text>
       <line class="ln tg" x1="520" y1="400" x2="598" y2="400" marker-end="url(#wpT)"/>
-      <text class="lb tgc" x="604" y="404">→ post in the team group</text>
+      <text class="lb tgc" x="604" y="404">→ tell the followers</text>
 
       <line class="ln" x1="80" y1="450" x2="298" y2="450" marker-end="url(#wpH)"/>
       <text class="lb" x="190" y="443" text-anchor="middle">GET api/pay/{code}, every 4 s</text>
@@ -625,7 +625,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <text class="lb" x="190" y="485" text-anchor="middle">paid → ✅ screen</text>
     </svg>
     </div>
-    <figcaption>The page is one HTML shell with plain JavaScript (no build step) in <code>interfaces/web/</code>, served by <code>interfaces/http/web.py</code>; <code>application/web.py</code> holds the only three things it may do. A payer on the page has no Telegram account, so there is no private receipt: the page itself shows ✅, and the group still gets the "paid" post. Everything else, from matching the TF code to expiry after 24 hours, is the same code path as the bot.</figcaption>
+    <figcaption>The page is one HTML shell with plain JavaScript (no build step) in <code>interfaces/web/</code>, served by <code>interfaces/http/web.py</code>; <code>application/web.py</code> holds the only three things it may do. A payer on the page has no Telegram account, so there is no private receipt: the page itself shows ✅, and the followers still get the "paid" announcement. Everything else, from matching the TF code to expiry after 24 hours, is the same code path as the bot.</figcaption>
   </figure>
   <div class="tbl">
   <table>
@@ -707,7 +707,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
     <tbody>
       <tr><td><code>/plans</code></td><td>Lists the default fee and each plan with its members. Buttons: 💰 default fee (everyone not on a plan pays it monthly; replaces the old <code>/setfee</code>), ➕ new plan (cycle → amount → pick members), and per plan 👥 members, 💰 amount, 🔁 cycle, 🗑 delete.</td></tr>
       <tr><td><code>/plans 300k quý</code></td><td>Quick create: goes straight to picking members. Cycle words: tháng / quý / 6 tháng / năm, or month / quarter / 6 months / year.</td></tr>
-      <tr><td><code>/income 2tr Thưởng vô địch</code></td><td>Records other income. Posted in the group; counts in <code>/fund</code> (shown as "of which other income"), <code>/history</code>, the month totals and the pay page.</td></tr>
+      <tr><td><code>/income 2tr Thưởng vô địch</code></td><td>Records other income. Announced to followers; counts in <code>/fund</code> (shown as "of which other income"), <code>/history</code>, the month totals and the pay page.</td></tr>
       <tr><td><code>/income 1.5tr Số dư đầu kỳ 31/10</code><br><code>/expense 300k Sân bóng 15-10-2026</code></td><td>A date at the end (<code>dd/mm/yyyy</code>, <code>dd-mm-yyyy</code>, <code>dd/mm/yy</code>, <code>dd-mm-yy</code>, <code>dd/mm</code> / <code>dd-mm</code> for this year, or <code>mm/yyyy</code> / <code>mm-yyyy</code> for the 1st of that month) records it on that day (noon, team time); without one it's now. Being stored at that time, it sorts into place in the transaction log and falls under its own month in <code>/history 10/2026</code>, the month totals and the pay page's month blocks. Not in the future, at most 3 years back. Amounts can be <code>450k</code>, <code>1tr</code>, <code>1.5M</code>, <code>1tr5</code>, <code>5M</code>, <code>450.000</code>…; <code>/money</code> lists every form. A bare <code>/income</code> or <code>/expense</code> explains the format and takes the answer as a reply.</td></tr>
     </tbody>
   </table>
@@ -720,10 +720,26 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
     <li>Cash that differs from the bill: pick one person in <code>/markpaid</code>, then ✏️ Another amount (at most what they owe). The money goes to their oldest bills first, and the fund grows by that amount only. For the rest, ✔️ <b>let it go</b> settles that bill at what was paid (someone who joined mid-quarter pays 300k of 600k), or ⏳ <b>still owes</b> keeps the rest as a new unpaid bill. More than owed: record the extra with <code>/income</code>. A SePay transfer below the amount goes to <code>/unmatched</code>, where assigning it closes the bills with the amount that actually arrived.</li>
     <li>Setting a member's own monthly fee takes them off their plan. Deleting a plan moves its members back to the default.</li>
     <li><b>Each package has its own terms</b> (the default package and every plan), set in <code>/plans</code> with 📅 Deadline and ⏰ Late fee. A plan follows the default package's until it gets its own; <code>-</code> puts it back. Bills remember the plan they were billed under, so their due date and fine follow that package. Each package's new bills are announced on its own announcement day (packages sharing a day share one post).</li>
-    <li><b>Deadline:</b> <code>15 5</code> announces the fee on the 15th of each month and makes it due 5 days later (the 20th); the deadline may run into the next month (<code>/setdue 25 10</code> → the 5th). A bill's due date is the announcement day of its first month plus the deadline. Reminders: 3 days before the due date, on it, then every 3 days while someone owes, never before the announcement. Teams set up before this keep their old due day (announced on the 1st).</li>
+    <li><b>Deadline:</b> <code>15 5</code> announces the fee on the 15th of each month and makes it due 5 days later (the 20th); the deadline may run into the next month (<code>/setdue 25 10</code> → the 5th). A bill's due date is the announcement day of its first month plus the deadline. Reminders: 3 days before the due date, on it, then every 3 days while someone owes, never before the announcement. Defaults for a new team (and any package without its own): announced on the 1st, due 5 days later, no late fee.</li>
     <li><b>Late fee:</b> <code>1k</code> adds 1,000đ per day to each overdue fee bill, as its own line "Phạt trễ N ngày" kept current whenever anyone looks or pays. Days are counted from the due date, or from the day the late fee was turned on if that's later, so turning it on never fines the past. It stops growing when the fee is paid, freezes for paused members, isn't charged on <code>/charge</code> costs, and goes away when the fee is waived or when the package's late fee is set to <code>0</code>. A QR made one day and paid the next is accepted at the QR's amount.</li>
     <li>Reminders and the monthly "fee is open" post run when anyone has a fee: the team fee or a plan. The post lists each fee with how many people pay it.</li>
     <li>Plan changes, other income and backdated records all go into <code>/log</code> (<code>plan.save</code>, <code>plan.delete</code>, <code>income.add</code>, with the date).</li>
+  </ul>
+</section>
+
+
+<section>
+  <h2>Announcements and undo</h2>
+  <h3 class="sub">Followers instead of a group</h3>
+  <p>Team bots don't work in groups. Everyone who opens a team bot privately <b>follows</b> the team (a new follower is welcomed once). Whatever used to be posted in a team group now goes to each follower privately: the fee is open, reminders, the month report, who paid (except to the payer, who gets the receipt), expenses, other income, charges, a bank change, and undos of those. The person who caused an announcement doesn't get it again. <code>/notify</code> turns announcements off or on for yourself; someone who blocks the bot is muted. <code>/remind</code> sends the unpaid list to all followers and says how many got it.</p>
+  <h3 class="sub">Undo</h3>
+  <p><code>/undo</code> (managers) lists the recent actions you can take back, newest first, from the last 7 days. Pick any of them, not only the newest, confirm, and it's undone; <b>↩️ Undo another action</b> goes back to the list. Followers are told when an announced action is undone.</p>
+  <ul class="rules">
+    <li>Each undoable action's log entry keeps the rows it inserted, changed or deleted (the unit of work records them on every flush). Undo puts exactly those back.</li>
+    <li>It only happens if every one of those rows is still as the action left it. A charge whose bill was paid since, a cash payment whose bills changed, or members who already have fee bills: the undo is refused with a reason and nothing changes. Fix those with a normal command.</li>
+    <li>Undoable: expenses, other income, cash payments (also part amounts), assigning or dismissing a transfer, charges and splits, waiving a bill, fee plans (save, delete, deadline, late fee), team settings, adding, editing or removing members.</li>
+    <li>Not undoable, so never offered: anything about the bank, SePay, managers, the owner, the pay page link, and SePay payments themselves (the money really arrived). The undo itself is logged in <code>/log</code> (as <code>undo</code>) and can't be undone; undone actions show ↩️ there.</li>
+    <li>A manager sees and undoes only their own actions; the owner can undo anyone's.</li>
   </ul>
 </section>
 
@@ -736,8 +752,8 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
     <thead><tr><th>Role</th><th>Who</th><th>Can do</th></tr></thead>
     <tbody>
       <tr><td>Owner</td><td>Whoever registered the bot with <code>/newteam</code></td><td>Everything a manager can, plus <code>/sepaytoken</code>, <code>/setbank</code> (pick from SePay; also sets up the webhook), approve or remove managers, <code>/transferowner</code>, <code>/log</code></td></tr>
-      <tr><td>Manager</td><td>Approved by the owner</td><td><code>/weblink</code> (the pay page link), <code>/members</code> (view, ➕ add, edit, remove), <code>/plans</code> (default fee and plans), deadlines and late fees (in <code>/plans</code>), <code>/markpaid</code>, <code>/expense</code>, <code>/income</code>, <code>/charge</code> (each pays, or ➗ split), <code>/remind</code>, assign unmatched payments, <code>/export</code></td></tr>
-      <tr><td>Everyone</td><td>Anyone who opens the bot</td><td><code>/start</code> and pay (or the pay page in a browser, no Telegram needed), <code>/status</code>, <code>/fund</code>, <code>/history</code> (or <code>/history 10/2026</code> for every transaction of one month), <code>/bank</code> (the team account; managers also see whether SePay is connected), <code>/lang</code>, <code>/requestmanager</code></td></tr>
+      <tr><td>Manager</td><td>Approved by the owner</td><td><code>/weblink</code> (the pay page link), <code>/members</code> (view, ➕ add, edit, remove), <code>/plans</code> (default fee and plans), deadlines and late fees (in <code>/plans</code>), <code>/markpaid</code>, <code>/expense</code>, <code>/income</code>, <code>/charge</code> (each pays, or ➗ split), <code>/undo</code>, <code>/remind</code>, assign unmatched payments, <code>/export</code></td></tr>
+      <tr><td>Everyone</td><td>Anyone who opens the bot</td><td><code>/start</code> and pay (or the pay page in a browser, no Telegram needed), <code>/status</code>, <code>/fund</code>, <code>/history</code> (or <code>/history 10/2026</code> for every transaction of one month), <code>/bank</code> (the team account; managers also see whether SePay is connected), <code>/notify</code>, <code>/lang</code>, <code>/requestmanager</code></td></tr>
     </tbody>
   </table>
   </div>
@@ -745,7 +761,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
   <h3 class="sub">Becoming a manager: request and approve</h3>
   <figure>
     <div class="frame">
-    <svg viewBox="0 0 860 400" role="img" aria-label="Sequence: a person sends /requestmanager to the team bot, a use case records the request and the bot sends the owner a card with Approve and Reject buttons. When the owner taps Approve, the use case checks that the tapper is the owner, adds the manager role and writes the audit log, then the bot tells the person and posts to the group.">
+    <svg viewBox="0 0 860 400" role="img" aria-label="Sequence: a person sends /requestmanager to the team bot, a use case records the request and the bot sends the owner a card with Approve and Reject buttons. When the owner taps Approve, the use case checks that the tapper is the owner, adds the manager role and writes the audit log, then the bot tells the person and announces it.">
       <defs>
         <marker id="c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-fg"/></marker>
       </defs>
@@ -775,7 +791,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <text class="lb" x="558" y="307">7 · tapper is owner? add</text>
       <text class="lb" x="558" y="321">manager, write audit log</text>
       <line class="ln" x1="300" y1="360" x2="92" y2="360" marker-end="url(#c)"/>
-      <text class="lb" x="195" y="353" text-anchor="middle">8 · "You're a manager" + group post</text>
+      <text class="lb" x="195" y="353" text-anchor="middle">8 · "You're a manager" + announcement</text>
     </svg>
     </div>
     <figcaption>The role check in step 7 runs on the server, so a forwarded Approve button does nothing for anyone but the owner. Requests that get no answer expire after 7 days.</figcaption>
@@ -784,7 +800,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
     <li>Only the owner approves or removes managers. Managers can't promote anyone.</li>
     <li>One pending request per person. After a rejection they wait 24 hours before asking again.</li>
     <li><code>/requests</code> shows the owner every pending request, and <code>/managers</code> lists managers with Remove buttons.</li>
-    <li>A change to the bank account is announced in the group, so nobody can quietly redirect the fund.</li>
+    <li>A change to the bank account is announced to every follower, so nobody can quietly redirect the fund.</li>
     <li>Every manager action goes into the audit log: who, what, when, and the old and new values.</li>
   </ul>
 </section>

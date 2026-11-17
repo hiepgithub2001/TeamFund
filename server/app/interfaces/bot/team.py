@@ -13,7 +13,7 @@ from aiogram.types import BufferedInputFile, CallbackQuery, ChatMemberUpdated, F
 from ..deps import S
 from .commands import clear_admin_commands, set_admin_commands
 from .fmt import amount_and_title, esc, money, parse_amount, split_date, strip_tags
-from .i18n import t
+from .i18n import has, t
 from .lang import lang_for, set_lang
 from ...domain.errors import DomainError
 from .render import (bill_label, edit, error_text, fee_text, is_private, kb, owes_lines, pay_keyboard, say,
@@ -1029,6 +1029,64 @@ async def cmd_remind(message: Message, entry, lang):
     await message.answer(t(lang, "remind.sent", n=n))
 
 
+def action_text(lang: str, v: dict) -> str:
+    """"Ghi khoản chi · Sân bóng · 300.000đ"."""
+    key = f"act.{v['action']}"
+    parts = [t(lang, key) if has(key) else v["action"]]
+    if v.get("target"):
+        parts.append(esc(v["target"]))
+    if isinstance(v.get("amount"), int):
+        parts.append(money(v["amount"], lang))
+    return " · ".join(parts)
+
+
+async def show_undo(ev, entry, lang, edit_in_place: bool = False, prefix: str = "") -> None:
+    """Recent actions this person can undo, one button each."""
+    items = await call(S.undo.recent, tid(entry), ev.from_user.id)
+    if items:
+        text = prefix + t(lang, "undo.pick")
+        markup = kb(*[[(f"{action_text(lang, v)} · {v['at'][:5]}"[:60], f"un:{v['id']}")] for v in items],
+                    [(t(lang, "btn.cancel"), "un:x")])
+    else:
+        text, markup = prefix + t(lang, "undo.nothing"), None
+    if edit_in_place:
+        await edit(ev, text, markup)
+    else:
+        await say(ev, text, reply_markup=markup)
+
+
+@router.message(Command("undo"))
+async def cmd_undo(message: Message, entry, lang):
+    """Pick a recent action and take it back."""
+    if await allow(message, entry, lang, "manager"):
+        await show_undo(message, entry, lang)
+
+
+@router.callback_query(F.data.regexp(r"^un:(x|l|\d+|y:\d+)$").as_("m"))
+async def on_undo(cq: CallbackQuery, m: re.Match, entry, lang):
+    if not await allow(cq, entry, lang, "manager"):
+        return
+    arg = m.group(1)
+    if arg == "x":
+        await cq.answer()
+        await edit(cq, t(lang, "cancelled"))
+    elif arg == "l":
+        await cq.answer()
+        await show_undo(cq, entry, lang, edit_in_place=True)
+    elif arg.isdigit():  # confirm first
+        v = await call(S.undo.get, tid(entry), cq.from_user.id, int(arg))
+        await cq.answer()
+        await edit(cq, t(lang, "undo.ask", action=action_text(lang, v), actor=esc(v["actor"]), at=v["at"]),
+                   kb([(t(lang, "btn.undo"), f"un:y:{v['id']}"), (t(lang, "btn.back"), "un:l")]))
+    else:
+        r = await call(S.undo.undo, tid(entry), cq.from_user.id, int(arg[2:]))  # a refusal shows as an alert
+        await cq.answer()
+        await edit(cq, t(lang, "undo.done", action=action_text(lang, r)), kb([(t(lang, "btn.undo_more"), "un:l")]))
+        if r["announce"]:
+            G = group_lang(entry)
+            await broadcast(entry, t(G, "group.undone", action=action_text(G, r), by=esc(r["by"])))
+
+
 @router.message(Command("unmatched"))
 async def cmd_unmatched(message: Message, entry, lang):
     if not await allow(message, entry, lang, "manager"):
@@ -1298,7 +1356,7 @@ async def cmd_log(message: Message, entry, lang):
         await message.answer(t(lang, "log.empty"))
         return
     lines = [f"{r['at']} · {esc(r['actor'])} · <code>{esc(r['action'])}</code>"
-             f"{' ' + esc(r['target']) if r['target'] else ''}" for r in rows]
+             f"{' ' + esc(r['target']) if r['target'] else ''}{' ↩️' if r['undone'] else ''}" for r in rows]
     await message.answer(t(lang, "log.title") + "\n" + "\n".join(lines))
 
 

@@ -597,3 +597,66 @@ def test_followers():
     assert svc.teams.followers(tid) == [OWNER]
     assert svc.teams.set_muted(tid, MEMBER)["muted"] is False
     assert svc.teams.team_info(tid, OWNER)["followers"] == 2
+
+
+def test_undo():
+    """Any recent action; puts its rows back; refuses when they changed since; managers only their own."""
+    svc, clock, _ = make_services(datetime(2026, 11, 10, 10, 0))
+    tid = setup_team(svc)
+    an, binh = [m["id"] for m in svc.members.add_members(tid, OWNER, [{"name": "An"}, {"name": "Bình"}])]
+    svc.teams.update_settings(tid, OWNER, fee=200000)
+    svc.money.unpaid(tid)  # fee bills for An and Bình
+    svc.money.markpaid(tid, OWNER, [an])
+    svc.money.add_expense(tid, OWNER, 300000, "Sân bóng")
+    svc.money.add_income(tid, OWNER, 50000, "Tip")
+    acts = svc.undo.recent(tid, OWNER)
+    assert [a["action"] for a in acts] == ["income.add", "expense.add", "payment.cash", "team.settings", "member.add"]
+
+    # one in the middle: the expense
+    r = svc.undo.undo(tid, OWNER, acts[1]["id"])
+    assert r["announce"] is True and svc.money.fund(tid)["expense"] == 0 and svc.money.fund(tid)["income"] == 250000
+    assert code(svc.undo.undo, tid, OWNER, acts[1]["id"]) == "undo_gone"
+    log = svc.teams.audit_log(tid, OWNER)
+    assert log[0]["action"] == "undo" and "undo" not in [x["action"] for x in svc.undo.recent(tid, OWNER)], \
+        "the undo itself is logged, and can't be undone"
+    assert [a["action"] for a in svc.undo.recent(tid, OWNER)] == ["income.add", "payment.cash", "team.settings", "member.add"]
+
+    # the cash payment: An owes again
+    svc.undo.undo(tid, OWNER, acts[2]["id"])
+    assert svc.money.fund(tid)["income"] == 50000
+    assert {g["name"] for g in svc.money.unpaid(tid)} == {"An", "Bình"}
+
+    # adding members can't be undone once they have fee bills (their rows are used)
+    assert code(svc.undo.undo, tid, OWNER, acts[4]["id"]) == "undo_changed"
+
+    # a charge whose bill was paid since can't be undone; nothing changes
+    svc.money.charges(tid, OWNER, "Áo", 150000, "charge", [an, binh])
+    charge = svc.undo.recent(tid, OWNER)[0]
+    with svc.money.d.uow() as uow:  # An's charge gets paid another way (as SePay would)
+        b = next(b for b in uow.bills.unpaid_of_member(an) if b.kind == "charge")
+        b.status = "paid"
+        uow.commit()
+    assert code(svc.undo.undo, tid, OWNER, charge["id"]) == "undo_changed"
+    assert sum(1 for g in svc.money.unpaid(tid) for b in g["bills"] if b["kind"] == "charge") == 1
+
+    # a plan: undo puts the member back on the default package
+    svc.plans.save_plan(tid, OWNER, 600000, 3, [binh])
+    svc.undo.undo(tid, OWNER, svc.undo.recent(tid, OWNER)[0]["id"])
+    assert svc.members.get_member(tid, OWNER, binh)["on_plan"] is False
+    assert svc.plans.list_plans(tid, OWNER)["plans"] == []
+
+    # managers see and undo only their own; actions that can't be undone are never offered
+    svc.users.upsert_user(MANAGER, "Mgr", None, None)
+    with svc.money.d.uow() as uow:
+        from app.domain.entities import TeamAdmin
+        uow.admins.add(TeamAdmin(team_id=tid, tg_id=MANAGER, role="manager", added_by=OWNER))
+        uow.commit()
+    svc.money.add_expense(tid, MANAGER, 20000, "Nước")
+    mine = svc.undo.recent(tid, MANAGER)
+    assert [a["target"] for a in mine] == ["Nước"]
+    tip = next(a for a in svc.undo.recent(tid, OWNER) if a["target"] == "Tip")
+    assert code(svc.undo.undo, tid, MANAGER, tip["id"]) == "undo_not_yours"
+    svc.teams.web_link(tid, OWNER, reset=True)
+    assert "team.web_link" not in [a["action"] for a in svc.undo.recent(tid, OWNER)]
+    clock.advance(days=8)
+    assert svc.undo.recent(tid, OWNER) == [] and code(svc.undo.undo, tid, OWNER, tip["id"]) == "undo_too_old"

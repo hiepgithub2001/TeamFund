@@ -3,7 +3,7 @@
 Telegram bots that collect a football team's monthly fee and confirm payments automatically through SePay.
 
 - A **master bot** registers teams. Anyone can ask with `/requestteam`; a system admin approves.
-- Each team gets its **own bot**. Members open it, tap the names they're paying for, and get a SePay QR code with a unique transfer code. SePay's webhook confirms the payment, the payer gets a receipt and the team group gets a post.
+- Each team gets its **own bot**. Members open it, tap the names they're paying for, and get a SePay QR code with a unique transfer code. SePay's webhook confirms the payment, the payer gets a receipt and everyone who follows the team bot gets an announcement privately (no group needed).
 - Members **without Telegram** use the team's **pay page** (a small web app at a secret link a manager gets with `/weblink`): pay by QR like `/start`, and read this month's status, the fund and its history, and the roster (no phone numbers). Read-only otherwise.
 - The **owner** sets the bank account and SePay key and approves managers. **Managers** handle members, fees, charges, cash payments, expenses and reports.
 
@@ -53,13 +53,13 @@ Port 443 must be reachable from the internet; Telegram and SePay both call it. P
 3. Send `/newteam` to the master bot and paste the token.
 4. In my.sepay.vn: link the team's bank account (and, for VA-only banks such as BIDV personal, create a VA), then create an API token (Cấu hình công ty → API Access).
 5. In the new team bot: `/sepaytoken <token>`, then tap the team's account in the list. The bot saves it and creates the SePay webhook. The account can't be typed in; `/setbank` shows the list again to change it.
-6. Add the bot to the team group and send `/linkgroup` there.
+6. Share the bot's link with members: everyone who taps Start gets the team's announcements (`/notify` turns them off).
 7. `/members` → ➕ to add members (one per line, `Name | shirt | phone`), `/plans` → 💰 Default fee for the monthly fee, ➕ New plan for other amounts or cycles (e.g. 300k per quarter), then, in `/plans`, 📅 Deadline (e.g. `15 5`: announced on the 15th, due 5 days later) and ⏰ Late fee for each package. Money that isn't a fee (prizes, the old balance): `/income 2tr Thưởng 15-10-2026`.
 
 ## Schedule (Asia/Ho_Chi_Minh)
 
-- Every hour: create this month's bills; announce them once in the group.
-- 09:00: reminder in the group 3 days before the due day, on the due day, then every 3 days while someone owes.
+- Every hour: create this month's bills and keep late fees current; announce each package once, on its announcement day, to the followers.
+- 09:00: reminder to the followers 3 days before a package's due date, on it, then every 3 days while someone owes.
 - 20:00 on the last day of the month: report (collected, spent, balance, who still owes).
 
 ## Tests

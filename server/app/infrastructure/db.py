@@ -1,9 +1,12 @@
 """Database engine, schema and the SQLAlchemy unit of work."""
-from sqlalchemy import create_engine, inspect, text
+from datetime import date, datetime
+
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
 from ..application.ports import Conflict
+from ..domain import entities as e
 from . import repositories as r
 from .orm import metadata, start_mappers
 
@@ -12,6 +15,8 @@ def make_session_factory(database_url: str):
     start_mappers()
     args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
     engine = create_engine(database_url, pool_pre_ping=True, connect_args=args)
+    if database_url.startswith("sqlite"):  # enforce foreign keys like PostgreSQL does (tests, local runs)
+        event.listen(engine, "connect", lambda conn, _rec: conn.execute("PRAGMA foreign_keys=ON"))
     metadata.create_all(engine)
     _add_missing_columns(engine)
     return sessionmaker(bind=engine, expire_on_commit=False)
@@ -36,6 +41,31 @@ def _add_missing_columns(engine) -> None:
                                           f'ON {table.name} ({col.name})'))
 
 
+# what /undo can put back; the log, job marks, users and followers are never undone
+_TRACKED = {c.__name__: c for c in (e.Team, e.TeamAdmin, e.Member, e.FeePlan, e.Bill, e.Payment, e.PaymentIntent,
+                                    e.Expense)}
+
+
+def _plain(v):
+    if isinstance(v, datetime):
+        return {"$dt": v.isoformat()}
+    if isinstance(v, date):
+        return {"$d": v.isoformat()}
+    return v
+
+
+def _value(v):
+    if isinstance(v, dict) and "$dt" in v:
+        return datetime.fromisoformat(v["$dt"])
+    if isinstance(v, dict) and "$d" in v:
+        return date.fromisoformat(v["$d"])
+    return v
+
+
+def _row(obj) -> dict:
+    return {a.key: _plain(getattr(obj, a.key)) for a in inspect(obj).mapper.column_attrs}
+
+
 class SqlUnitOfWork:
     """Implements the UnitOfWork port with one SQLAlchemy session per business transaction."""
 
@@ -49,7 +79,52 @@ class SqlUnitOfWork:
         self.bills, self.intents, self.payments = r.SqlBills(s), r.SqlIntents(s), r.SqlPayments(s)
         self.plans, self.followers = r.SqlFeePlans(s), r.SqlFollowers(s)
         self.expenses, self.audit, self.job_runs = r.SqlExpenses(s), r.SqlAudit(s), r.SqlJobRuns(s)
+        self._changes: list = []
+        event.listen(s, "after_flush", self._record)
         return self
+
+    def _record(self, session, _ctx) -> None:
+        """After each flush: what was inserted, changed (old and new values) or deleted."""
+        for obj in session.new:
+            if type(obj).__name__ in _TRACKED:
+                self._changes.append({"op": "insert", "type": type(obj).__name__, "id": obj.id, "after": _row(obj)})
+        for obj in session.dirty:
+            if type(obj).__name__ not in _TRACKED or not session.is_modified(obj):
+                continue
+            fields = {}
+            for a in inspect(obj).mapper.column_attrs:
+                h = inspect(obj).attrs[a.key].history
+                if h.added or h.deleted:
+                    fields[a.key] = [_plain(h.deleted[0] if h.deleted else None), _plain(h.added[0] if h.added else None)]
+            if fields:
+                self._changes.append({"op": "update", "type": type(obj).__name__, "id": obj.id, "fields": fields})
+        for obj in session.deleted:
+            if type(obj).__name__ in _TRACKED:
+                self._changes.append({"op": "delete", "type": type(obj).__name__, "id": obj.id, "before": _row(obj)})
+
+    def changes(self) -> list:
+        return list(self._changes)
+
+    def revert(self, changes: list) -> None:
+        """Undo recorded changes, newest first, but only if every row is still as the action left it."""
+        s = self.session
+        for c in reversed(changes):
+            cls = _TRACKED[c["type"]]
+            obj = s.get(cls, c["id"])
+            if c["op"] == "insert":
+                if obj is None or _row(obj) != c["after"]:
+                    raise Conflict(f"{c['type']} {c['id']} changed")
+                s.delete(obj)
+            elif c["op"] == "update":
+                if obj is None or any(_row(obj)[k] != new for k, (old, new) in c["fields"].items()):
+                    raise Conflict(f"{c['type']} {c['id']} changed")
+                for k, (old, _new) in c["fields"].items():
+                    setattr(obj, k, _value(old))
+            else:
+                if obj is not None:
+                    raise Conflict(f"{c['type']} {c['id']} exists again")
+                s.add(cls(**{k: _value(v) for k, v in c["before"].items()}))
+            self.flush()
 
     def __exit__(self, *exc):
         self.session.rollback()  # no-op after a commit
@@ -64,6 +139,7 @@ class SqlUnitOfWork:
     def commit(self) -> None:
         try:
             self.session.commit()
+            self._changes = []
         except IntegrityError as e:
             self.session.rollback()
             raise Conflict(str(e.orig)) from e

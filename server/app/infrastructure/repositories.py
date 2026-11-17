@@ -260,6 +260,14 @@ class SqlExpenses(_Repo):
 
 
 class SqlAudit(_Repo):
+    def get(self, entry_id: int) -> AuditEntry | None:
+        return self.s.get(AuditEntry, entry_id)
+
+    def undoable_since(self, team_id: int, since: datetime) -> list[AuditEntry]:
+        return list(self.s.scalars(select(AuditEntry).where(
+            AuditEntry.team_id == team_id, AuditEntry.undo.is_not(None), AuditEntry.undone_at.is_(None),
+            AuditEntry.created_at >= since).order_by(AuditEntry.id.desc()).limit(100)))
+
     def latest(self, team_id: int, limit: int) -> list[AuditEntry]:
         return list(self.s.scalars(select(AuditEntry).where(AuditEntry.team_id == team_id)
                                    .order_by(AuditEntry.id.desc()).limit(limit)))
