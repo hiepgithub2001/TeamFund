@@ -5,7 +5,7 @@ import threading
 
 from ..domain.entities import OWNER, Team, TeamAdmin, TeamRequest
 from ..domain.errors import DomainError, invalid
-from ..domain.rules import bot_usernames
+from ..domain.rules import DEFAULT_DUE_DAYS, DEFAULT_NOTIFY_DAY, bot_usernames
 from .access import is_super, require_super
 from .people import audit, display_name, user_info
 from .ports import BotFactoryError, Deps, UnitOfWork
@@ -109,7 +109,8 @@ class RegistrationUseCases:
             team_name = (req.team_name if req else None) or name or bot_username
             team = Team(name=team_name, bot_id=bot_id, bot_username=bot_username,
                         bot_token_enc=self.d.cipher.encrypt(token), webhook_secret=secrets.token_urlsafe(32),
-                        owner_tg_id=actor, lang=self.d.config.default_lang, created_at=now)
+                        owner_tg_id=actor, lang=self.d.config.default_lang, notify_day=DEFAULT_NOTIFY_DAY,
+                        due_days=DEFAULT_DUE_DAYS, late_fee=0, created_at=now)
             uow.teams.add(team)
             uow.flush()
             uow.admins.add(TeamAdmin(team_id=team.id, tg_id=actor, role=OWNER, added_by=actor, added_at=now))

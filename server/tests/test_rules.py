@@ -45,7 +45,7 @@ def test_transfer_content():
 def test_reminder_schedule():
     from datetime import date
     t = team()
-    assert schedule(t) == (1, 4)  # an old team: announced on the 1st, due on its old due day (5)
+    assert schedule(t) == (1, 5)  # the default: announced on the 1st, due 5 days later
     t.notify_day, t.due_days = 15, 5
     assert (notify_date(terms(t), "2026-11"), due_date(terms(t), "2026-11")) == (date(2026, 11, 15), date(2026, 11, 20))
     t.notify_day, t.due_days = 25, 10

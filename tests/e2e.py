@@ -534,7 +534,7 @@ async def main():
         await asyncio.sleep(0.3)  # /setdue is gone: no reply
         await T(text_update(OWNER, "/plans"))
         pl = await wait_sent(to(OWNER, "Fee plans"), "plans with terms")
-        assert "📅 announced on day 1, due +4 days · ⏰ no late fee" in pl["params"]["text"], pl["params"]["text"]
+        assert "📅 announced on day 1, due +5 days · ⏰ no late fee" in pl["params"]["text"], pl["params"]["text"]
         assert buttons(pl)[0] == "p:f"
         await T(cb_update(OWNER, "p:f", pl["message_id"]))
         dv = await wait_sent(lambda c: c["method"] == "editMessageText" and "Default package" in c["params"]["text"],

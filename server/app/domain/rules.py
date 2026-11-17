@@ -129,12 +129,14 @@ MAX_LATE_FEE = 1_000_000
 REMIND_EVERY_DAYS_AFTER_DUE = 3
 
 
+DEFAULT_NOTIFY_DAY, DEFAULT_DUE_DAYS = 1, 5  # announced on the 1st, due 5 days later
+
+
 def schedule(team: Team) -> tuple[int, int]:
-    """(notify day of the month, days until due). Teams from before this setting: announced on the 1st,
-    due on their old due day."""
+    """(notify day of the month, days until due) of the default package."""
     if team.notify_day:
         return team.notify_day, team.due_days or 0
-    return 1, max(0, (team.due_day or 1) - 1)
+    return DEFAULT_NOTIFY_DAY, DEFAULT_DUE_DAYS
 
 
 @dataclass(frozen=True)
