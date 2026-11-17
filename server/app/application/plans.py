@@ -3,7 +3,7 @@ everyone else pays the team fee (or their own monthly fee) every month.
 
 A member is on at most one plan. Their cycle starts the first month they are billed on it, so one bill covers
 that month and the next ones: a quarterly member who joins in November gets one bill for 11/2026–01/2027 and
-the next in February. Changing a plan reprices only unpaid bills opened this month (like /setfee)."""
+the next in February. Changing a plan reprices only unpaid bills opened this month (like the default fee)."""
 from ..domain.entities import FeePlan, Team
 from ..domain.errors import DomainError, invalid
 from ..domain.rules import CYCLES, MAX_FEE

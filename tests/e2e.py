@@ -238,7 +238,11 @@ async def main():
         assert hook["url"] == "https://teamfund.test/sepay/1" and hook["bank_account_xid"] == "acc-1"
         assert (hook["event_type"], hook["auth_type"], hook["content_type"]) == ("in", "apikey", "json")
         assert hook["skip_if_no_code"] is False
-        await T(text_update(OWNER, "/setfee 200k"))
+        await T(text_update(OWNER, "/plans"))
+        pl = await wait_sent(to(OWNER, "Fee plans"), "plans for the default fee")
+        await T(cb_update(OWNER, "p:f", pl["message_id"]))
+        await wait_sent(to(OWNER, "Send the default monthly fee"), "default fee asked")
+        await T(text_update(OWNER, "200k"))
         await wait_sent(to(OWNER, "Monthly fee set to 200,000đ"), "fee set")
         await T(text_update(OWNER, "/add An | 10\nBình\nCường | 7 | 0901234567"))
         await wait_sent(to(OWNER, "Added 3"), "members added")
@@ -251,7 +255,7 @@ async def main():
         api_key = hook["secret"]  # what SePay sends with every webhook call
 
         # non-managers are refused
-        await T(text_update(MEMBER, "/setfee 1"))
+        await T(text_update(MEMBER, "/plans"))
         await wait_sent(to(MEMBER, "Only team managers"), "role check")
 
         # 3. a member pays for An and Bình
@@ -415,7 +419,7 @@ async def main():
         # 10. fee plans: Cường and Dũng pay 300k per quarter, An 150k a month, Bình stays on the team fee
         await T(text_update(OWNER, "/plans"))
         plans = await wait_sent(to(OWNER, "Fee plans"), "plans screen")
-        assert "Default (/setfee): <b>200,000đ</b>/month · 4 people" in plans["params"]["text"]
+        assert "Default: <b>200,000đ</b>/month · 4 people" in plans["params"]["text"]
         await T(cb_update(OWNER, "p:n", plans["message_id"]))
         await wait_sent(lambda c: c["method"] == "editMessageText" and "how often" in c["params"]["text"], "cycles")
         await T(cb_update(OWNER, "p:c:3", plans["message_id"]))
@@ -475,6 +479,32 @@ async def main():
                         "history of one month")
         await T(text_update(OWNER, "/history 13/2026"))
         await wait_sent(to(OWNER, "every transaction of that month"), "bad month explained")
+
+        # 12. merged commands: default fee in /plans, split in /charge, add in /members
+        await T(text_update(OWNER, "/plans"))
+        plans = await wait_sent(to(OWNER, "Fee plans"), "plans again")
+        assert "p:f" in buttons(plans)
+        await T(cb_update(OWNER, "p:f", plans["message_id"]))
+        await wait_sent(to(OWNER, "Send the default monthly fee"), "default fee asked")
+        await T(text_update(OWNER, "250k"))
+        await wait_sent(to(OWNER, "Monthly fee set to 250,000đ"), "default fee set from /plans")
+        await wait_sent(to(OWNER, "Default: <b>250,000đ</b>/month"), "plans shown with the new default")
+        await T(text_update(OWNER, "/charge 100k Jersey"))
+        how = await wait_sent(to(OWNER, "how should it be charged"), "charge asks each or split")
+        assert buttons(how) == ["c:charge", "c:split", "c:x"]
+        await T(cb_update(OWNER, "c:split", how["message_id"]))
+        await wait_sent(lambda c: c["method"] == "editMessageText" and "Who shares <b>Jersey</b>" in c["params"]["text"],
+                        "same message becomes the split picker")
+        await T(cb_update(OWNER, "k:ok", how["message_id"]))
+        await wait_sent(lambda c: c["method"] == "editMessageText" and "Jersey" in c["params"]["text"]
+                        and "Who shares" not in c["params"]["text"], "split charged")
+        await T(text_update(OWNER, "/members"))
+        lst = await wait_sent(to(OWNER, r"Members</b>"), "members with add button")
+        assert "m:add" in buttons(lst)
+        await T(cb_update(OWNER, "m:add", lst["message_id"]))
+        await wait_sent(to(OWNER, "one per line"), "add prompt from /members")
+        await T(text_update(OWNER, "Giang"))
+        await wait_sent(to(OWNER, "Added 1"), "member added from the button")
 
         print(f"e2e passed ({len(calls)} Telegram API calls)")
     finally:

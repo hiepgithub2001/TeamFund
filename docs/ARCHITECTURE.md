@@ -54,7 +54,7 @@ _Control flows outward and back (a webhook calls a use case, the use case saves 
 4. **Link the bank account in SePay** (my.sepay.vn → Ngân hàng → Thêm tài khoản, with the bank's OTP), and for VA-only banks such as BIDV personal create a VA there. Then create an API token (Cấu hình công ty → API Access).
 5. **Connect SePay and pick the account.** In the team bot, send `/sepaytoken <token>`. The bot lists the accounts linked in that SePay (one button per VA for VA-only banks); one tap saves the team's account and creates its webhook. Only the owner can do this, and the account can't be typed in: only an account SePay watches can confirm payments. To change it later, `/setbank` shows the same list. Anyone can check it with `/bank`.
 6. **Add the bot to the team group** and send `/linkgroup` there.
-7. **Add members and the fee** with `/add`, `/setfee` and `/setdue`.
+7. **Add members and the fee:** `/members` → ➕ Add members, `/plans` → 💰 Default fee (and ➕ New plan for other amounts or cycles), then `/setdue`.
 
 ## Payment flow
 
@@ -141,7 +141,7 @@ A bank missing from the table doesn't send webhooks. For an account already link
 
 ## Fees, plans and other income
 
-Every member pays one fee: their **fee plan** if they're on one, else their own monthly fee (set on the member screen), else the team fee from `/setfee`. A plan is an amount plus a cycle (month, quarter, 6 months, year), so "An, Bình, Cường pay 150k a month, Dũng, Em, Phúc pay 300k a quarter" is two plans. Money that isn't anyone's fee (a prize, a sponsor, the balance from before the bot) goes in with `/income`.
+Every member pays one fee: their **fee plan** if they're on one, else their own monthly fee (set on the member screen), else the team's default fee (`/plans` → 💰 Default fee). A plan is an amount plus a cycle (month, quarter, 6 months, year), so "An, Bình, Cường pay 150k a month, Dũng, Em, Phúc pay 300k a quarter" is two plans. Money that isn't anyone's fee (a prize, a sponsor, the balance from before the bot) goes in with `/income`.
 
 ![Timeline from 11/2026 to 04/2027. An, on a 150,000đ monthly plan, gets a bill every month. Cường, on a 300,000đ quarterl](diagrams/08-fees-plans-and-other-income.svg)
 
@@ -149,7 +149,7 @@ _One bill per cycle: a quarterly bill covers its three months, so Cường count
 
 | Command (managers) | What it does |
 |---|---|
-| `/plans` | Lists the default fee and each plan with its members. Buttons: ➕ new plan (cycle → amount → pick members), and per plan 👥 members, 💰 amount, 🔁 cycle, 🗑 delete. |
+| `/plans` | Lists the default fee and each plan with its members. Buttons: 💰 default fee (everyone not on a plan pays it monthly; replaces the old `/setfee`), ➕ new plan (cycle → amount → pick members), and per plan 👥 members, 💰 amount, 🔁 cycle, 🗑 delete. |
 | `/plans 300k quý` | Quick create: goes straight to picking members. Cycle words: tháng / quý / 6 tháng / năm, or month / quarter / 6 months / year. |
 | `/income 2tr Thưởng vô địch` | Records other income. Posted in the group; counts in `/fund` (shown as "of which other income"), `/history`, the month totals and the pay page. |
 | `/income 1.5tr Số dư đầu kỳ 31/10``/expense 300k Sân bóng 15-10-2026` | A date at the end (`dd/mm/yyyy`, `dd-mm-yyyy`, `dd/mm/yy`, `dd-mm-yy`, `dd/mm` / `dd-mm` for this year, or `mm/yyyy` / `mm-yyyy` for the 1st of that month) records it on that day (noon, team time); without one it's now. Being stored at that time, it sorts into place in the transaction log and falls under its own month in `/history 10/2026`, the month totals and the pay page's month blocks. Not in the future, at most 3 years back. Amounts can be `450k`, `1tr`, `1.5M`, `1tr5`, `5M`, `450.000`…; `/money` lists every form. A bare `/income` or `/expense` explains the format and takes the answer as a reply. |
@@ -169,7 +169,7 @@ Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID
 | Role | Who | Can do |
 |---|---|---|
 | Owner | Whoever registered the bot with `/newteam` | Everything a manager can, plus `/sepaytoken`, `/setbank` (pick from SePay; also sets up the webhook), approve or remove managers, `/transferowner`, `/log` |
-| Manager | Approved by the owner | `/weblink` (the pay page link), `/add` `/edit` `/remove` members, `/setfee` `/plans` `/setdue`, `/markpaid`, `/expense`, `/income`, `/charge` `/split`, `/remind`, assign unmatched payments, `/export` |
+| Manager | Approved by the owner | `/weblink` (the pay page link), `/members` (view, ➕ add, edit, remove), `/plans` (default fee and plans), `/setdue`, `/markpaid`, `/expense`, `/income`, `/charge` (each pays, or ➗ split), `/remind`, assign unmatched payments, `/export` |
 | Everyone | Anyone who opens the bot | `/start` and pay (or the pay page in a browser, no Telegram needed), `/status`, `/fund`, `/history` (or `/history 10/2026` for every transaction of one month), `/bank` (the team account; managers also see whether SePay is connected), `/lang`, `/requestmanager` |
 
 ### Becoming a manager: request and approve

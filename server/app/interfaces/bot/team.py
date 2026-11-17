@@ -215,12 +215,13 @@ async def on_picker(cq: CallbackQuery, m: re.Match, entry, lang):
 
 async def members_list(ev, entry, lang, edit_in_place: bool = False) -> None:
     members = await call(S.members.list_members, tid(entry), ev.from_user.id)
+    add = [(t(lang, "btn.add_members"), "m:add")]
     if not members:
-        text, markup = t(lang, "members.empty"), None
+        text, markup = t(lang, "members.empty"), kb(add)
     else:
         buttons = [(f"{'⏸ ' if m['status'] == 'paused' else ''}{m['name']}"
                     f"{' #' + m['shirt_number'] if m['shirt_number'] else ''}", f"m:v:{m['id']}") for m in members]
-        markup = kb(*[buttons[i:i + 2] for i in range(0, len(buttons), 2)])
+        markup = kb(*[buttons[i:i + 2] for i in range(0, len(buttons), 2)], add)
         text = t(lang, "members.title", n=len(members))
     if edit_in_place:
         await edit(ev, text, markup)
@@ -257,13 +258,17 @@ async def bills_view(cq, entry, lang, member_id) -> None:
     await edit(cq, t(lang, key, name=esc(r["member"]["name"])), kb(*rows))
 
 
-@router.callback_query(F.data.regexp(r"^m:(l|v|e|s|b|rm|rmy)(?::(\d+))?(?::(\w+))?$").as_("m"))
+@router.callback_query(F.data.regexp(r"^m:(l|v|e|s|b|rm|rmy|add)(?::(\d+))?(?::(\w+))?$").as_("m"))
 async def on_member(cq: CallbackQuery, m: re.Match, entry, lang):
     if not await allow(cq, entry, lang, "manager"):
         return
     action, mid, arg = m.group(1), m.group(2), m.group(3)
     user = cq.from_user
-    if action == "l":
+    if action == "add":  # same as /add: one member per line
+        set_state(input_key(cq.bot.id, cq.message.chat.id), {"type": "add"}, 600)
+        await cq.answer()
+        await say(cq, t(lang, "add.prompt"), reply_markup=FORCE)
+    elif action == "l":
         await cq.answer()
         await members_list(cq, entry, lang, edit_in_place=True)
     elif action == "v":
@@ -582,19 +587,6 @@ async def cmd_add(message: Message, command: CommandObject, entry, lang):
     await message.answer(t(lang, "add.prompt"), reply_markup=FORCE)
 
 
-@router.message(Command("setfee"))
-async def cmd_setfee(message: Message, command: CommandObject, entry, lang):
-    if not await allow(message, entry, lang, "manager"):
-        return
-    raw = (command.args or "").strip()
-    fee = 0 if raw == "0" else parse_amount(raw)
-    if fee is None:
-        await message.answer(t(lang, "usage.setfee"))
-        return
-    r = await call(S.teams.update_settings, tid(entry), message.from_user.id, fee=fee)
-    await message.answer(t(lang, "setfee.done", fee=money(r["fee"], lang)))
-
-
 @router.message(Command("setdue"))
 async def cmd_setdue(message: Message, command: CommandObject, entry, lang):
     if not await allow(message, entry, lang, "manager"):
@@ -607,31 +599,61 @@ async def cmd_setdue(message: Message, command: CommandObject, entry, lang):
     await message.answer(t(lang, "setdue.done", day=r["due_day"]))
 
 
-async def _charge(message: Message, command: CommandObject, entry, lang, kind: str):
-    if not await allow(message, entry, lang, "manager"):
-        return
-    amount, title = amount_and_title(command.args)
-    if not amount or not title:
-        await message.answer(t(lang, f"usage.{kind}"))
-        return
-    members = [m for m in await call(S.members.list_members, tid(entry), message.from_user.id) if m["status"] == "active"]
+async def charge_picker(ev, entry, lang, kind: str, amount: int, title: str) -> dict | None:
+    """The member picker for a charge ("charge": each pays the amount; "split": they share it)."""
+    members = [m for m in await call(S.members.list_members, tid(entry), ev.from_user.id) if m["status"] == "active"]
     if not members:
-        await message.answer(t(lang, "err.no_members"))
-        return
-    await open_picker(message, lang, {
-        "kind": kind, "title": t(lang, f"pick.{kind}", title=esc(title), amount=money(amount, lang)),
-        "options": [{"id": m["id"], "label": m["name"]} for m in members],
-        "selected": [m["id"] for m in members], "data": {"title": title, "amount": amount}})
+        await say(ev, t(lang, "err.no_members"))
+        return None
+    return {"kind": kind, "title": t(lang, f"pick.{kind}", title=esc(title), amount=money(amount, lang)),
+            "options": [{"id": m["id"], "label": m["name"]} for m in members],
+            "selected": [m["id"] for m in members], "data": {"title": title, "amount": amount}}
 
 
 @router.message(Command("charge"))
 async def cmd_charge(message: Message, command: CommandObject, entry, lang):
-    await _charge(message, command, entry, lang, "charge")
+    """A one-off cost for chosen members: each pays the amount, or they split it (asked with two buttons)."""
+    if not await allow(message, entry, lang, "manager"):
+        return
+    amount, title = amount_and_title(command.args)
+    if not amount or not title:
+        await message.answer(t(lang, "usage.charge"))
+        return
+    a = money(amount, lang)
+    msg = await message.answer(t(lang, "charge.how", title=esc(title), amount=a), reply_markup=kb(
+        [(t(lang, "btn.charge_each", amount=a), "c:charge")], [(t(lang, "btn.charge_split", amount=a), "c:split")],
+        [(t(lang, "btn.cancel"), "c:x")]))
+    set_state(pick_key(msg.bot.id, msg.chat.id, msg.message_id), {"type": "charge_how", "amount": amount, "title": title}, 600)
 
 
-@router.message(Command("split"))
+@router.callback_query(F.data.regexp(r"^c:(charge|split|x)$").as_("m"))
+async def on_charge_how(cq: CallbackQuery, m: re.Match, entry, lang):
+    if not await allow(cq, entry, lang, "manager"):
+        return
+    key = pick_key(cq.bot.id, cq.message.chat.id, cq.message.message_id)
+    st = get_state(key)
+    await cq.answer()
+    if m.group(1) == "x" or not st or st.get("type") != "charge_how":
+        del_state(key)
+        await edit(cq, t(lang, "cancelled" if st else "err.menu_expired"))
+        return
+    pick = await charge_picker(cq, entry, lang, m.group(1), st["amount"], st["title"])
+    if pick:  # the same message becomes the member picker
+        set_state(key, pick)
+        await edit(cq, pick["title"], picker_keyboard(lang, pick))
+
+
+@router.message(Command("split"))  # kept for people used to it; /charge asks the same question with a button
 async def cmd_split(message: Message, command: CommandObject, entry, lang):
-    await _charge(message, command, entry, lang, "split")
+    if not await allow(message, entry, lang, "manager"):
+        return
+    amount, title = amount_and_title(command.args)
+    if not amount or not title:
+        await message.answer(t(lang, "usage.charge"))
+        return
+    pick = await charge_picker(message, entry, lang, "split", amount, title)
+    if pick:
+        await open_picker(message, lang, pick)
 
 
 @router.message(Command("markpaid"))
@@ -693,7 +715,7 @@ async def record_money(message: Message, entry, lang: str, kind: str, text: str 
 
 @router.message(Command("money"))
 async def cmd_money(message: Message, lang):
-    """How to write amounts and dates in /expense, /income, /charge, /split, /setfee and /plans."""
+    """How to write amounts and dates in /expense, /income, /charge, /split and /plans."""
     await message.answer(t(lang, "money.help"))
 
 
@@ -757,7 +779,7 @@ def cycle_keyboard(lang: str, prefix: str, back: str):
 async def plans_view(ev, entry, lang, edit_in_place: bool = False) -> None:
     v = await call(S.plans.list_plans, tid(entry), ev.from_user.id)
     rows = [[(f"✏️ {fee_text(lang, p['amount'], p['months'])}", f"p:v:{p['id']}")] for p in v["plans"]]
-    rows.append([(t(lang, "btn.plan_new"), "p:n")])
+    rows.append([(t(lang, "btn.plan_new"), "p:n"), (t(lang, "btn.default_fee"), "p:f")])
     if edit_in_place:
         await edit(ev, plans_text(lang, v), kb(*rows))
     else:
@@ -794,7 +816,7 @@ async def cmd_plans(message: Message, command: CommandObject, entry, lang):
     await open_plan_picker(message, entry, lang, amount, months)
 
 
-@router.callback_query(F.data.regexp(r"^p:(l|n|c|v|m|a|k|kc|d|dy)(?::(\d+))?(?::(\d+))?$").as_("m"))
+@router.callback_query(F.data.regexp(r"^p:(l|n|f|c|v|m|a|k|kc|d|dy)(?::(\d+))?(?::(\d+))?$").as_("m"))
 async def on_plan(cq: CallbackQuery, m: re.Match, entry, lang):
     if not await allow(cq, entry, lang, "manager"):
         return
@@ -805,6 +827,9 @@ async def on_plan(cq: CallbackQuery, m: re.Match, entry, lang):
         await plans_view(cq, entry, lang, edit_in_place=True)
     elif action == "n":
         await edit(cq, t(lang, "plans.choose_cycle"), cycle_keyboard(lang, "p:c:", "p:l"))
+    elif action == "f":  # the team's default monthly fee, for everyone not on a plan
+        set_state(input_key(cq.bot.id, cq.message.chat.id), {"type": "default_fee"}, 600)
+        await say(cq, t(lang, "plans.ask_default"), reply_markup=FORCE)
     elif action == "c" and a:
         set_state(input_key(cq.bot.id, cq.message.chat.id), {"type": "plan_amount", "months": int(a)}, 600)
         await say(cq, t(lang, "plans.ask_amount", cycle=t(lang, f"cycle.{a}")), reply_markup=FORCE)
@@ -1169,6 +1194,14 @@ async def on_text(message: Message, entry, lang):
         await save_sepay_token(message, entry, lang, text)
     elif st["type"] in ("expense", "income"):
         await record_money(message, entry, lang, st["type"], text)
+    elif st["type"] == "default_fee":
+        fee = 0 if text == "0" else parse_amount(text)
+        if fee is None:
+            await message.answer(t(lang, "err.invalid"))
+            return
+        r = await call(S.teams.update_settings, tid(entry), message.from_user.id, fee=fee)
+        await message.answer(t(lang, "setfee.done", fee=money(r["fee"], lang)))
+        await plans_view(message, entry, lang)
     elif st["type"] == "plan_amount":
         await plan_amount_reply(message, entry, lang, st, text)
     elif st["type"] == "add":
