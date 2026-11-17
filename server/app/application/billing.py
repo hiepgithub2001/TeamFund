@@ -76,7 +76,8 @@ def ensure_bills(uow: UnitOfWork, d: Deps, team: Team, period: str | None = None
 
 
 def update_late_fees(uow: UnitOfWork, d: Deps, team: Team) -> None:
-    """Keep each overdue fee bill's late fee (its own "late" bill) at days overdue × the team's rate.
+    """Keep each overdue fee bill's late fee (its own "late" bill) at days past its due date × its package's
+    rate, counted from the bill's real due date (a quarter's: its first month's), whenever the fee was set.
     Runs with ensure_bills, so amounts are current whenever someone looks or pays. A late bill stops
     growing once the fee is paid, and stays as it is for paused members; turning the fee off waives
     the late bills still unpaid."""
@@ -92,7 +93,7 @@ def update_late_fees(uow: UnitOfWork, d: Deps, team: Team) -> None:
             continue
         tm = terms_of(team, plans, b.plan_id)
         rate = tm.late_fee
-        days = late_days(due_date(tm, b.period), today, tm.late_since) if rate else 0
+        days = late_days(due_date(tm, b.period), today, None) if rate else 0  # always from the real due date
         if days > 0:
             if lb is None:
                 uow.bills.add(Bill(team_id=team.id, member_id=b.member_id, kind="late", title=f"late:{days}",

@@ -494,7 +494,7 @@ def test_cash_less_than_owed():
 
 
 def test_schedule_and_late_fee():
-    """Announce on the 15th, due 5 days later; 1,000đ per overdue day, only from when it's turned on."""
+    """Announce on the 15th, due 5 days later; 1,000đ per day past the due date (even days before it was set)."""
     from datetime import date
     svc, clock, notifier = make_services(datetime(2026, 11, 10, 10, 0))
     tid = setup_team(svc)
@@ -513,27 +513,27 @@ def test_schedule_and_late_fee():
     assert len(opened) == 1 and opened[0]["fees"][0]["due"] == "20/11"
 
     clock.local = clock.local.replace(day=22)
-    svc.teams.update_settings(tid, OWNER, late_fee=1000)  # turned on on the 22nd: counts from the 22nd
-    assert {g["name"]: g["total"] for g in svc.money.unpaid(tid)} == {"An": 200000, "Bình": 200000}
+    svc.teams.update_settings(tid, OWNER, late_fee=1000)  # turned on on the 22nd: still counts from the 20th
+    assert {g["name"]: g["total"] for g in svc.money.unpaid(tid)} == {"An": 202000, "Bình": 202000}
     clock.local = clock.local.replace(day=25)
     owed = {g["name"]: g for g in svc.money.unpaid(tid)}
-    assert owed["An"]["total"] == 203000
+    assert owed["An"]["total"] == 205000
     late = [b for b in owed["An"]["bills"] if b["kind"] == "late"][0]
-    assert (late["days"], late["amount"]) == (3, 3000)
+    assert (late["days"], late["amount"]) == (5, 5000)
     s = svc.money.status(tid)
     assert [(f["due"], f["late_fee"], f["count"]) for f in s["fees"]] == [("20/11", 1000, 2)]
 
     # An makes a QR on the 25th and pays it on the 26th: the extra day's fine isn't asked for
     intent = svc.money.create_intent(tid, MEMBER, [an])
-    assert intent["amount"] == 203000
+    assert intent["amount"] == 205000
     clock.local = clock.local.replace(day=26)
     svc.money.unpaid(tid)  # the late fee grows to 4,000đ
-    assert svc.money.record_transfer(tid, key, IncomingTransfer("tx-late", 203000, intent["content"])) == \
+    assert svc.money.record_transfer(tid, key, IncomingTransfer("tx-late", 205000, intent["content"])) == \
         "payment_confirmed"
     owed = {g["name"]: g["total"] for g in svc.money.unpaid(tid)}
-    assert "An" not in owed and owed["Bình"] == 204000
+    assert "An" not in owed and owed["Bình"] == 206000
     clock.local = clock.local.replace(day=28)
-    assert {g["name"]: g["total"] for g in svc.money.unpaid(tid)} == {"Bình": 206000}, "An's fine stopped"
+    assert {g["name"]: g["total"] for g in svc.money.unpaid(tid)} == {"Bình": 208000}, "An's fine stopped"
 
     # waiving the fee waives its fine; turning the late fee off waives the fines left
     bills = svc.members.member_bills(tid, OWNER, binh)["bills"]
@@ -580,11 +580,11 @@ def test_each_package_has_its_own_terms():
 
     clock.local = clock.local.replace(day=23)
     owed = {g["name"]: g["total"] for g in svc.money.unpaid(tid)}
-    # Cường: due 11/10 under the plan, fined from when the plan's late fee was set (1/11): 22 days x 2k
-    assert owed == {"An": 203000, "Cường": 644000}
+    # Cường: due 11/10 under the plan, 43 days x 2k; An: due 20/11, 3 days x 1k
+    assert owed == {"An": 203000, "Cường": 686000}
     # the plan goes back to the default's terms: due 20/11, 1k/day from the 1st -> 3 days
     svc.plans.set_terms(tid, OWNER, q["id"], inherit_schedule=True, inherit_late=True)
-    assert {g["name"]: g["total"] for g in svc.money.unpaid(tid)} == {"An": 203000, "Cường": 622000}
+    assert {g["name"]: g["total"] for g in svc.money.unpaid(tid)} == {"An": 203000, "Cường": 634000}
 
 
 def test_followers():

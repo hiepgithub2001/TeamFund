@@ -326,7 +326,7 @@
  "plans.inherit": " (như mặc định)",
  "plans.default_view": "⚙️ <b>Gói mặc định</b>: {fee}/tháng\nÁp dụng cho {n} người không ở gói nào.",
  "plans.ask_schedule": "📅 Gửi <b>ngày thông báo</b> và <b>số ngày tới hạn</b>, ví dụ <code>15 5</code>: thông báo ngày 15 hằng tháng, hạn ngày 20. (Ngày 1–28, số ngày 0–60; hạn có thể sang tháng sau.)",
- "plans.ask_late": "⏰ Gửi tiền phạt mỗi ngày quá hạn, ví dụ <code>1k</code>. Gửi <code>0</code> để không phạt. Chỉ tính từ hôm nay, không tính lùi.",
+ "plans.ask_late": "⏰ Gửi tiền phạt mỗi ngày quá hạn, ví dụ <code>1k</code>. Gửi <code>0</code> để không phạt. Tính từ ngày hết hạn của mỗi khoản (kể cả những ngày trước khi bật).",
  "plans.ask_inherit": "\nGửi <code>-</code> để theo gói mặc định.",
  "plans.saved_terms": "✅ Đã lưu. Hạn và tiền phạt của các khoản chưa đóng theo gói này đã được cập nhật.",
  "btn.plan_due": "📅 Hạn đóng",

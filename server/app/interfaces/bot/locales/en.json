@@ -326,7 +326,7 @@
  "plans.inherit": " (as default)",
  "plans.default_view": "⚙️ <b>Default package</b>: {fee}/month\nFor the {n} people not on a plan.",
  "plans.ask_schedule": "📅 Send the <b>announcement day</b> and the <b>days until due</b>, e.g. <code>15 5</code>: announced on the 15th, due the 20th. (Day 1–28, days 0–60; the due date may fall next month.)",
- "plans.ask_late": "⏰ Send the late fee per overdue day, e.g. <code>1k</code>. Send <code>0</code> for none. It only counts from today.",
+ "plans.ask_late": "⏰ Send the late fee per overdue day, e.g. <code>1k</code>. Send <code>0</code> for none. It counts from each bill's due date (including days before you turn it on).",
  "plans.ask_inherit": "\nSend <code>-</code> to use the default package's.",
  "plans.saved_terms": "✅ Saved. Unpaid bills on this package follow the new due date and late fee.",
  "btn.plan_due": "📅 Deadline",
