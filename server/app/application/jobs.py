@@ -28,13 +28,14 @@ class JobUseCases:
             for team in uow.teams.active():
                 try:
                     billing.ensure_bills(uow, self.d, team, period)
-                    if team.last_billed_period == period or team.fee <= 0:
+                    if team.last_billed_period == period or not billing.has_fees(uow, team):
                         continue
                     ok = True
                     if team.group_chat_id:
                         ok = self.d.notifier.deliver({
                             "type": "bills_created", "team_id": team.id, "period_label": period_label(period),
-                            "fee": team.fee, "due_day": team.due_day, "group_chat_id": team.group_chat_id})
+                            "fee": team.fee, "fees": billing.fee_groups(uow, team), "due_day": team.due_day,
+                            "group_chat_id": team.group_chat_id})
                     if ok:
                         team.last_billed_period = period
                         uow.commit()
@@ -47,7 +48,7 @@ class JobUseCases:
         with self.d.uow() as uow:
             for team in uow.teams.active():
                 try:
-                    if not team.group_chat_id or team.fee <= 0:
+                    if not team.group_chat_id or not billing.has_fees(uow, team):
                         continue
                     due = due_day_in_month(team.due_day, now.year, now.month)
                     key = f"remind:{team.id}:{now:%Y-%m-%d}"

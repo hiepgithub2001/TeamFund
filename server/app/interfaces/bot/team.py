@@ -10,11 +10,11 @@ from aiogram.types import BufferedInputFile, CallbackQuery, ChatMemberUpdated, F
 
 from ..deps import S
 from .commands import clear_admin_commands, set_admin_commands
-from .fmt import amount_and_title, esc, money, parse_amount, strip_tags
+from .fmt import amount_and_title, esc, money, parse_amount, split_date, strip_tags
 from .i18n import t
 from .lang import lang_for, set_lang
 from ...domain.errors import DomainError
-from .render import (bill_label, edit, error_text, is_private, kb, owes_lines, pay_keyboard, say,
+from .render import (bill_label, edit, error_text, fee_text, is_private, kb, owes_lines, pay_keyboard, say,
                      status_text)
 from .run import call
 from .state import del_state, get_state, set_state
@@ -81,7 +81,7 @@ async def post_to_group(entry, text: str, photo: str | None = None, reply_markup
 # ---- multi-select picker (pay, charge, split, cash, assign) ------------------------------------------
 
 def picker_keyboard(lang, st):
-    per_row = 1 if st["kind"] in ("pay", "markpaid", "assign") else 2
+    per_row = 1 if st["kind"] in ("pay", "markpaid", "assign", "plan") else 2
     buttons = [(f"{'✅' if o['id'] in st['selected'] else '☐'} {o['label']}", f"k:t:{i}")
                for i, o in enumerate(st["options"])]
     rows = [buttons[i:i + per_row] for i in range(0, len(buttons), per_row)]
@@ -157,6 +157,14 @@ async def on_picker_confirm(cq: CallbackQuery, entry, lang, st, key) -> None:
         members = esc(", ".join(r["members"]))
         await edit(cq, t(lang, "markpaid.done", members=members, amount=money(r["amount"], lang)))
         await post_to_group(entry, t(G, "group.paid", members=members, amount=money(r["amount"], G)))
+    elif st["kind"] == "plan":
+        dt = st["data"]
+        plan = await call(S.plans.save_plan, tid(entry), cq.from_user.id, dt["amount"], dt["months"], ids,
+                          dt.get("plan_id"))
+        del_state(key)
+        await cq.answer()
+        text, markup = plan_view(lang, plan)
+        await edit(cq, f"{t(lang, 'plans.saved')}\n\n{text}", markup)
     elif st["kind"] == "assign":
         r = await call(S.money.assign, tid(entry), cq.from_user.id, st["data"]["payment_id"], ids)
         del_state(key)
@@ -223,8 +231,9 @@ async def members_list(ev, entry, lang, edit_in_place: bool = False) -> None:
 def member_view(lang, m):
     dash = lambda v: esc(v) if v else "—"  # noqa: E731
     text = t(lang, "member.detail", name=esc(m["name"]), nickname=dash(m["nickname"]), shirt=dash(m["shirt_number"]),
-             phone=dash(m["phone"]), note=dash(m["note"]), fee=money(m["fee"], lang),
-             custom=t(lang, "member.custom") if m["fee_override"] is not None else "",
+             phone=dash(m["phone"]), note=dash(m["note"]), fee=fee_text(lang, m["fee"], m.get("months", 1)),
+             custom=t(lang, "member.on_plan") if m.get("on_plan")
+             else t(lang, "member.custom") if m["fee_override"] is not None else "",
              status=t(lang, f"status.{m['status']}"), owes=money(m["owes"], lang))
     i = m["id"]
     paused = m["status"] == "paused"
@@ -267,6 +276,8 @@ async def on_member(cq: CallbackQuery, m: re.Match, entry, lang):
         await cq.answer()
         prompt = (t(lang, "member.ask_fee", name=esc(mem["name"])) if arg == "fee"
                   else t(lang, "member.ask", field=t(lang, f"field.{arg}"), name=esc(mem["name"])))
+        if arg == "fee" and mem.get("on_plan"):
+            prompt += t(lang, "member.ask_fee_plan", name=esc(mem["name"]))
         await say(cq, prompt, reply_markup=FORCE)
     elif action == "s":
         mem = await call(S.members.update_member, tid(entry), user.id, int(mid), {"status": arg})
@@ -474,6 +485,8 @@ async def cmd_fund(message: Message, entry, lang):
     f = await call(S.money.fund, tid(entry))
     text = t(lang, "fund.text", income=money(f["income"], lang), expense=money(f["expense"], lang),
              balance=money(f["balance"], lang))
+    if f.get("other_income"):
+        text += "\n" + t(lang, "fund.other", other=money(f["other_income"], lang))
     if f["unmatched"] and is_private(message) and await role(entry, message.from_user) in ("owner", "manager"):
         text += "\n\n" + t(lang, "fund.unmatched", n=f["unmatched"])
     await message.answer(text)
@@ -496,14 +509,35 @@ async def cmd_bank(message: Message, entry, lang):
 
 
 @router.message(Command("history"))
-async def cmd_history(message: Message, entry, lang):
-    items = await call(S.money.history, tid(entry))
+async def cmd_history(message: Message, command: CommandObject, entry, lang):
+    """The latest transactions, or `/history 10/2026` for every transaction of that month."""
+    raw = (command.args or "").strip()
+    period = None
+    if raw:
+        m = re.fullmatch(r"(\d{1,2})[/.-](\d{4})", raw)
+        if not m or not 1 <= int(m.group(1)) <= 12:
+            await message.answer(t(lang, "usage.history"))
+            return
+        period = f"{m.group(2)}-{int(m.group(1)):02d}"
+    items = await call(S.money.history, tid(entry), 10, period)
+    label = f"{period[5:]}/{period[:4]}" if period else None
     if not items:
-        await message.answer(t(lang, "history.empty"))
+        await message.answer(t(lang, "history.month_empty", period=label) if period else t(lang, "history.empty"))
         return
     lines = [f"{'➕' if i['type'] == 'in' else '➖'} {i['at']} · <b>{money(i['amount'], lang)}</b> · {esc(i['title'])}"
-             f"{' (' + t(lang, 'history.cash') + ')' if i['source'] == 'cash' else ''}" for i in items]
-    await message.answer(t(lang, "history.title") + "\n" + "\n".join(lines))
+             f"{' (' + t(lang, 'history.' + i['source']) + ')' if i['source'] in ('cash', 'other') else ''}"
+             for i in items]
+    head = t(lang, "history.month_title", period=label, n=len(items),
+             income=money(sum(i["amount"] for i in items if i["type"] == "in"), lang),
+             expense=money(sum(i["amount"] for i in items if i["type"] == "out"), lang)) if period \
+        else t(lang, "history.title")
+    chunk = head
+    for line in lines:  # a month can outgrow one Telegram message (4096 characters)
+        if len(chunk) + len(line) > 3800:
+            await message.answer(chunk)
+            chunk = ""
+        chunk += ("\n" if chunk else "") + line
+    await message.answer(chunk)
 
 
 @router.message(Command("lang"))
@@ -612,20 +646,201 @@ async def cmd_markpaid(message: Message, entry, lang):
                                       "options": unpaid_options(lang, unpaid), "selected": []})
 
 
+def amount_title_date(text) -> tuple[int | None, str | None, object, bool]:
+    """'300k Pitch 15/10' -> (300000, 'Pitch', date, True). The last value is False for a date like 31/02."""
+    amount, rest = amount_and_title(text)
+    if not amount or not rest:
+        return amount, rest, None, True
+    title, day, ok = split_date(rest, S.money.today())
+    return amount, title or None, day, ok
+
+
+def on_date_text(lang: str, r: dict, key: str) -> str:
+    return t(lang, key, date=r["at"][:10]) if r.get("backdated") else ""
+
+
 @router.message(Command("expense"))  # also matches a receipt photo with the command as its caption
 async def cmd_expense(message: Message, command: CommandObject, entry, lang):
     if not await allow(message, entry, lang, "manager"):
         return
-    amount, title = amount_and_title(command.args)
+    amount, title, day, ok = amount_title_date(command.args)
+    if not ok:
+        await message.answer(t(lang, "err.bad_date"))
+        return
     if not amount or not title:
         await message.answer(t(lang, "usage.expense"))
         return
     photo = message.photo[-1].file_id if message.photo else None
-    r = await call(S.money.add_expense, tid(entry), message.from_user.id, amount, title, photo)
-    await message.answer(t(lang, "expense.done", balance=money(r["balance"], lang)))
+    r = await call(S.money.add_expense, tid(entry), message.from_user.id, amount, title, photo, day)
+    await message.answer(t(lang, "expense.done", date=on_date_text(lang, r, "on_date"),
+                           balance=money(r["balance"], lang)))
     G = group_lang(entry)
     await post_to_group(entry, t(G, "group.expense", amount=money(r["amount"], G), title=esc(r["title"]),
-                                 by=esc(r["by"]), balance=money(r["balance"], G)), photo=photo)
+                                 by=esc(r["by"]), date=on_date_text(G, r, "group.on_date"),
+                                 balance=money(r["balance"], G)), photo=photo)
+
+
+@router.message(Command("income"))
+async def cmd_income(message: Message, command: CommandObject, entry, lang):
+    """Money into the fund that isn't a member's fee: a prize, a sponsor, the balance from before the bot."""
+    if not await allow(message, entry, lang, "manager"):
+        return
+    amount, title, day, ok = amount_title_date(command.args)
+    if not ok:
+        await message.answer(t(lang, "err.bad_date"))
+        return
+    if not amount or not title:
+        await message.answer(t(lang, "usage.income"))
+        return
+    r = await call(S.money.add_income, tid(entry), message.from_user.id, amount, title, day)
+    await message.answer(t(lang, "income.done", date=on_date_text(lang, r, "on_date"),
+                           balance=money(r["balance"], lang)))
+    G = group_lang(entry)
+    await post_to_group(entry, t(G, "group.income", amount=money(r["amount"], G), title=esc(r["title"]),
+                                 by=esc(r["by"]), date=on_date_text(G, r, "group.on_date"),
+                                 balance=money(r["balance"], G)))
+
+
+# ---- fee plans --------------------------------------------------------------------------------------
+
+CYCLE_WORDS = {1: ("tháng", "thang", "month", "monthly", "m", "1"),
+               3: ("quý", "quy", "quarter", "quarterly", "q", "3", "3 tháng", "3 thang", "3 months"),
+               6: ("6 tháng", "6 thang", "nửa năm", "nua nam", "half", "half year", "6 months", "6"),
+               12: ("năm", "nam", "year", "yearly", "annual", "12", "12 tháng", "12 thang", "12 months")}
+
+
+def parse_cycle(word: str) -> int | None:
+    w = re.sub(r"\s+", " ", (word or "").strip().lower().lstrip("/"))
+    return next((n for n, words in CYCLE_WORDS.items() if w in words), None)
+
+
+def plans_text(lang: str, v: dict) -> str:
+    names = lambda ms: ", ".join(esc(m["name"]) for m in ms)  # noqa: E731
+    lines = [t(lang, "plans.title"),
+             t(lang, "plans.default", fee=money(v["fee"], lang), n=len(v["default_members"])) if v["fee"]
+             else t(lang, "plans.default_none", n=len(v["default_members"]))]
+    for p in v["plans"]:
+        fee = fee_text(lang, p["amount"], p["months"])
+        lines.append(t(lang, "plans.line", fee=fee, names=names(p["members"])) if p["members"]
+                     else t(lang, "plans.empty_line", fee=fee))
+    if not v["plans"]:
+        lines.append(t(lang, "plans.none"))
+    return "\n".join(lines) + "\n\n" + t(lang, "plans.help")
+
+
+def plan_view(lang: str, p: dict):
+    fee = fee_text(lang, p["amount"], p["months"])
+    text = t(lang, "plans.view", fee=fee, n=len(p["members"]),
+             names=", ".join(esc(m["name"]) for m in p["members"]) or "—")
+    i = p["id"]
+    return text, kb([(t(lang, "btn.plan_members"), f"p:m:{i}"), (t(lang, "btn.plan_amount"), f"p:a:{i}")],
+                    [(t(lang, "btn.plan_cycle"), f"p:k:{i}"), (t(lang, "btn.plan_delete"), f"p:d:{i}")],
+                    [(t(lang, "btn.back"), "p:l")])
+
+
+def cycle_keyboard(lang: str, prefix: str, back: str):
+    return kb([(t(lang, "cycle.1").capitalize(), f"{prefix}1"), (t(lang, "cycle.3").capitalize(), f"{prefix}3")],
+              [(t(lang, "cycle.6").capitalize(), f"{prefix}6"), (t(lang, "cycle.12").capitalize(), f"{prefix}12")],
+              [(t(lang, "btn.cancel"), back)])
+
+
+async def plans_view(ev, entry, lang, edit_in_place: bool = False) -> None:
+    v = await call(S.plans.list_plans, tid(entry), ev.from_user.id)
+    rows = [[(f"✏️ {fee_text(lang, p['amount'], p['months'])}", f"p:v:{p['id']}")] for p in v["plans"]]
+    rows.append([(t(lang, "btn.plan_new"), "p:n")])
+    if edit_in_place:
+        await edit(ev, plans_text(lang, v), kb(*rows))
+    else:
+        await say(ev, plans_text(lang, v), reply_markup=kb(*rows))
+
+
+async def open_plan_picker(ev, entry, lang, amount: int, months: int, plan: dict | None = None) -> None:
+    members = [m for m in await call(S.members.list_members, tid(entry), ev.from_user.id)]
+    if not members:
+        await say(ev, t(lang, "err.no_members"))
+        return
+    label = lambda m: f"{m['name']} · {fee_text(lang, m['fee'], m['months'])}" if m["fee"] else m["name"]  # noqa: E731
+    await open_picker(ev, lang, {
+        "kind": "plan", "title": t(lang, "plans.pick", fee=fee_text(lang, amount, months)),
+        "options": [{"id": m["id"], "label": label(m)} for m in members],
+        "selected": [m["id"] for m in plan["members"]] if plan else [],
+        "data": {"amount": amount, "months": months, "plan_id": plan["id"] if plan else None}})
+
+
+@router.message(Command("plans"))
+async def cmd_plans(message: Message, command: CommandObject, entry, lang):
+    """Fee plans, e.g. 150k a month for some and 300k a quarter for others. `/plans 300k quý` starts one."""
+    if not await allow(message, entry, lang, "manager"):
+        return
+    args = (command.args or "").strip()
+    if not args:
+        await plans_view(message, entry, lang)
+        return
+    amount, rest = amount_and_title(args)
+    months = parse_cycle(rest or "")
+    if not amount or not months:
+        await message.answer(t(lang, "usage.plans"))
+        return
+    await open_plan_picker(message, entry, lang, amount, months)
+
+
+@router.callback_query(F.data.regexp(r"^p:(l|n|c|v|m|a|k|kc|d|dy)(?::(\d+))?(?::(\d+))?$").as_("m"))
+async def on_plan(cq: CallbackQuery, m: re.Match, entry, lang):
+    if not await allow(cq, entry, lang, "manager"):
+        return
+    action, a, b = m.group(1), m.group(2), m.group(3)
+    team, user = tid(entry), cq.from_user.id
+    await cq.answer()
+    if action == "l":
+        await plans_view(cq, entry, lang, edit_in_place=True)
+    elif action == "n":
+        await edit(cq, t(lang, "plans.choose_cycle"), cycle_keyboard(lang, "p:c:", "p:l"))
+    elif action == "c" and a:
+        set_state(input_key(cq.bot.id, cq.message.chat.id), {"type": "plan_amount", "months": int(a)}, 600)
+        await say(cq, t(lang, "plans.ask_amount", cycle=t(lang, f"cycle.{a}")), reply_markup=FORCE)
+    elif action == "v" and a:
+        await edit(cq, *plan_view(lang, await call(S.plans.get_plan, team, user, int(a))))
+    elif action == "m" and a:
+        p = await call(S.plans.get_plan, team, user, int(a))
+        await open_plan_picker(cq, entry, lang, p["amount"], p["months"], p)
+    elif action == "a" and a:
+        p = await call(S.plans.get_plan, team, user, int(a))
+        set_state(input_key(cq.bot.id, cq.message.chat.id),
+                  {"type": "plan_amount", "months": p["months"], "plan_id": p["id"]}, 600)
+        await say(cq, t(lang, "plans.ask_amount", cycle=t(lang, f"cycle.{p['months']}")), reply_markup=FORCE)
+    elif action == "k" and a:
+        p = await call(S.plans.get_plan, team, user, int(a))
+        await edit(cq, t(lang, "plans.change_cycle", fee=fee_text(lang, p["amount"], p["months"])),
+                   cycle_keyboard(lang, f"p:kc:{a}:", f"p:v:{a}"))
+    elif action == "kc" and a and b:
+        p = await call(S.plans.get_plan, team, user, int(a))
+        p = await call(S.plans.save_plan, team, user, p["amount"], int(b), [x["id"] for x in p["members"]], p["id"])
+        text, markup = plan_view(lang, p)
+        await edit(cq, f"{t(lang, 'plans.saved')}\n\n{text}", markup)
+    elif action == "d" and a:
+        p = await call(S.plans.get_plan, team, user, int(a))
+        await edit(cq, t(lang, "plans.confirm_delete", fee=fee_text(lang, p["amount"], p["months"]),
+                         n=len(p["members"])),
+                   kb([(t(lang, "btn.yes_delete"), f"p:dy:{a}"), (t(lang, "btn.cancel"), f"p:v:{a}")]))
+    elif action == "dy" and a:
+        r = await call(S.plans.delete_plan, team, user, int(a))
+        await edit(cq, t(lang, "plans.deleted", fee=fee_text(lang, r["amount"], r["months"]), n=len(r["members"])),
+                   kb([(t(lang, "btn.back"), "p:l")]))
+
+
+async def plan_amount_reply(message: Message, entry, lang, st: dict, text: str) -> None:
+    amount = parse_amount(text)
+    if not amount:
+        await message.answer(t(lang, "err.invalid"))
+        return
+    if st.get("plan_id"):
+        p = await call(S.plans.get_plan, tid(entry), message.from_user.id, st["plan_id"])
+        p = await call(S.plans.save_plan, tid(entry), message.from_user.id, amount, p["months"],
+                       [x["id"] for x in p["members"]], p["id"])
+        view, markup = plan_view(lang, p)
+        await message.answer(f"{t(lang, 'plans.saved')}\n\n{view}", reply_markup=markup)
+        return
+    await open_plan_picker(message, entry, lang, amount, st["months"])
 
 
 @router.message(Command("remind"))
@@ -942,6 +1157,8 @@ async def on_text(message: Message, entry, lang):
     text = message.text.strip()
     if st["type"] == "sepay_token":
         await save_sepay_token(message, entry, lang, text)
+    elif st["type"] == "plan_amount":
+        await plan_amount_reply(message, entry, lang, st, text)
     elif st["type"] == "add":
         await add_members(message, entry, lang, text)
     elif st["type"] == "edit":

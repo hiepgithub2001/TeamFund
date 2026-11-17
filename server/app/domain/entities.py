@@ -97,7 +97,19 @@ class Member:
     phone: str | None = None
     note: str | None = None
     fee_override: int | None = None
+    plan_id: int | None = None   # a fee plan (amount + cycle); None: the team fee, or fee_override, every month
     status: str = "active"  # active|paused|left
+    created_at: datetime | None = None
+    id: int | None = None
+
+
+@dataclass(eq=False)
+class FeePlan:
+    """A fee some members pay on a cycle instead of the team's monthly fee, e.g. 300,000đ every 3 months.
+    Each member's cycle starts the first month they are billed on the plan."""
+    team_id: int
+    amount: int
+    months: int = 1  # 1 monthly | 3 quarterly | 6 half-yearly | 12 yearly
     created_at: datetime | None = None
     id: int | None = None
 
@@ -111,8 +123,9 @@ class Bill:
     period: str  # YYYY-MM
     amount: int
     status: str = "unpaid"  # unpaid|paid|waived
-    # "<member_id>:<period>" for monthly bills only, so a member is never billed twice for a month
+    # "<member_id>:<period>" for fee bills only, so a member is never billed twice for a month
     monthly_key: str | None = None
+    months: int | None = None  # fee bills: how many months from `period` this bill covers (None = 1)
     payment_id: int | None = None
     created_at: datetime | None = None
     paid_at: datetime | None = None
@@ -141,7 +154,7 @@ class PaymentIntent:
 @dataclass(eq=False)
 class Payment:
     team_id: int
-    source: str  # sepay|cash
+    source: str  # sepay|cash|other (money that isn't a member's fee: a prize, a sponsor, the opening balance)
     amount: int
     sepay_tx_id: str | None = None
     content: str | None = None

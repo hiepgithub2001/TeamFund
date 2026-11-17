@@ -133,6 +133,16 @@ async def state(token: str, request: Request):
         return _error(e)
 
 
+@router.get("/p/{token}/api/month/{period}")
+async def month(token: str, period: str, request: Request):
+    if not read_limit.allow(client_ip(request)):
+        return _too_many()
+    try:
+        return _json(await call(S.web.month, token, period))
+    except DomainError as e:
+        return _error(e)
+
+
 @router.post("/p/{token}/api/pay")
 async def pay(token: str, request: Request, body: dict = Body(...)):
     if not pay_limit.allow(client_ip(request)):

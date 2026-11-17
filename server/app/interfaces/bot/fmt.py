@@ -1,5 +1,6 @@
 import html
 import re
+from datetime import date
 
 
 def esc(s) -> str:
@@ -42,3 +43,23 @@ def amount_and_title(text) -> tuple[int | None, str | None]:
 
 def strip_tags(s: str) -> str:
     return re.sub(r"<[^>]+>", "", s)
+
+
+_DATE_RE = re.compile(r"^(.*\S)\s+(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2}|\d{4}))?$", re.S)
+
+
+def split_date(text: str, today: date) -> tuple[str, date | None, bool]:
+    """'Pitch 15/10' -> ('Pitch', date(…, 10, 15), True). No year: the latest 15/10 that isn't in the future.
+    The last value is False when the text ends in something date-like that isn't a real day (31/02)."""
+    m = _DATE_RE.match((text or "").strip())
+    if not m:
+        return (text or "").strip(), None, True
+    title, d, mo, y = m.group(1).strip(), int(m.group(2)), int(m.group(3)), m.group(4)
+    year = (2000 + int(y) if len(y) == 2 else int(y)) if y else today.year
+    try:
+        day = date(year, mo, d)
+        if not y and day > today:
+            day = date(year - 1, mo, d)
+    except ValueError:
+        return title, None, False
+    return title, day, True

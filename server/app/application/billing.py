@@ -3,22 +3,43 @@ from datetime import timedelta
 
 from ..domain.entities import Bill, IncomingTransfer, Member, Payment, PaymentIntent, Team
 from ..domain.errors import DomainError
-from ..domain.rules import effective_fee, find_payment_codes, new_payment_code, period_label, split_share, transfer_content
+from ..domain.rules import (CYCLES, add_months, covers, find_payment_codes, member_fee, new_payment_code,
+                            period_label, split_share, transfer_content)
 from .ports import Conflict, Deps, UnitOfWork
 
 INTENT_TTL = timedelta(hours=24)
 
 
+def plans_of(uow: UnitOfWork, team: Team) -> dict:
+    return {p.id: p for p in uow.plans.of_team(team.id)}
+
+
+def fee_of(team: Team, member: Member, plans: dict) -> tuple[int, int]:
+    """(amount, months) the member is billed per cycle."""
+    return member_fee(team, member, plans.get(member.plan_id))
+
+
+def covering(uow: UnitOfWork, team: Team, period: str) -> dict[int, tuple[Bill, Member]]:
+    """Each member's fee bill that covers `period` (a monthly bill for it, or a longer one started earlier)."""
+    out: dict[int, tuple[Bill, Member]] = {}
+    for b, m in uow.bills.fee_bills_since(team.id, add_months(period, 1 - max(CYCLES))):
+        if covers(b.period, b.months, period):
+            out[m.id] = (b, m)
+    return out
+
+
 def ensure_bills(uow: UnitOfWork, d: Deps, team: Team, period: str | None = None, _retry: bool = True) -> int:
-    """Create this month's fee bill for every active member who doesn't have one. Idempotent."""
+    """Bill every active member whose fee isn't covered for this month yet: one bill per cycle, so a
+    quarterly member gets one bill for three months. Idempotent."""
     period = period or d.clock.current_period()
-    billed = uow.bills.billed_member_ids(team.id, period)
+    covered, plans = covering(uow, team, period), plans_of(uow, team)
     created = 0
     for m in uow.members.of_team(team.id, active_only=True):
-        fee = effective_fee(team, m)
-        if fee > 0 and m.id not in billed:
+        amount, months = fee_of(team, m, plans)
+        if amount > 0 and m.id not in covered:
             uow.bills.add(Bill(team_id=team.id, member_id=m.id, kind="monthly", title="monthly", period=period,
-                               amount=fee, monthly_key=f"{m.id}:{period}", created_at=d.clock.now()))
+                               amount=amount, months=months if months > 1 else None,
+                               monthly_key=f"{m.id}:{period}", created_at=d.clock.now()))
             created += 1
     if created:
         try:
@@ -30,18 +51,36 @@ def ensure_bills(uow: UnitOfWork, d: Deps, team: Team, period: str | None = None
 
 
 def reprice_current_month(uow: UnitOfWork, d: Deps, team: Team) -> None:
-    """After a fee change, this month's unpaid bills follow the new fee."""
-    for bill, member in uow.bills.monthly_with_members(team.id, d.clock.current_period(), unpaid_only=True):
-        fee = effective_fee(team, member)
-        if fee > 0:
-            bill.amount = fee
+    """After a fee or plan change, unpaid fee bills opened this month follow the member's new fee and cycle.
+    Bills from earlier months (and paid ones) stay as they were; the new fee starts when they run out."""
+    period, plans = d.clock.current_period(), plans_of(uow, team)
+    for bill, member in uow.bills.fee_bills_since(team.id, period):
+        if bill.period != period or bill.status != "unpaid":
+            continue
+        amount, months = fee_of(team, member, plans)
+        if amount > 0:
+            bill.amount, bill.months = amount, months if months > 1 else None
         else:
             bill.status = "waived"
 
 
+def fee_groups(uow: UnitOfWork, team: Team) -> list[dict]:
+    """The fees active members pay: [{amount, months, count}], monthly first. Empty when nobody pays a fee."""
+    plans, groups = plans_of(uow, team), {}
+    for m in uow.members.of_team(team.id, active_only=True):
+        amount, months = fee_of(team, m, plans)
+        if amount > 0:
+            groups[(months, amount)] = groups.get((months, amount), 0) + 1
+    return [{"amount": a, "months": n, "count": c} for (n, a), c in sorted(groups.items())]
+
+
+def has_fees(uow: UnitOfWork, team: Team) -> bool:
+    return team.fee > 0 or bool(fee_groups(uow, team))
+
+
 def bill_dict(b: Bill) -> dict:
-    return {"id": b.id, "kind": b.kind, "title": b.title, "period": b.period,
-            "period_label": period_label(b.period), "amount": b.amount, "status": b.status}
+    return {"id": b.id, "kind": b.kind, "title": b.title, "period": b.period, "months": b.months or 1,
+            "period_label": period_label(b.period, b.months), "amount": b.amount, "status": b.status}
 
 
 def unpaid_by_member(uow: UnitOfWork, team: Team, member_ids: list[int] | None = None) -> list[dict]:
@@ -180,16 +219,19 @@ def create_charges(uow: UnitOfWork, d: Deps, team: Team, title: str, amount: int
 def team_status(uow: UnitOfWork, d: Deps, team: Team) -> dict:
     period = d.clock.current_period()
     ensure_bills(uow, d, team, period)
-    rows = uow.bills.monthly_with_members(team.id, period)
-    paid = sorted((m.name for b, m in rows if b.status == "paid"), key=str.casefold)
+    # paid this month: their fee bill for it is paid, whether it's a monthly one or a quarter paid earlier
+    paid = sorted((m.name for b, m in covering(uow, team, period).values()
+                   if b.status == "paid" and m.status != "left"), key=str.casefold)
     unpaid = [{"name": g["name"], "total": g["total"]} for g in unpaid_by_member(uow, team)]
     return {"period": period, "period_label": period_label(period), "fee": team.fee, "due_day": team.due_day,
+            "fees": fee_groups(uow, team), "has_fees": has_fees(uow, team),
             "paid": paid, "unpaid": unpaid, "total_unpaid": sum(u["total"] for u in unpaid)}
 
 
 def fund(uow: UnitOfWork, team: Team) -> dict:
     income, expense = uow.payments.total(team.id), uow.expenses.total(team.id)
-    return {"income": income, "expense": expense, "balance": income - expense,
+    return {"income": income, "other_income": uow.payments.total(team.id, source="other"), "expense": expense,
+            "balance": income - expense,
             "unmatched": uow.payments.count_unmatched(team.id)}
 
 
@@ -198,10 +240,16 @@ def month_totals(uow: UnitOfWork, d: Deps, team: Team, period: str) -> dict:
     return {"collected": uow.payments.total(team.id, start, end), "spent": uow.expenses.total(team.id, start, end)}
 
 
-def history(uow: UnitOfWork, d: Deps, team: Team, limit: int = 10) -> list[dict]:
+def history(uow: UnitOfWork, d: Deps, team: Team, limit: int = 10, period: str | None = None) -> list[dict]:
+    """The latest transactions, or all of one month's ("YYYY-MM") when a period is given."""
+    if period:
+        start, end = d.clock.month_bounds(period)
+        payments, expenses, limit = uow.payments.between(team.id, start, end), uow.expenses.between(team.id, start, end), 500
+    else:
+        payments, expenses = uow.payments.latest(team.id, limit), uow.expenses.latest(team.id, limit)
     items = [{"type": "in", "amount": p.amount, "title": p.note or p.content or "", "source": p.source,
-              "status": p.status, "ts": p.created_at} for p in uow.payments.latest(team.id, limit)]
+              "status": p.status, "ts": p.created_at} for p in payments]
     items += [{"type": "out", "amount": e.amount, "title": e.title, "source": "expense", "status": "done",
-               "ts": e.created_at} for e in uow.expenses.latest(team.id, limit)]
+               "ts": e.created_at} for e in expenses]
     items.sort(key=lambda i: i["ts"], reverse=True)
     return [{**{k: v for k, v in i.items() if k != "ts"}, "at": d.clock.fmt(i["ts"])} for i in items[:limit]]

@@ -5,7 +5,7 @@ import math
 import re
 import secrets
 
-from .entities import MANAGER, OWNER, Member, Team
+from .entities import MANAGER, OWNER, FeePlan, Member, Team
 
 # ---- roles ------------------------------------------------------------------------------------
 
@@ -27,14 +27,43 @@ def effective_fee(team: Team, member: Member) -> int:
     return member.fee_override if member.fee_override is not None else (team.fee or 0)
 
 
+CYCLES = (1, 3, 6, 12)  # months per fee bill: monthly, quarterly, half-yearly, yearly
+
+
+def member_fee(team: Team, member: Member, plan: FeePlan | None) -> tuple[int, int]:
+    """(amount, months) a member is billed: their plan, else their own monthly fee, else the team's."""
+    if plan is not None:
+        return plan.amount, plan.months
+    return effective_fee(team, member), 1
+
+
+def add_months(period: str, n: int) -> str:
+    y, m = map(int, period.split("-"))
+    y, m = divmod(y * 12 + m - 1 + n, 12)
+    return f"{y:04d}-{m + 1:02d}"
+
+
+def months_between(start: str, end: str) -> int:
+    (y1, m1), (y2, m2) = map(int, start.split("-")), map(int, end.split("-"))
+    return (y2 - y1) * 12 + m2 - m1
+
+
+def covers(bill_period: str, months: int | None, period: str) -> bool:
+    """Does a fee bill starting in bill_period for `months` months cover `period`?"""
+    return 0 <= months_between(bill_period, period) < (months or 1)
+
+
 def split_share(total: int, people: int) -> int:
     """Each person's share of a shared cost, rounded up to the next 1,000đ."""
     return int(math.ceil(total / people / 1000) * 1000)
 
 
-def period_label(period: str) -> str:
+def period_label(period: str, months: int | None = 1) -> str:
+    """"11/2026", or "11/2026–01/2027" for a bill that covers several months."""
     year, month = period.split("-")
-    return f"{month}/{year}"
+    if (months or 1) <= 1:
+        return f"{month}/{year}"
+    return f"{month}/{year}–{period_label(add_months(period, months - 1))}"
 
 
 # ---- payment codes ----------------------------------------------------------------------------
@@ -94,6 +123,11 @@ def should_remind(day: int, due: int) -> bool:
     if day in (due - 3, due):
         return True
     return day > due and (day - due) % REMIND_EVERY_DAYS_AFTER_DUE == 0
+
+
+# ---- backdating ------------------------------------------------------------------------------------
+
+MAX_BACKDATE_DAYS = 3 * 366
 
 
 # ---- validation -------------------------------------------------------------------------------

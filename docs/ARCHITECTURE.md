@@ -87,7 +87,7 @@ _The owner does only what SePay can't let anyone else do: link the bank account 
 
 ## Pay page for members without Telegram
 
-Some members won't install Telegram. Each team has a **pay page**, a small web app (PWA) at a secret link, with four tabs. **Đóng quỹ** (Pay) does what `/start` does in the bot: list who still owes, tick names, get the VietQR, and see it confirmed. The other three are read-only views of what members can read in the bot: **Tháng này** (This month, like `/status`: who has paid, who owes what, the due day and fee), **Quỹ** (Fund, like `/fund` and `/history`: money in, money out, balance, the last 6 months, recent payments and expenses) and **Thành viên** (Members: the roster with shirt numbers, fee, status and what each still owes). It reads and writes the same database through the same use cases, so a payment on the page shows up in the bot, `/status`, the reports and the group, and the other way round. Managing stays in Telegram: the page can't add members, change fees or record expenses.
+Some members won't install Telegram. Each team has a **pay page**, a small web app (PWA) at a secret link, with three tabs. **Đóng quỹ** (Pay) does what `/start` does in the bot: list who still owes, tick names, get the VietQR, and see it confirmed. The other two are read-only: **Quỹ** (Fund, like `/fund` and `/history 10/2026`: money in, money out and balance, then one collapsible block per month from the team's first record to now, each with that month's in, out and net; opening a month lists every transaction in it, newest first, and the current month starts open) and **Thành viên** (Members: everyone's total debt, biggest first, broken down into the bills behind it, plus shirt number, fee and cycle, and status). It reads and writes the same database through the same use cases, so a payment on the page shows up in the bot, `/status`, the reports and the group, and the other way round. Managing stays in Telegram: the page can't add members, change fees or record expenses.
 
 ![Sequence: a member opens the team's secret link in a browser. The page calls GET api/state through Caddy and http/web.py](diagrams/07-pay-page-for-members-without-telegram.svg)
 
@@ -97,8 +97,8 @@ _The page is one HTML shell with plain JavaScript (no build step) in `interfaces
 |---|---|
 | Getting the link | A manager sends `/weblink` in the team bot and shares the link (Zalo, Messenger, a printed QR). **🔄 Make a new link** replaces it; the old one stops working at once. |
 | Who can open it | Anyone with the link, with no login, like the bot's `/start`. The token is 16 random characters, so team pages can't be guessed or listed. |
-| What it shows | Team name and bank account; this month's paid and unpaid members with their bills; the fund (in, out, balance, last 6 months); the latest 30 payments and expenses; the roster. **Never** phone numbers or member notes (the bot shows those to managers only), and never the raw bank memo of a transfer, which can carry the sender's full name and bank references: payments are labelled by whom they paid for, and an unassigned transfer only as "not assigned yet". |
-| What it can do | Create a QR for chosen members, and poll that QR's status. Nothing else. |
+| What it shows | Team name and bank account; unpaid members with their bills; the fund (in, out, balance) and its months back to the first record (at most 36), each month's transactions fetched when it's opened (`GET api/month/YYYY-MM`); the roster with each person's debt. **Never** phone numbers or member notes (the bot shows those to managers only), and never the raw bank memo of a transfer, which can carry the sender's full name and bank references: payments are labelled by whom they paid for, and an unassigned transfer only as "not assigned yet". |
+| What it can do | Read the page and one month's transactions, create a QR for chosen members, and poll that QR's status. Nothing else. |
 | Abuse | Per-IP limits: 10 QR codes and 120 reads a minute. Unpaid QR codes simply expire. |
 | Keeping the link private | `Referrer-Policy: no-referrer` (the QR image comes from qr.sepay.vn and must not see the link), `noindex`, and a strict Content-Security-Policy: only our own scripts run, and names are inserted as text, never HTML. |
 | Installing | A web app manifest and a service worker scoped to that team's path: "Add to home screen" on Android and iPhone. The app shell works offline; amounts always come live from the server. |
@@ -138,6 +138,29 @@ SePay only confirms money it can see, and what it can see depends on the bank an
 
 A bank missing from the table doesn't send webhooks. For an account already linked, SePay's bank-account API answers directly and overrules the table: `va_only: true` means VA only. Team Fund handles both cases. The `SEVQR` keyword comes from `domain/rules.py` `transfer_content`. For VA-only accounts, the `/setbank` picker reads `va_only` and lists the account's active official VAs from SePay (`GET /v2/bank-accounts/{xid}/va`) as the choices; the chosen VA is stored as the team's `pay_account`, and the QR, its caption, `/bank` and the pay page show it. Money sent there lands in the same account. An account with no VA yet is listed with "needs a VA" and tapping it explains how to create one in my.sepay.vn.
 
+## Fees, plans and other income
+
+Every member pays one fee: their **fee plan** if they're on one, else their own monthly fee (set on the member screen), else the team fee from `/setfee`. A plan is an amount plus a cycle (month, quarter, 6 months, year), so "An, Bình, Cường pay 150k a month, Dũng, Em, Phúc pay 300k a quarter" is two plans. Money that isn't anyone's fee (a prize, a sponsor, the balance from before the bot) goes in with `/income`.
+
+![Timeline from 11/2026 to 04/2027. An, on a 150,000đ monthly plan, gets a bill every month. Cường, on a 300,000đ quarterl](diagrams/08-fees-plans-and-other-income.svg)
+
+_One bill per cycle: a quarterly bill covers its three months, so Cường counts as paid in December and January without a new bill. Other income and expenses are no one's bill: they only move the fund balance, in the month of the date they carry._
+
+| Command (managers) | What it does |
+|---|---|
+| `/plans` | Lists the default fee and each plan with its members. Buttons: ➕ new plan (cycle → amount → pick members), and per plan 👥 members, 💰 amount, 🔁 cycle, 🗑 delete. |
+| `/plans 300k quý` | Quick create: goes straight to picking members. Cycle words: tháng / quý / 6 tháng / năm, or month / quarter / 6 months / year. |
+| `/income 2tr Thưởng vô địch` | Records other income. Posted in the group; counts in `/fund` (shown as "of which other income"), `/history`, the month totals and the pay page. |
+| `/income 1.5tr Số dư đầu kỳ 31/10``/expense 300k Sân bóng 15-10-2026` | A date at the end (`dd/mm`, `dd-mm-yyyy`, `dd/mm/yyyy` or with dots) records it on that day (noon, team time); without one it's now. Being stored at that time, it sorts into place in the transaction log and falls under its own month in `/history 10/2026`, the month totals and the pay page's month blocks. Not in the future, at most 3 years back. Without a year it's the latest such day that isn't in the future. |
+
+- A member is on at most one plan. Picking them for a plan moves them off any other; a plan nobody is left on is deleted.
+- A member's cycle starts the first month they're billed on the plan. Joining a quarterly plan in November means one bill for 11/2026–01/2027 and the next in February. Members on the same plan can be on different cycles.
+- A month counts as paid for a member when the fee bill that covers it is paid, so a quarter paid in November shows them as paid in December and January.
+- Changing a plan, the team fee or a member's own fee reprices only unpaid fee bills opened this month. A quarter that's already running keeps its amount; the new fee starts when it runs out. Waive it on the member's bills screen if it should stop sooner.
+- Setting a member's own monthly fee takes them off their plan. Deleting a plan moves its members back to the default.
+- Reminders and the monthly "fee is open" post run when anyone has a fee: the team fee or a plan. The post lists each fee with how many people pay it.
+- Plan changes, other income and backdated records all go into `/log` (`plan.save`, `plan.delete`, `income.add`, with the date).
+
 ## Roles in a team bot
 
 Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID comes with every message and button tap and can't be faked, so the use cases check it before every manager action.
@@ -145,12 +168,12 @@ Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID
 | Role | Who | Can do |
 |---|---|---|
 | Owner | Whoever registered the bot with `/newteam` | Everything a manager can, plus `/sepaytoken`, `/setbank` (pick from SePay; also sets up the webhook), approve or remove managers, `/transferowner`, `/log` |
-| Manager | Approved by the owner | `/weblink` (the pay page link), `/add` `/edit` `/remove` members, `/setfee` `/setdue`, `/markpaid`, `/expense`, `/charge` `/split`, `/remind`, assign unmatched payments, `/export` |
-| Everyone | Anyone who opens the bot | `/start` and pay (or the pay page in a browser, no Telegram needed), `/status`, `/fund`, `/history`, `/bank` (the team account; managers also see whether SePay is connected), `/lang`, `/requestmanager` |
+| Manager | Approved by the owner | `/weblink` (the pay page link), `/add` `/edit` `/remove` members, `/setfee` `/plans` `/setdue`, `/markpaid`, `/expense`, `/income`, `/charge` `/split`, `/remind`, assign unmatched payments, `/export` |
+| Everyone | Anyone who opens the bot | `/start` and pay (or the pay page in a browser, no Telegram needed), `/status`, `/fund`, `/history` (or `/history 10/2026` for every transaction of one month), `/bank` (the team account; managers also see whether SePay is connected), `/lang`, `/requestmanager` |
 
 ### Becoming a manager: request and approve
 
-![Sequence: a person sends /requestmanager to the team bot, a use case records the request and the bot sends the owner a c](diagrams/08-roles-in-a-team-bot.svg)
+![Sequence: a person sends /requestmanager to the team bot, a use case records the request and the bot sends the owner a c](diagrams/09-roles-in-a-team-bot.svg)
 
 _The role check in step 7 runs on the server, so a forwarded Approve button does nothing for anyone but the owner. Requests that get no answer expire after 7 days._
 
@@ -164,7 +187,7 @@ _The role check in step 7 runs on the server, so a forwarded Approve button does
 
 Everything runs on the one VPS with Docker Compose. Only port 443 is added to the internet. The services that were already on the server (nginx on 80, the app on 8000, the host Postgres, Tailscale) are left alone.
 
-![Deployment: the sslip.io hostname resolves to 103.90.225.28. Telegram, SePay and Let's Encrypt reach port 443, where Doc](diagrams/09-deployment-on-the-vps.svg)
+![Deployment: the sslip.io hostname resolves to 103.90.225.28. Telegram, SePay and Let's Encrypt reach port 443, where Doc](diagrams/10-deployment-on-the-vps.svg)
 
 Legend: Telegram traffic · Money path · Other traffic, mounts, builds · Already on the server, not part of Team Fund
 
@@ -174,7 +197,7 @@ _Requests from Telegram, SePay and Let's Encrypt arrive on port 443 and Docker f
 
 The code goes to GitHub first, then the VPS pulls it and Compose rebuilds only what changed.
 
-![Deploy pipeline in four lanes: change and test the code, commit, push to GitHub over SSH, on the VPS run deploy.sh which](diagrams/10-how-a-deploy-works.svg)
+![Deploy pipeline in four lanes: change and test the code, commit, push to GitHub over SSH, on the VPS run deploy.sh which](diagrams/11-how-a-deploy-works.svg)
 
 _Pushing to GitHub doesn't deploy anything by itself; running `scripts/deploy.sh` on the VPS does. If the health check fails, the script stops and prints the log command. Database rows and certificates survive every deploy because they live in volumes, not in the containers._
 

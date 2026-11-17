@@ -1,7 +1,8 @@
 """Use cases: the team roster. Only managers can see or change it (it holds phone numbers)."""
 from ..domain.entities import Member, Team
 from ..domain.errors import DomainError, invalid
-from ..domain.rules import MAX_FEE, MEMBER_FIELD_LIMITS, MEMBER_STATUSES, effective_fee
+from ..domain.rules import MAX_FEE, MEMBER_FIELD_LIMITS, MEMBER_STATUSES
+from . import billing
 from .access import manager_team
 from .billing import bill_dict
 from .people import audit
@@ -23,9 +24,12 @@ class MemberUseCases:
 
     def _dict(self, uow: UnitOfWork, team: Team, m: Member) -> dict:
         owes = sum(b.amount for b in uow.bills.unpaid_of_member(m.id))
+        plans = billing.plans_of(uow, team)
+        fee, months = billing.fee_of(team, m, plans)
+        on_plan = m.plan_id in plans
         return {"id": m.id, "name": m.name, "nickname": m.nickname, "shirt_number": m.shirt_number,
-                "phone": m.phone, "note": m.note, "fee_override": m.fee_override, "fee": effective_fee(team, m),
-                "status": m.status, "owes": owes}
+                "phone": m.phone, "note": m.note, "fee_override": m.fee_override, "fee": fee, "months": months,
+                "on_plan": on_plan, "status": m.status, "owes": owes}
 
     @staticmethod
     def _get(uow: UnitOfWork, team: Team, member_id: int) -> Member:
@@ -72,6 +76,10 @@ class MemberUseCases:
             before = {k: getattr(m, k) for k in clean}
             for k, v in clean.items():
                 setattr(m, k, v)
+            if "fee_override" in clean:
+                m.plan_id = None  # an own monthly fee takes the member off their plan
+                uow.flush()
+                billing.reprice_current_month(uow, self.d, team)
             audit(uow, self.d.clock, team.id, actor, "member.update", target=m.name, before=before, after=clean)
             uow.commit()
             return self._dict(uow, team, m)

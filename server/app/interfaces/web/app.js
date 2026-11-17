@@ -18,8 +18,11 @@ const T = {
     slow: "Thao tác quá nhanh. Đợi một chút rồi thử lại.", nothing: "Những người này không còn khoản nào phải đóng.",
     install: "Cài vào màn hình chính", iosInstall: "iPhone: bấm Chia sẻ → Thêm vào MH chính để cài.",
     monthly: "Quỹ tháng {p}", retry: "Thử lại", telegram: "Dùng Telegram? Mở bot",
-    tabPay: "Đóng quỹ", tabMonth: "Tháng này", tabFund: "Quỹ", tabMembers: "Thành viên",
-    paidOf: "Đã đóng {a}/{b}", due: "Hạn đóng: ngày {d} hằng tháng", feeIs: "Mức quỹ: {f}/tháng",
+    tabPay: "Đóng quỹ", tabFund: "Quỹ", tabMembers: "Thành viên", owingPeople: "Còn nợ",
+    tapMonth: "Bấm vào một tháng để xem mọi giao dịch của tháng đó.",
+    noTx: "Tháng này không có giao dịch.",
+    paidOf: "Đã đóng {a}/{b}", due: "Hạn đóng: ngày {d} hằng tháng", feeIs: "Mức quỹ: {f}", feeN: "{f} × {n} người", feeCycle: "Quỹ {c} {p}",
+    c1: "tháng", c3: "quý", c6: "6 tháng", c12: "năm", otherFrom: "Thu khác: {n}", otherIncome: "Trong đó thu khác: {a}",
     paidList: "Đã đóng", unpaidList: "Chưa đóng", nobodyPaid: "Chưa ai đóng tháng này.", nobodyOwes: "Không ai còn nợ.",
     income: "Tổng thu", expense: "Tổng chi", balance: "Số dư", byMonth: "Theo tháng", in: "Thu", out: "Chi",
     history: "Giao dịch gần đây", noHistory: "Chưa có giao dịch.", feeFrom: "Đóng quỹ: {n}", cashFrom: "Tiền mặt: {n}",
@@ -41,8 +44,11 @@ const T = {
     slow: "Too many tries. Wait a moment and try again.", nothing: "Those people have nothing left to pay.",
     install: "Add to home screen", iosInstall: "iPhone: tap Share → Add to Home Screen to install.",
     monthly: "Monthly fee {p}", retry: "Try again", telegram: "Use Telegram? Open the bot",
-    tabPay: "Pay", tabMonth: "This month", tabFund: "Fund", tabMembers: "Members",
-    paidOf: "{a} of {b} paid", due: "Due on day {d} of each month", feeIs: "Fee: {f}/month",
+    tabPay: "Pay", tabFund: "Fund", tabMembers: "Members", owingPeople: "Owing",
+    tapMonth: "Tap a month to see all its transactions.",
+    noTx: "No transactions this month.",
+    paidOf: "{a} of {b} paid", due: "Due on day {d} of each month", feeIs: "Fee: {f}", feeN: "{f} for {n}", feeCycle: "Fee per {c} {p}",
+    c1: "month", c3: "quarter", c6: "6 months", c12: "year", otherFrom: "Other income: {n}", otherIncome: "Of which other income: {a}",
     paidList: "Paid", unpaidList: "Not paid yet", nobodyPaid: "Nobody has paid this month yet.", nobodyOwes: "Nobody owes anything.",
     income: "Money in", expense: "Money out", balance: "Balance", byMonth: "By month", in: "In", out: "Out",
     history: "Recent transactions", noHistory: "No transactions yet.", feeFrom: "Fee: {n}", cashFrom: "Cash: {n}",
@@ -56,7 +62,7 @@ const store = {  // per-device conveniences only; the page works without them
   get(k) { try { return JSON.parse(localStorage.getItem("tf." + k)); } catch { return null; } },
   set(k, v) { try { v == null ? localStorage.removeItem("tf." + k) : localStorage.setItem("tf." + k, JSON.stringify(v)); } catch { /* private mode */ } },
 };
-const S = { data: null, lang: store.get("lang"), tab: store.get("tab") || "pay", selected: new Set(), query: "", intent: null, timer: null, install: null };
+const S = { data: null, lang: store.get("lang"), tab: ["pay", "fund", "members"].includes(store.get("tab")) ? store.get("tab") : "pay", open: null, months: {}, selected: new Set(), query: "", intent: null, timer: null, install: null };
 
 const t = (k, p = {}) => (T[S.lang] || T.vi)[k].replace(/\{(\w+)\}/g, (_, x) => p[x] ?? "");
 const money = (n) => Number(n).toLocaleString(S.lang === "en" ? "en-US" : "vi-VN") + "đ";
@@ -71,7 +77,7 @@ function h(tag, attrs = {}, ...kids) {
   for (const c of kids.flat()) if (c != null && c !== false) el.append(c instanceof Node ? c : document.createTextNode(String(c)));
   return el;
 }
-function show(...nodes) { app.replaceChildren(...nodes); }
+function show(...nodes) { app.replaceChildren(...nodes.flat().filter((n) => n != null && n !== false)); }
 function toTop() { try { window.scrollTo(0, 0); } catch { /* not in every browser engine */ } }
 
 async function api(path, opts = {}) {
@@ -119,9 +125,19 @@ function footer() {
     h("p", {}, t("readOnly")), h("p", {}, "Team Fund · SePay"));
 }
 
-function billText(b) { return b.kind === "monthly" ? t("monthly", { p: b.period_label }) : `${b.title} (${b.period_label})`; }
+function billText(b) {
+  if (b.kind !== "monthly") return `${b.title} (${b.period_label})`;
+  return (b.months || 1) > 1 ? t("feeCycle", { c: t("c" + b.months), p: b.period_label }) : t("monthly", { p: b.period_label });
+}
+function feeOf(amount, months) { return `${money(amount)}/${t("c" + (months || 1))}`; }
+function teamFees(d) {  // "200.000đ/tháng", or each plan with its head count
+  const fs = d.fees || [];
+  if (!fs.length) return d.fee ? feeOf(d.fee, 1) : "";
+  if (fs.length === 1) return feeOf(fs[0].amount, fs[0].months);
+  return fs.map((f) => t("feeN", { f: feeOf(f.amount, f.months), n: f.count })).join(" · ");
+}
 
-const TABS = [["pay", "tabPay"], ["month", "tabMonth"], ["fund", "tabFund"], ["members", "tabMembers"]];
+const TABS = [["pay", "tabPay"], ["fund", "tabFund"], ["members", "tabMembers"]];
 function tabs() {
   return h("nav", { class: "tabs", role: "tablist" }, TABS.map(([id, key]) =>
     h("button", { role: "tab", "aria-selected": S.tab === id ? "true" : "false", class: "tab", onclick: () => {
@@ -134,47 +150,76 @@ function item(main, sub, right, cls = "") {
     sub ? h("div", { class: "bills" }, sub) : null), right != null ? h("div", { class: "amt" }, right) : null);
 }
 
-function monthView() {
-  const d = S.data, members = d.members.filter((m) => m.status === "active");
-  show(header(), tabs(),
-    h("div", { class: "summary" },
-      h("div", { class: "stat" }, h("span", { class: "muted small" }, t("month", { p: d.period_label })),
-        h("b", {}, t("paidOf", { a: d.paid.length, b: d.paid.length + d.unpaid.length }))),
-      h("div", { class: "stat" }, h("span", { class: "muted small" }, t("total")), h("b", {}, money(d.total_unpaid)))),
-    h("p", { class: "muted small" }, t("due", { d: d.due_day }), d.fee ? " · " + t("feeIs", { f: money(d.fee) }) : ""),
-    section(t("unpaidList"), d.unpaid.length ? h("ul", { class: "list" }, d.unpaid.map((u) =>
-      item(u.name, u.bills.map(billText).join(" · "), money(u.total), "owe"))) : h("p", { class: "muted" }, t("nobodyOwes"))),
-    section(t("paidList"), d.paid.length ? h("ul", { class: "list" }, d.paid.map((n) => item("✅ " + n, null, null)))
-      : h("p", { class: "muted" }, t("nobodyPaid"))),
-    members.length ? null : h("p", { class: "muted center" }, t("noMembers")), footer());
+function txLabel(x) {
+  return x.kind === "expense" ? x.title : x.kind === "unassigned" ? t("unassigned")
+    : t(x.kind === "cash" ? "cashFrom" : x.kind === "other" ? "otherFrom" : "feeFrom", { n: x.title });
+}
+function txList(items, empty) {
+  return items.length ? h("ul", { class: "list" }, items.map((x) =>
+    item(txLabel(x), x.at, (x.type === "in" ? "+" : "−") + money(x.amount), x.type === "in" ? "in" : "out")))
+    : h("p", { class: "muted" }, empty);
+}
+async function loadMonth(period) {
+  S.months[period] = { data: null, error: null };
+  try { S.months[period].data = await api("month/" + period); } catch (err) { S.months[period].error = err.message; }
+  if (S.tab === "fund" && S.open.has(period)) render();
+}
+function monthBody(m) {
+  const c = S.months[m.period];
+  if (!c || (!c.data && !c.error)) return h("p", { class: "muted" }, "…");
+  if (c.error) return h("p", { class: "muted" }, t(c.error), " ", h("button", { class: "link", onclick: () => loadMonth(m.period) }, t("retry")));
+  return txList(c.data.items, t("noTx"));
+}
+function monthBlock(m) {
+  const open = S.open.has(m.period);
+  const net = m.collected - m.spent;
+  return h("details", { class: "month", open, ontoggle: (e) => {
+    if (e.target.open === S.open.has(m.period)) return;
+    if (e.target.open) { S.open.add(m.period); if (!S.months[m.period]) loadMonth(m.period); }
+    else S.open.delete(m.period);
+    render();
+  } },
+    h("summary", {}, h("b", { class: "mlabel" }, m.period_label),
+      h("span", { class: "pos" }, m.collected ? "+" + money(m.collected) : "–"),
+      h("span", { class: "neg" }, m.spent ? "−" + money(m.spent) : "–"),
+      h("span", { class: "muted small" }, (net >= 0 ? "+" : "−") + money(Math.abs(net)))),
+    open ? monthBody(m) : null);
 }
 
 function fundView() {
+  // every month the team has records for, newest first; the current one open. A record with a date
+  // (/expense 300k Sân 15/10) is stored at that date, so it shows up in its own month.
   const d = S.data, f = d.fund;
-  const label = (x) => x.kind === "expense" ? x.title : x.kind === "unassigned" ? t("unassigned")
-    : t(x.kind === "cash" ? "cashFrom" : "feeFrom", { n: x.title });
+  if (!S.open) {
+    S.open = new Set(d.months.length ? [d.months[0].period] : []);
+    for (const p of S.open) if (!S.months[p]) loadMonth(p);
+  }
   show(header(), tabs(),
     h("div", { class: "summary three" },
       h("div", { class: "stat" }, h("span", { class: "muted small" }, t("income")), h("b", { class: "pos" }, money(f.income))),
       h("div", { class: "stat" }, h("span", { class: "muted small" }, t("expense")), h("b", { class: "neg" }, money(f.expense))),
       h("div", { class: "stat" }, h("span", { class: "muted small" }, t("balance")), h("b", {}, money(f.balance)))),
-    section(t("byMonth"), h("table", { class: "months" },
-      h("thead", {}, h("tr", {}, h("th", {}, ""), h("th", {}, t("in")), h("th", {}, t("out")))),
-      h("tbody", {}, d.months.map((m) => h("tr", {}, h("td", {}, m.period_label),
-        h("td", { class: "pos" }, m.collected ? money(m.collected) : "–"), h("td", { class: "neg" }, m.spent ? money(m.spent) : "–")))))),
-    section(t("history"), d.history.length ? h("ul", { class: "list" }, d.history.map((x) =>
-      item(label(x), x.at, (x.type === "in" ? "+" : "−") + money(x.amount), x.type === "in" ? "in" : "out")))
-      : h("p", { class: "muted" }, t("noHistory"))),
+    f.other_income ? h("p", { class: "muted small" }, t("otherIncome", { a: money(f.other_income) })) : null,
+    section(t("byMonth"), h("p", { class: "muted small" }, t("tapMonth")),
+      h("div", { class: "months" }, d.months.map(monthBlock))),
     footer());
 }
 
 function membersView() {
-  const d = S.data, ms = d.members.filter((m) => m.status !== "left");
+  // who owes what in total, biggest debts first; each debt broken down into its bills
+  const d = S.data, ms = d.members.filter((m) => m.status !== "left")
+    .sort((a, b) => b.owes - a.owes || a.name.localeCompare(b.name, "vi"));
+  const bills = new Map(d.unpaid.map((u) => [u.member_id, u.bills]));
+  const owing = ms.filter((m) => m.owes > 0);
   show(header(), tabs(),
+    h("div", { class: "summary" },
+      h("div", { class: "stat" }, h("span", { class: "muted small" }, t("owingPeople")), h("b", {}, `${owing.length}/${ms.length}`)),
+      h("div", { class: "stat" }, h("span", { class: "muted small" }, t("total")), h("b", {}, money(d.total_unpaid)))),
     section(`${t("tabMembers")} (${ms.length})`, ms.length ? h("ul", { class: "list" }, ms.map((m) => item(
       m.name + (m.nickname ? ` (${m.nickname})` : ""),
-      [m.shirt_number ? t("shirt", { n: m.shirt_number }) : null, m.status === "paused" ? t("paused") : null,
-       t("feeIs", { f: money(m.fee) })].filter(Boolean).join(" · "),
+      [m.owes && bills.get(m.id) ? bills.get(m.id).map((b) => `${billText(b)}: ${money(b.amount)}`).join(" · ") : null,
+       [m.shirt_number ? t("shirt", { n: m.shirt_number }) : null, m.status === "paused" ? t("paused") : null,
+        m.fee ? t("feeIs", { f: feeOf(m.fee, m.months) }) : null].filter(Boolean).join(" · ")].filter(Boolean).join("\n"),
       m.owes ? t("owes", { a: money(m.owes) }) : t("allClear"), m.owes ? "owe" : "ok"))) : h("p", { class: "muted" }, t("noMembers"))),
     footer());
 }
@@ -275,7 +320,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden && S.
 function render() {
   if (S.intent) return qrView();
   if (!S.data) return;
-  ({ month: monthView, fund: fundView, members: membersView }[S.tab] || listView)();
+  ({ fund: fundView, members: membersView }[S.tab] || listView)();
 }
 async function load() {
   stop();

@@ -13,8 +13,8 @@ from .i18n import t
 log = logging.getLogger("commands")
 
 EVERYONE = ["start", "status", "fund", "history", "bank", "requestmanager", "lang", "help"]
-MANAGER = ["start", "status", "fund", "history", "bank", "weblink", "members", "add", "setfee", "setdue", "charge", "split",
-           "markpaid", "expense", "remind", "unmatched", "export", "settings", "teamlang", "lang", "help"]
+MANAGER = ["start", "status", "fund", "history", "bank", "weblink", "members", "add", "setfee", "plans", "setdue", "charge",
+           "split", "markpaid", "expense", "income", "remind", "unmatched", "export", "settings", "teamlang", "lang", "help"]
 OWNER = MANAGER + ["sepaytoken", "setbank", "requests", "managers", "transferowner", "log"]
 GROUP = ["status", "fund", "history", "bank", "linkgroup", "remind"]
 MASTER = ["start", "requestteam", "newteam", "myteams", "lang", "help"]

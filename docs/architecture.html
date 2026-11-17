@@ -567,7 +567,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
 
 <section>
   <h2>Pay page for members without Telegram</h2>
-  <p>Some members won't install Telegram. Each team has a <b>pay page</b>, a small web app (PWA) at a secret link, with four tabs. <b>Đóng quỹ</b> (Pay) does what <code>/start</code> does in the bot: list who still owes, tick names, get the VietQR, and see it confirmed. The other three are read-only views of what members can read in the bot: <b>Tháng này</b> (This month, like <code>/status</code>: who has paid, who owes what, the due day and fee), <b>Quỹ</b> (Fund, like <code>/fund</code> and <code>/history</code>: money in, money out, balance, the last 6 months, recent payments and expenses) and <b>Thành viên</b> (Members: the roster with shirt numbers, fee, status and what each still owes). It reads and writes the same database through the same use cases, so a payment on the page shows up in the bot, <code>/status</code>, the reports and the group, and the other way round. Managing stays in Telegram: the page can't add members, change fees or record expenses.</p>
+  <p>Some members won't install Telegram. Each team has a <b>pay page</b>, a small web app (PWA) at a secret link, with three tabs. <b>Đóng quỹ</b> (Pay) does what <code>/start</code> does in the bot: list who still owes, tick names, get the VietQR, and see it confirmed. The other two are read-only: <b>Quỹ</b> (Fund, like <code>/fund</code> and <code>/history 10/2026</code>: money in, money out and balance, then one collapsible block per month from the team's first record to now, each with that month's in, out and net; opening a month lists every transaction in it, newest first, and the current month starts open) and <b>Thành viên</b> (Members: everyone's total debt, biggest first, broken down into the bills behind it, plus shirt number, fee and cycle, and status). It reads and writes the same database through the same use cases, so a payment on the page shows up in the bot, <code>/status</code>, the reports and the group, and the other way round. Managing stays in Telegram: the page can't add members, change fees or record expenses.</p>
   <figure>
     <div class="frame">
     <svg viewBox="0 0 1000 540" role="img" aria-label="Sequence: a member opens the team's secret link in a browser. The page calls GET api/state through Caddy and http/web.py; WebUseCases.page looks the team up by its token and reads the unpaid bills from PostgreSQL, and the page lists names and amounts. The member ticks names and the page calls POST api/pay; create_intent saves an intent with a TF code and returns the VietQR, bank and amount. The member pays in their banking app. SePay calls POST /sepay/{team}; record_transfer marks the bills and the intent paid and the bot posts in the team group. Meanwhile the page polls GET api/pay/{code} every 4 seconds and shows paid when the status changes.">
@@ -632,8 +632,8 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
     <tbody>
       <tr><td>Getting the link</td><td>A manager sends <code>/weblink</code> in the team bot and shares the link (Zalo, Messenger, a printed QR). <b>🔄 Make a new link</b> replaces it; the old one stops working at once.</td></tr>
       <tr><td>Who can open it</td><td>Anyone with the link, with no login, like the bot's <code>/start</code>. The token is 16 random characters, so team pages can't be guessed or listed.</td></tr>
-      <tr><td>What it shows</td><td>Team name and bank account; this month's paid and unpaid members with their bills; the fund (in, out, balance, last 6 months); the latest 30 payments and expenses; the roster. <b>Never</b> phone numbers or member notes (the bot shows those to managers only), and never the raw bank memo of a transfer, which can carry the sender's full name and bank references: payments are labelled by whom they paid for, and an unassigned transfer only as "not assigned yet".</td></tr>
-      <tr><td>What it can do</td><td>Create a QR for chosen members, and poll that QR's status. Nothing else.</td></tr>
+      <tr><td>What it shows</td><td>Team name and bank account; unpaid members with their bills; the fund (in, out, balance) and its months back to the first record (at most 36), each month's transactions fetched when it's opened (<code>GET api/month/YYYY-MM</code>); the roster with each person's debt. <b>Never</b> phone numbers or member notes (the bot shows those to managers only), and never the raw bank memo of a transfer, which can carry the sender's full name and bank references: payments are labelled by whom they paid for, and an unassigned transfer only as "not assigned yet".</td></tr>
+      <tr><td>What it can do</td><td>Read the page and one month's transactions, create a QR for chosen members, and poll that QR's status. Nothing else.</td></tr>
       <tr><td>Abuse</td><td>Per-IP limits: 10 QR codes and 120 reads a minute. Unpaid QR codes simply expire.</td></tr>
       <tr><td>Keeping the link private</td><td><code>Referrer-Policy: no-referrer</code> (the QR image comes from qr.sepay.vn and must not see the link), <code>noindex</code>, and a strict Content-Security-Policy: only our own scripts run, and names are inserted as text, never HTML.</td></tr>
       <tr><td>Installing</td><td>A web app manifest and a service worker scoped to that team's path: "Add to home screen" on Android and iPhone. The app shell works offline; amounts always come live from the server.</td></tr>
@@ -683,6 +683,47 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
 </section>
 
 <section>
+  <h2>Fees, plans and other income</h2>
+  <p>Every member pays one fee: their <b>fee plan</b> if they're on one, else their own monthly fee (set on the member screen), else the team fee from <code>/setfee</code>. A plan is an amount plus a cycle (month, quarter, 6 months, year), so "An, Bình, Cường pay 150k a month, Dũng, Em, Phúc pay 300k a quarter" is two plans. Money that isn't anyone's fee (a prize, a sponsor, the balance from before the bot) goes in with <code>/income</code>.</p>
+  <figure>
+    <div class="frame">
+    <svg viewBox="0 0 860 250" role="img" aria-label="Timeline from 11/2026 to 04/2027. An, on a 150,000đ monthly plan, gets a bill every month. Cường, on a 300,000đ quarterly plan, gets one bill in November that covers November to January, then the next in February. Other income, such as a 2,000,000đ prize recorded with /income, and a backdated expense, land in the month of their date and change the fund balance but are nobody's bill.">
+      <text class="lb" x="280" y="34" text-anchor="middle">11/2026</text><text class="lb" x="380" y="34" text-anchor="middle">12/2026</text><text class="lb" x="480" y="34" text-anchor="middle">01/2027</text><text class="lb" x="580" y="34" text-anchor="middle">02/2027</text><text class="lb" x="680" y="34" text-anchor="middle">03/2027</text><text class="lb" x="780" y="34" text-anchor="middle">04/2027</text>
+      <line class="life" x1="230" y1="44" x2="230" y2="238"/><line class="life" x1="330" y1="44" x2="330" y2="238"/><line class="life" x1="430" y1="44" x2="430" y2="238"/><line class="life" x1="530" y1="44" x2="530" y2="238"/><line class="life" x1="630" y1="44" x2="630" y2="238"/><line class="life" x1="730" y1="44" x2="730" y2="238"/><line class="life" x1="830" y1="44" x2="830" y2="238"/>
+      <text class="t" x="20" y="72">An</text><text class="lb" x="20" y="88">plan 150k / month</text>
+      <rect class="box mo" x="236" y="58" width="88" height="34" rx="6"/><text class="lb" x="280" y="80" text-anchor="middle">150k</text><rect class="box mo" x="336" y="58" width="88" height="34" rx="6"/><text class="lb" x="380" y="80" text-anchor="middle">150k</text><rect class="box mo" x="436" y="58" width="88" height="34" rx="6"/><text class="lb" x="480" y="80" text-anchor="middle">150k</text><rect class="box mo" x="536" y="58" width="88" height="34" rx="6"/><text class="lb" x="580" y="80" text-anchor="middle">150k</text><rect class="box mo" x="636" y="58" width="88" height="34" rx="6"/><text class="lb" x="680" y="80" text-anchor="middle">150k</text><rect class="box mo" x="736" y="58" width="88" height="34" rx="6"/><text class="lb" x="780" y="80" text-anchor="middle">150k</text>
+      <text class="t" x="20" y="128">Cường</text><text class="lb" x="20" y="144">plan 300k / quarter</text>
+      <rect class="box mo" x="236" y="114" width="288" height="34" rx="6"/><text class="lb" x="380" y="136" text-anchor="middle">1 bill · 300k · 11/2026–01/2027</text><rect class="box mo" x="536" y="114" width="288" height="34" rx="6"/><text class="lb" x="680" y="136" text-anchor="middle">next bill in 02/2027 · 300k</text>
+      <text class="t" x="20" y="184">Fund only</text><text class="lb" x="20" y="200">/income, /expense … 15/11</text>
+      <rect class="box hot" x="336" y="170" width="88" height="34" rx="6"/><text class="lb" x="380" y="192" text-anchor="middle">+2tr prize</text><rect class="box ghost" x="236" y="170" width="88" height="34" rx="6"/><text class="lb" x="280" y="192" text-anchor="middle">−300k 15/11</text>
+    </svg>
+    </div>
+    <figcaption>One bill per cycle: a quarterly bill covers its three months, so Cường counts as paid in December and January without a new bill. Other income and expenses are no one's bill: they only move the fund balance, in the month of the date they carry.</figcaption>
+  </figure>
+  <div class="tbl">
+  <table>
+    <thead><tr><th>Command (managers)</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td><code>/plans</code></td><td>Lists the default fee and each plan with its members. Buttons: ➕ new plan (cycle → amount → pick members), and per plan 👥 members, 💰 amount, 🔁 cycle, 🗑 delete.</td></tr>
+      <tr><td><code>/plans 300k quý</code></td><td>Quick create: goes straight to picking members. Cycle words: tháng / quý / 6 tháng / năm, or month / quarter / 6 months / year.</td></tr>
+      <tr><td><code>/income 2tr Thưởng vô địch</code></td><td>Records other income. Posted in the group; counts in <code>/fund</code> (shown as "of which other income"), <code>/history</code>, the month totals and the pay page.</td></tr>
+      <tr><td><code>/income 1.5tr Số dư đầu kỳ 31/10</code><br><code>/expense 300k Sân bóng 15-10-2026</code></td><td>A date at the end (<code>dd/mm</code>, <code>dd-mm-yyyy</code>, <code>dd/mm/yyyy</code> or with dots) records it on that day (noon, team time); without one it's now. Being stored at that time, it sorts into place in the transaction log and falls under its own month in <code>/history 10/2026</code>, the month totals and the pay page's month blocks. Not in the future, at most 3 years back. Without a year it's the latest such day that isn't in the future.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <ul class="rules">
+    <li>A member is on at most one plan. Picking them for a plan moves them off any other; a plan nobody is left on is deleted.</li>
+    <li>A member's cycle starts the first month they're billed on the plan. Joining a quarterly plan in November means one bill for 11/2026–01/2027 and the next in February. Members on the same plan can be on different cycles.</li>
+    <li>A month counts as paid for a member when the fee bill that covers it is paid, so a quarter paid in November shows them as paid in December and January.</li>
+    <li>Changing a plan, the team fee or a member's own fee reprices only unpaid fee bills opened this month. A quarter that's already running keeps its amount; the new fee starts when it runs out. Waive it on the member's bills screen if it should stop sooner.</li>
+    <li>Setting a member's own monthly fee takes them off their plan. Deleting a plan moves its members back to the default.</li>
+    <li>Reminders and the monthly "fee is open" post run when anyone has a fee: the team fee or a plan. The post lists each fee with how many people pay it.</li>
+    <li>Plan changes, other income and backdated records all go into <code>/log</code> (<code>plan.save</code>, <code>plan.delete</code>, <code>income.add</code>, with the date).</li>
+  </ul>
+</section>
+
+
+<section>
   <h2>Roles in a team bot</h2>
   <p>Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID comes with every message and button tap and can't be faked, so the use cases check it before every manager action.</p>
   <div class="tbl">
@@ -690,8 +731,8 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
     <thead><tr><th>Role</th><th>Who</th><th>Can do</th></tr></thead>
     <tbody>
       <tr><td>Owner</td><td>Whoever registered the bot with <code>/newteam</code></td><td>Everything a manager can, plus <code>/sepaytoken</code>, <code>/setbank</code> (pick from SePay; also sets up the webhook), approve or remove managers, <code>/transferowner</code>, <code>/log</code></td></tr>
-      <tr><td>Manager</td><td>Approved by the owner</td><td><code>/weblink</code> (the pay page link), <code>/add</code> <code>/edit</code> <code>/remove</code> members, <code>/setfee</code> <code>/setdue</code>, <code>/markpaid</code>, <code>/expense</code>, <code>/charge</code> <code>/split</code>, <code>/remind</code>, assign unmatched payments, <code>/export</code></td></tr>
-      <tr><td>Everyone</td><td>Anyone who opens the bot</td><td><code>/start</code> and pay (or the pay page in a browser, no Telegram needed), <code>/status</code>, <code>/fund</code>, <code>/history</code>, <code>/bank</code> (the team account; managers also see whether SePay is connected), <code>/lang</code>, <code>/requestmanager</code></td></tr>
+      <tr><td>Manager</td><td>Approved by the owner</td><td><code>/weblink</code> (the pay page link), <code>/add</code> <code>/edit</code> <code>/remove</code> members, <code>/setfee</code> <code>/plans</code> <code>/setdue</code>, <code>/markpaid</code>, <code>/expense</code>, <code>/income</code>, <code>/charge</code> <code>/split</code>, <code>/remind</code>, assign unmatched payments, <code>/export</code></td></tr>
+      <tr><td>Everyone</td><td>Anyone who opens the bot</td><td><code>/start</code> and pay (or the pay page in a browser, no Telegram needed), <code>/status</code>, <code>/fund</code>, <code>/history</code> (or <code>/history 10/2026</code> for every transaction of one month), <code>/bank</code> (the team account; managers also see whether SePay is connected), <code>/lang</code>, <code>/requestmanager</code></td></tr>
     </tbody>
   </table>
   </div>

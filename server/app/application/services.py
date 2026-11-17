@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from .jobs import JobUseCases
 from .members import MemberUseCases
 from .money import MoneyUseCases
+from .plans import PlanUseCases
 from .ports import Deps
 from .registration import RegistrationUseCases
 from .teams import TeamUseCases
@@ -18,11 +19,12 @@ class Services:
     teams: TeamUseCases
     members: MemberUseCases
     money: MoneyUseCases
+    plans: PlanUseCases
     jobs: JobUseCases
     web: WebUseCases
 
 
 def build_services(d: Deps) -> Services:
     return Services(users=UserUseCases(d), registration=RegistrationUseCases(d), teams=TeamUseCases(d),
-                    members=MemberUseCases(d), money=MoneyUseCases(d), jobs=JobUseCases(d),
+                    members=MemberUseCases(d), money=MoneyUseCases(d), plans=PlanUseCases(d), jobs=JobUseCases(d),
                     web=WebUseCases(d))

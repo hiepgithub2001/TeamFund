@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from ..domain.entities import (AuditEntry, Bill, Expense, JobRun, ManagerRequest, Member, Payment, PaymentIntent,
+from ..domain.entities import (AuditEntry, Bill, Expense, FeePlan, JobRun, ManagerRequest, Member, Payment, PaymentIntent,
                                Team, TeamAdmin, TeamRequest, User)
 
 
@@ -139,16 +139,10 @@ class SqlBills(_Repo):
             q = q.where(Member.id.in_(member_ids))
         return [(b, m) for b, m in self.s.execute(q.order_by(Bill.period, Bill.id))]
 
-    def monthly_with_members(self, team_id: int, period: str, unpaid_only: bool = False) -> list[tuple[Bill, Member]]:
+    def fee_bills_since(self, team_id: int, since: str) -> list[tuple[Bill, Member]]:
         q = (select(Bill, Member).join(Member, Bill.member_id == Member.id)
-             .where(Bill.team_id == team_id, Bill.kind == "monthly", Bill.period == period))
-        if unpaid_only:
-            q = q.where(Bill.status == "unpaid")
-        return [(b, m) for b, m in self.s.execute(q)]
-
-    def billed_member_ids(self, team_id: int, period: str) -> set[int]:
-        return set(self.s.scalars(select(Bill.member_id).where(
-            Bill.team_id == team_id, Bill.kind == "monthly", Bill.period == period)))
+             .where(Bill.team_id == team_id, Bill.kind == "monthly", Bill.period >= since))
+        return [(b, m) for b, m in self.s.execute(q.order_by(Bill.period, Bill.id))]
 
     def unpaid_of_member(self, member_id: int) -> list[Bill]:
         return list(self.s.scalars(select(Bill).where(Bill.member_id == member_id, Bill.status == "unpaid")
@@ -156,6 +150,18 @@ class SqlBills(_Repo):
 
     def of_team(self, team_id: int) -> list[Bill]:
         return list(self.s.scalars(select(Bill).where(Bill.team_id == team_id).order_by(Bill.period, Bill.id)))
+
+
+class SqlFeePlans(_Repo):
+    def get(self, plan_id: int) -> FeePlan | None:
+        return self.s.get(FeePlan, plan_id)
+
+    def of_team(self, team_id: int) -> list[FeePlan]:
+        return list(self.s.scalars(select(FeePlan).where(FeePlan.team_id == team_id)
+                                   .order_by(FeePlan.months, FeePlan.amount, FeePlan.id)))
+
+    def remove(self, p: FeePlan) -> None:
+        self.s.delete(p)
 
 
 class SqlIntents(_Repo):
@@ -196,8 +202,10 @@ class SqlPayments(_Repo):
         return list(self.s.scalars(select(Payment).where(Payment.team_id == team_id, Payment.status == "unmatched")
                                    .order_by(Payment.id)))
 
-    def total(self, team_id: int, start=None, end=None) -> int:
+    def total(self, team_id: int, start=None, end=None, source: str | None = None) -> int:
         q = select(func.coalesce(func.sum(Payment.amount), 0)).where(Payment.team_id == team_id)
+        if source is not None:
+            q = q.where(Payment.source == source)
         return int(self.s.scalar(_between(q, Payment.created_at, start, end)))
 
     def count_unmatched(self, team_id: int) -> int:
@@ -207,6 +215,13 @@ class SqlPayments(_Repo):
     def latest(self, team_id: int, limit: int) -> list[Payment]:
         return list(self.s.scalars(select(Payment).where(Payment.team_id == team_id)
                                    .order_by(Payment.created_at.desc(), Payment.id.desc()).limit(limit)))
+
+    def first_at(self, team_id: int):
+        return self.s.scalar(select(func.min(Payment.created_at)).where(Payment.team_id == team_id))
+
+    def between(self, team_id: int, start, end) -> list[Payment]:
+        q = _between(select(Payment).where(Payment.team_id == team_id), Payment.created_at, start, end)
+        return list(self.s.scalars(q.order_by(Payment.created_at.desc(), Payment.id.desc())))
 
     def of_team(self, team_id: int) -> list[Payment]:
         return list(self.s.scalars(select(Payment).where(Payment.team_id == team_id).order_by(Payment.created_at)))
@@ -220,6 +235,13 @@ class SqlExpenses(_Repo):
     def latest(self, team_id: int, limit: int) -> list[Expense]:
         return list(self.s.scalars(select(Expense).where(Expense.team_id == team_id)
                                    .order_by(Expense.created_at.desc(), Expense.id.desc()).limit(limit)))
+
+    def first_at(self, team_id: int):
+        return self.s.scalar(select(func.min(Expense.created_at)).where(Expense.team_id == team_id))
+
+    def between(self, team_id: int, start, end) -> list[Expense]:
+        q = _between(select(Expense).where(Expense.team_id == team_id), Expense.created_at, start, end)
+        return list(self.s.scalars(q.order_by(Expense.created_at.desc(), Expense.id.desc())))
 
     def of_team(self, team_id: int) -> list[Expense]:
         return list(self.s.scalars(select(Expense).where(Expense.team_id == team_id).order_by(Expense.created_at)))

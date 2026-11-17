@@ -1,7 +1,9 @@
 """Use cases: paying, cash, charges, expenses, transfers that need checking, reports, export."""
-from ..domain.entities import Expense, IncomingTransfer
+from datetime import date, timedelta
+
+from ..domain.entities import Expense, IncomingTransfer, Payment
 from ..domain.errors import DomainError, invalid
-from ..domain.rules import MAX_AMOUNT, period_label
+from ..domain.rules import MAX_AMOUNT, MAX_BACKDATE_DAYS, period_label
 from . import billing
 from .access import get_team, manager_team
 from .people import audit, display_name
@@ -38,9 +40,9 @@ class MoneyUseCases:
         with self.d.uow() as uow:
             return billing.fund(uow, get_team(uow, team_id))
 
-    def history(self, team_id: int, limit: int = 10) -> list[dict]:
+    def history(self, team_id: int, limit: int = 10, period: str | None = None) -> list[dict]:
         with self.d.uow() as uow:
-            return billing.history(uow, self.d, get_team(uow, team_id), min(limit, 50))
+            return billing.history(uow, self.d, get_team(uow, team_id), min(limit, 50), period)
 
     def record_transfer(self, team_id: int, api_key: str, transfer: IncomingTransfer) -> str | None:
         """A payment provider reported money arriving. Checks the key, matches the transfer to bills
@@ -87,18 +89,54 @@ class MoneyUseCases:
             uow.commit()
             return billing.bill_dict(b)
 
-    def add_expense(self, team_id: int, actor: int, amount: int, title: str, photo_file_id: str | None = None) -> dict:
+    def today(self) -> date:
+        """The teams' local date, for reading a date without a year ("15/10")."""
+        return self.d.clock.local_now().date()
+
+    def _when(self, on: date | None):
+        """When a record happened: now, or noon of a past day the manager gave (not in the future,
+        at most about three years back)."""
+        if on is None:
+            return self.d.clock.now()
+        today = self.d.clock.local_now().date()
+        if on > today or on < today - timedelta(days=MAX_BACKDATE_DAYS):
+            raise DomainError(400, "bad_date")
+        return self.d.clock.now() if on == today else self.d.clock.at_local(on)
+
+    @staticmethod
+    def _check(amount: int, title: str, limit: int) -> str:
         title = (title or "").strip()
+        if not title or len(title) > limit or not isinstance(amount, int) or not 0 < amount <= MAX_AMOUNT:
+            raise invalid()
+        return title
+
+    def add_expense(self, team_id: int, actor: int, amount: int, title: str, photo_file_id: str | None = None,
+                    on: date | None = None) -> dict:
+        title = self._check(amount, title, 200)
         with self.d.uow() as uow:
             team = manager_team(uow, team_id, actor)
-            if not title or len(title) > 200 or not 0 < amount <= MAX_AMOUNT:
-                raise invalid()
+            at = self._when(on)
             uow.expenses.add(Expense(team_id=team.id, amount=amount, title=title, photo_file_id=photo_file_id,
-                                     created_by=actor, created_at=self.d.clock.now()))
-            audit(uow, self.d.clock, team.id, actor, "expense.add", target=title, after={"amount": amount})
+                                     created_by=actor, created_at=at))
+            audit(uow, self.d.clock, team.id, actor, "expense.add", target=title,
+                  after={"amount": amount, **({"date": on.isoformat()} if on else {})})
             uow.commit()
-            return {"amount": amount, "title": title, "by": display_name(uow, actor),
-                    "balance": billing.fund(uow, team)["balance"]}
+            return {"amount": amount, "title": title, "by": display_name(uow, actor), "at": self.d.clock.fmt(at),
+                    "backdated": on is not None, "balance": billing.fund(uow, team)["balance"]}
+
+    def add_income(self, team_id: int, actor: int, amount: int, title: str, on: date | None = None) -> dict:
+        """Money into the fund that isn't a member's fee: a prize, a sponsor, the balance from before the bot."""
+        title = self._check(amount, title, 200)
+        with self.d.uow() as uow:
+            team = manager_team(uow, team_id, actor)
+            at = self._when(on)
+            uow.payments.add(Payment(team_id=team.id, source="other", amount=amount, status="matched",
+                                     recorded_by=actor, note=title, created_at=at))
+            audit(uow, self.d.clock, team.id, actor, "income.add", target=title,
+                  after={"amount": amount, **({"date": on.isoformat()} if on else {})})
+            uow.commit()
+            return {"amount": amount, "title": title, "by": display_name(uow, actor), "at": self.d.clock.fmt(at),
+                    "backdated": on is not None, "balance": billing.fund(uow, team)["balance"]}
 
     def unmatched(self, team_id: int, actor: int) -> list[dict]:
         with self.d.uow() as uow:

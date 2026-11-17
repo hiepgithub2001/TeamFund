@@ -1,6 +1,6 @@
 """Domain rules: pure functions, no database."""
 from app.domain.entities import Member, Team
-from app.domain.rules import (due_day_in_month, effective_fee, find_payment_codes, is_last_day_of_month,
+from app.domain.rules import (add_months, covers, months_between, due_day_in_month, effective_fee, find_payment_codes, is_last_day_of_month,
                               new_payment_code, period_label, should_remind, split_share, transfer_content,
                               valid_bank)
 
@@ -16,6 +16,14 @@ def test_fees():
     assert split_share(500000, 3) == 167000
     assert split_share(600000, 3) == 200000
     assert period_label("2026-11") == "11/2026"
+    assert period_label("2026-11", 3) == "11/2026–01/2027"
+
+
+def test_cycles():
+    assert add_months("2026-11", 3) == "2027-02" and add_months("2026-01", -1) == "2025-12"
+    assert months_between("2026-11", "2027-01") == 2
+    assert [covers("2026-11", 3, p) for p in ("2026-10", "2026-11", "2027-01", "2027-02")] == [False, True, True, False]
+    assert covers("2026-11", None, "2026-11") and not covers("2026-11", None, "2026-12")
 
 
 def test_payment_codes():

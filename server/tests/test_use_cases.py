@@ -124,7 +124,7 @@ def test_full_flow(world):
     assert money.charges(tid, MANAGER, "Sân", 500000, "split", [an, binh, cuong])["each"] == 167000
     assert money.markpaid(tid, MANAGER, [an])["amount"] == 317000
     money.add_expense(tid, MANAGER, 600000, "Thuê sân")
-    assert money.fund(tid) == {"income": 500000 + 250000 + 317000, "expense": 600000, "balance": 467000,
+    assert money.fund(tid) == {"income": 500000 + 250000 + 317000, "other_income": 0, "expense": 600000, "balance": 467000,
                                "unmatched": 0}
     assert len(money.history(tid)) == 4
 
@@ -297,13 +297,13 @@ def test_web_pay_page(world):
     svc.money.add_expense(tid, OWNER, 50000, "Sân bóng")
     svc.money.record_transfer(tid, key, IncomingTransfer("tx-stranger", 30000, "NGUYEN VAN X CHUYEN TIEN FT2611"))
     view = web.page(token)
-    assert view["paid"] == ["An"] and view["fund"] == {"income": 230000, "expense": 50000, "balance": 180000}
-    assert view["months"][0] == {"period_label": "11/2026", "collected": 230000, "spent": 50000} and len(view["months"]) == 6
-    assert view["months"][1]["period_label"] == "10/2026"
+    assert view["paid"] == ["An"] and view["fund"] == {"income": 230000, "other_income": 0, "expense": 50000, "balance": 180000}
+    assert view["months"][0] == {"period": "2026-11", "period_label": "11/2026", "collected": 230000, "spent": 50000}
+    assert len(view["months"]) == 1  # no records before this month
     hist = {(h["type"], h["kind"], h["title"], h["amount"]) for h in view["history"]}
     assert hist == {("in", "sepay", "An", 200000), ("in", "unassigned", "", 30000), ("out", "expense", "Sân bóng", 50000)}
     roster = {m["name"]: m for m in view["members"]}
-    assert roster["An"] == {"name": "An", "nickname": None, "shirt_number": "10", "status": "active", "fee": 200000, "owes": 0}
+    assert roster["An"] == {"id": an, "name": "An", "nickname": None, "shirt_number": "10", "status": "active", "fee": 200000, "months": 1, "owes": 0}
     assert roster["Bình"]["owes"] == 200000
     blob = repr(view)
     assert "0901234567" not in blob and "private" not in blob and "NGUYEN VAN X" not in blob and "FT2611" not in blob
@@ -352,3 +352,83 @@ def test_va_only_bank_uses_the_virtual_account():
     sepay.accounts.append(SepayBankAccount("acc-1", "101003630278", "VietinBank", "ICB", "TRAN LE HIEP", True))
     teams.choose_bank(tid, OWNER, "acc-1")
     assert teams.team_info(tid, OWNER)["pay_account"] == "101003630278"
+
+
+def test_fee_plans():
+    """150k monthly for some, 300k per quarter for others: one bill per cycle, the quarter covers three months."""
+    svc, clock, _ = make_services(datetime(2026, 11, 3, 10, 0))
+    tid = setup_team(svc)
+    svc.teams.update_settings(tid, OWNER, fee=200000)
+    ids = [m["id"] for m in svc.members.add_members(tid, OWNER, [{"name": n} for n in ("An", "Bình", "Cường", "Dũng")])]
+    an, binh, cuong, dung = ids
+    assert code(svc.plans.save_plan, tid, MEMBER, 300000, 3, [cuong]) == "not_manager"
+    assert code(svc.plans.save_plan, tid, OWNER, 300000, 2, [cuong]) == "invalid"
+    monthly = svc.plans.save_plan(tid, OWNER, 150000, 1, [an, binh])
+    quarter = svc.plans.save_plan(tid, OWNER, 300000, 3, [cuong])
+    assert [m["name"] for m in quarter["members"]] == ["Cường"]
+    # same amount and cycle joins the existing plan
+    assert svc.plans.save_plan(tid, OWNER, 300000, 3, [dung])["id"] == quarter["id"]
+    view = svc.plans.list_plans(tid, OWNER)
+    assert [(p["amount"], p["months"], len(p["members"])) for p in view["plans"]] == [(150000, 1, 2), (300000, 3, 2)]
+    assert view["default_members"] == []
+
+    owed = {g["name"]: g for g in svc.money.unpaid(tid)}
+    assert owed["An"]["total"] == 150000 and owed["Cường"]["total"] == 300000
+    assert owed["Cường"]["bills"][0]["period_label"] == "11/2026–01/2027"
+    s = svc.money.status(tid)
+    assert {(f["amount"], f["months"], f["count"]) for f in s["fees"]} == {(150000, 1, 2), (300000, 3, 2)}
+    svc.money.markpaid(tid, OWNER, [an, cuong])
+
+    # December: An is billed again, Cường's quarter still covers him (and counts as paid), Dũng still owes
+    clock.local = clock.local.replace(month=12, day=2)
+    owed = {g["name"]: g["total"] for g in svc.money.unpaid(tid)}
+    assert owed == {"An": 150000, "Bình": 300000, "Dũng": 300000}  # Bình: Nov + Dec
+    s = svc.money.status(tid)
+    assert s["paid"] == ["Cường"]
+    # February: a new quarter for Cường
+    clock.local = clock.local.replace(year=2027, month=2)
+    cu = next(g for g in svc.money.unpaid(tid) if g["name"] == "Cường")
+    assert [b["period_label"] for b in cu["bills"]] == ["02/2027–04/2027"]
+
+    # changing a plan reprices this month's unpaid bills; members left out go back to the team fee
+    svc.plans.save_plan(tid, OWNER, 350000, 3, [cuong], plan_id=quarter["id"])
+    owed = {g["name"]: g for g in svc.money.unpaid(tid)}
+    assert owed["Cường"]["bills"][-1]["amount"] == 350000
+    assert svc.members.get_member(tid, OWNER, dung)["fee"] == 200000
+    # an own monthly fee takes a member off their plan; deleting a plan moves everyone to the team fee
+    assert svc.members.update_member(tid, OWNER, binh, {"fee_override": 120000})["on_plan"] is False
+    gone = svc.plans.delete_plan(tid, OWNER, monthly["id"])
+    assert gone["members"] == ["An"]
+    assert [p["amount"] for p in svc.plans.list_plans(tid, OWNER)["plans"]] == [350000]
+
+
+def test_other_income_and_backdating(world):
+    svc, clock, _ = world
+    tid = setup_team(svc)
+    from datetime import date
+    assert code(svc.money.add_income, tid, MEMBER, 2000000, "Thưởng vô địch") == "not_manager"
+    r = svc.money.add_income(tid, OWNER, 2000000, "Thưởng vô địch")
+    assert r["balance"] == 2000000
+    old = svc.money.add_income(tid, OWNER, 1500000, "Số dư đầu kỳ", on=date(2026, 9, 30))
+    assert old["at"].startswith("30/09/2026")
+    svc.money.add_expense(tid, OWNER, 300000, "Sân bóng", on=date(2026, 10, 15))
+    assert code(svc.money.add_expense, tid, OWNER, 1, "x", on=date(2026, 11, 18)) == "bad_date"
+    assert code(svc.money.add_income, tid, OWNER, 1, "x", on=date(2020, 1, 1)) == "bad_date"
+    f = svc.money.fund(tid)
+    assert (f["income"], f["other_income"], f["expense"], f["balance"]) == (3500000, 3500000, 300000, 3200000)
+    with svc.money.d.uow() as uow:
+        team = uow.teams.get(tid)
+        from app.application import billing
+        assert billing.month_totals(uow, svc.money.d, team, "2026-10") == {"collected": 0, "spent": 300000}
+        assert billing.month_totals(uow, svc.money.d, team, "2026-09")["collected"] == 1500000
+    h = svc.money.history(tid)
+    assert h[0]["source"] == "other" and h[0]["title"] == "Thưởng vô địch"
+    oct_ = svc.money.history(tid, period="2026-10")
+    assert [(i["type"], i["title"]) for i in oct_] == [("out", "Sân bóng")]
+    token = svc.teams.web_link(tid, OWNER)["url"].rstrip("/").rsplit("/", 1)[-1]
+    m = svc.web.month(token, "2026-09")
+    assert (m["collected"], m["spent"], [i["title"] for i in m["items"]]) == (1500000, 0, ["Số dư đầu kỳ"])
+    assert code(svc.web.month, token, "2026-13") == "invalid"
+    assert code(svc.web.month, "nope", "2026-09") == "not_found"
+    months = [x["period"] for x in svc.web.page(token)["months"]]
+    assert months == ["2026-11", "2026-10", "2026-09"], "back to the backdated opening balance"

@@ -42,3 +42,17 @@ def test_member_lines():
         {"name": "Bình", "shirt_number": None, "phone": None},
         {"name": "Cường", "shirt_number": "7", "phone": "0901"},
     ]
+
+
+def test_split_date():
+    from datetime import date
+    from app.interfaces.bot.fmt import split_date
+    today = date(2026, 11, 18)
+    assert split_date("Pitch 15-10-2026", today) == ("Pitch", date(2026, 10, 15), True)
+    assert split_date("Pitch 15/10/2026", today) == ("Pitch", date(2026, 10, 15), True)
+    assert split_date("Pitch 15.10.26", today) == ("Pitch", date(2026, 10, 15), True)
+    assert split_date("Pitch 15/10", today) == ("Pitch", date(2026, 10, 15), True)
+    assert split_date("Pitch 20-12", today) == ("Pitch", date(2025, 12, 20), True)  # no year: not in the future
+    assert split_date("Pitch", today) == ("Pitch", None, True)
+    assert split_date("Pitch 31-02-2026", today)[2] is False
+    assert split_date("Áo số 10", today) == ("Áo số 10", None, True)

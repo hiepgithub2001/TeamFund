@@ -1,5 +1,5 @@
 """Clock port: real time in the teams' time zone."""
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timezone
 from zoneinfo import ZoneInfo
 
 
@@ -22,6 +22,10 @@ class SystemClock:
         end = datetime(year + (month == 12), month % 12 + 1, 1, tzinfo=self.tz)
         utc = lambda d: d.astimezone(timezone.utc).replace(tzinfo=None)  # noqa: E731
         return utc(start), utc(end)
+
+    def at_local(self, day: date) -> datetime:
+        """Noon of a local day, as naive UTC: the timestamp of something recorded for that day."""
+        return datetime.combine(day, time(12), self.tz).astimezone(timezone.utc).replace(tzinfo=None)
 
     def fmt(self, dt: datetime | None) -> str | None:
         if dt is None:

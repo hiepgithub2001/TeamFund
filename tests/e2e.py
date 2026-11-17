@@ -400,12 +400,63 @@ async def main():
         await wait_sent(to(GROUP, r"Dũng</b> paid 200,000đ"), "group post for a web payment")
         async with http.get(base + "api/state") as r:
             assert (await r.json())["unpaid"] == []
+        async with http.get(base + "api/month/" + st["months"][0]["period"]) as r:
+            mm = await r.json()
+            assert r.status == 200 and any(i["title"] == "Dũng" for i in mm["items"]), mm
+        async with http.get(base + "api/month/2026-13") as r:
+            assert r.status == 422
         # a new link: the old one stops working
         await T(cb_update(OWNER, "w:reset", 90))
         await T(cb_update(OWNER, "w:reset!", 91))
         await wait_sent(to(OWNER, "New pay page link"), "link reset")
         async with http.get(base + "api/state") as r:
             assert r.status == 404
+
+        # 10. fee plans: Cường and Dũng pay 300k per quarter, An 150k a month, Bình stays on the team fee
+        await T(text_update(OWNER, "/plans"))
+        plans = await wait_sent(to(OWNER, "Fee plans"), "plans screen")
+        assert "Default (/setfee): <b>200,000đ</b>/month · 4 people" in plans["params"]["text"]
+        await T(cb_update(OWNER, "p:n", plans["message_id"]))
+        await wait_sent(lambda c: c["method"] == "editMessageText" and "how often" in c["params"]["text"], "cycles")
+        await T(cb_update(OWNER, "p:c:3", plans["message_id"]))
+        await wait_sent(to(OWNER, "amount per quarter"), "amount asked")
+        await T(text_update(OWNER, "300k"))
+        pick = await wait_sent(to(OWNER, "Choose who pays <b>300,000đ/quarter"), "plan member picker")
+        for d in ("k:t:2", "k:t:3", "k:ok"):
+            await T(cb_update(OWNER, d, pick["message_id"]))
+        await wait_sent(lambda c: c["method"] == "editMessageText" and "Plan saved" in c["params"]["text"]
+                        and "Members (2): Cường, Dũng" in c["params"]["text"], "quarter plan saved")
+        await T(text_update(OWNER, "/plans 150k month"))
+        pick = await wait_sent(to(OWNER, "Choose who pays <b>150,000đ/month"), "quick plan picker")
+        await T(cb_update(OWNER, "k:t:0", pick["message_id"]))
+        await T(cb_update(OWNER, "k:ok", pick["message_id"]))
+        await wait_sent(lambda c: c["method"] == "editMessageText" and "Members (1): An" in c["params"]["text"],
+                        "monthly plan saved")
+        await T(text_update(OWNER, "/plans 1 fortnight"))
+        await wait_sent(to(OWNER, "quick create"), "bad cycle explained")
+        await T(text_update(OWNER, "/status"))
+        await wait_sent(lambda c: to(OWNER, "300,000đ/quarter for 2")(c) and "150,000đ/month for 1" in c["params"]["text"],
+                        "status lists the fees")
+
+        # 11. other income and backdated records
+        await T(text_update(OWNER, "/income 2m Championship prize"))
+        await wait_sent(to(OWNER, "Income recorded. Fund balance"), "income recorded")
+        await wait_sent(to(GROUP, "Other income</b>: 2,000,000đ · Championship prize"), "income posted")
+        await T(text_update(OWNER, "/expense 100k Balls 01/01"))
+        await wait_sent(to(OWNER, r"Expense recorded on 01/01/\d{4}"), "backdated expense")
+        await T(text_update(OWNER, "/income 5k Bad day 31/02"))
+        await wait_sent(to(OWNER, "That date isn't valid"), "impossible date refused")
+        await T(text_update(OWNER, "/fund"))
+        await wait_sent(to(OWNER, "Of which other income: 2,000,000đ"), "fund shows other income")
+        await T(text_update(OWNER, "/history"))
+        await wait_sent(to(OWNER, r"Championship prize \(other income\)"), "history labels other income")
+        await T(text_update(OWNER, "/expense 50k Water 03-02-2026"))
+        await wait_sent(to(OWNER, "Expense recorded on 03/02/2026"), "dd-mm-yyyy date")
+        await T(text_update(OWNER, "/history 02/2026"))
+        await wait_sent(lambda c: to(OWNER, "Transactions in 02/2026</b> \\(1\\)")(c) and "Water" in c["params"]["text"],
+                        "history of one month")
+        await T(text_update(OWNER, "/history 13/2026"))
+        await wait_sent(to(OWNER, "every transaction of that month"), "bad month explained")
 
         print(f"e2e passed ({len(calls)} Telegram API calls)")
     finally:

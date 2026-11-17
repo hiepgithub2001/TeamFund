@@ -26,10 +26,23 @@ def owes_lines(lang: str, rows: list[dict]) -> str:
     return "\n".join(t(lang, "line.owes", name=esc(u["name"]), amount=money(u["total"], lang)) for u in rows)
 
 
+def fee_text(lang: str, amount: int, months: int = 1) -> str:
+    """"300.000đ/quý"."""
+    return f"{money(amount, lang)}/{t(lang, f'cycle.{months}')}"
+
+
+def fees_text(lang: str, fees: list[dict], default_fee: int = 0) -> str:
+    """What people pay: "200.000đ mỗi người" when it's one monthly fee, else each fee with its head count."""
+    if not fees or (len(fees) == 1 and fees[0]["months"] == 1):
+        return t(lang, "fees.each", fee=money(fees[0]["amount"] if fees else default_fee, lang))
+    return " · ".join(t(lang, "fees.item", fee=fee_text(lang, f["amount"], f["months"]), n=f["count"]) for f in fees)
+
+
 def status_text(lang: str, s: dict) -> str:
-    if not s["fee"]:
+    if not s.get("has_fees", s["fee"]):
         return t(lang, "status.no_fee")
-    parts = [t(lang, "status.title", period=s["period_label"], fee=money(s["fee"], lang), due=s["due_day"])]
+    parts = [t(lang, "status.title", period=s["period_label"], fees=fees_text(lang, s.get("fees", []), s["fee"]),
+               due=s["due_day"])]
     if s["paid"]:
         parts.append(t(lang, "status.paid", n=len(s["paid"]), names=", ".join(esc(n) for n in s["paid"])))
     if s["unpaid"]:
@@ -42,6 +55,9 @@ def status_text(lang: str, s: dict) -> str:
 
 def bill_label(lang: str, b: dict) -> str:
     if b["kind"] == "monthly":
+        months = b.get("months") or 1
+        if months > 1:
+            return t(lang, "bill.fee", cycle=t(lang, f"cycle.{months}"), period=b["period_label"])
         return t(lang, "bill.monthly", period=b["period_label"])
     return f"{b['title']} ({b['period_label']})"
 

@@ -108,3 +108,14 @@ table.months { width: 100%; border-collapse: collapse; font-variant-numeric: tab
 table.months th { text-align: right; font-size: 13px; color: var(--muted); font-weight: 500; padding: 4px 0; }
 table.months td { text-align: right; padding: 7px 0; border-top: 1px solid var(--line); }
 table.months td:first-child, table.months th:first-child { text-align: left; }
+.item .bills { white-space: pre-line; }
+details.month { border-top: 1px solid var(--line); }
+details.month:first-child { border-top: 0; }
+details.month summary { display: grid; grid-template-columns: 1fr auto auto; gap: 4px 12px; align-items: baseline;
+  padding: 10px 0; cursor: pointer; list-style: none; font-variant-numeric: tabular-nums; }
+details.month summary::-webkit-details-marker { display: none; }
+details.month summary .mlabel::before { content: "▸ "; color: var(--muted); }
+details.month[open] summary .mlabel::before { content: "▾ "; }
+details.month summary .muted { grid-column: 2 / 4; text-align: right; }
+details.month > .list, details.month > p { margin: 0 0 10px 14px; }
+button.link { background: none; border: 0; padding: 0; color: var(--brand); font: inherit; font-weight: 600; cursor: pointer; }

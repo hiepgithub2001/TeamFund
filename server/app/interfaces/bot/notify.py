@@ -5,7 +5,7 @@ from . import registry
 from .fmt import esc, money
 from .i18n import t
 from .lang import lang_for
-from .render import owes_lines, pay_keyboard
+from .render import fees_text, owes_lines, pay_keyboard
 from .team import unmatched_card
 
 log = logging.getLogger("notify")
@@ -40,8 +40,9 @@ async def deliver(ev: dict) -> bool:
             text, markup = unmatched_card(await lang_for(admin_id, G), ev)
             await _send(bot, admin_id, text, markup)
     elif kind == "bills_created" and group:
-        await _send(bot, group, t(G, "group.bills_created", period=ev["period_label"], fee=money(ev["fee"], G),
-                                  due=ev["due_day"]), pay_keyboard(G, name))
+        await _send(bot, group, t(G, "group.bills_created", period=ev["period_label"],
+                                  fees=fees_text(G, ev.get("fees", []), ev["fee"]), due=ev["due_day"]),
+                    pay_keyboard(G, name))
     elif kind == "reminder" and group:
         head = t(G, "group.overdue" if ev.get("overdue") else "group.reminder", period=ev["period_label"],
                  due=ev["due_day"])

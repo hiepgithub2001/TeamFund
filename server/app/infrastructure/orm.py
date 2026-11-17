@@ -61,7 +61,13 @@ members = Table(
     Column("team_id", ForeignKey("teams.id"), index=True, nullable=False), Column("name", String(100), nullable=False),
     Column("nickname", String(64)), Column("shirt_number", String(8)), Column("phone", String(32)),
     Column("note", String(255)), Column("fee_override", Integer), Column("status", String(16), nullable=False),
-    Column("created_at", DateTime, nullable=False),
+    Column("created_at", DateTime, nullable=False), Column("plan_id", Integer),
+)
+
+fee_plans = Table(
+    "fee_plans", metadata, _id(),
+    Column("team_id", ForeignKey("teams.id"), index=True, nullable=False), Column("amount", Integer, nullable=False),
+    Column("months", Integer, nullable=False), Column("created_at", DateTime, nullable=False),
 )
 
 payments = Table(
@@ -81,7 +87,7 @@ bills = Table(
     Column("period", String(7), nullable=False), Column("amount", Integer, nullable=False),
     Column("status", String(16), nullable=False), Column("monthly_key", String(32), unique=True),
     Column("payment_id", ForeignKey("payments.id")), Column("created_at", DateTime, nullable=False),
-    Column("paid_at", DateTime),
+    Column("paid_at", DateTime), Column("months", Integer),
 )
 
 payment_intents = Table(
@@ -112,7 +118,7 @@ job_runs = Table(
 
 _MAPPINGS = [
     (e.User, users), (e.TeamRequest, team_requests), (e.Team, teams), (e.TeamAdmin, team_admins),
-    (e.ManagerRequest, manager_requests), (e.Member, members), (e.Payment, payments), (e.Bill, bills),
+    (e.ManagerRequest, manager_requests), (e.Member, members), (e.FeePlan, fee_plans), (e.Payment, payments), (e.Bill, bills),
     (e.PaymentIntent, payment_intents), (e.Expense, expenses), (e.AuditEntry, audit_log), (e.JobRun, job_runs),
 ]
 _started = False
