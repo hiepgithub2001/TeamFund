@@ -30,6 +30,6 @@ for _ in $(seq 1 30); do
   fi
   sleep 2
 done
-echo "Health check failed. Check: docker compose logs --tail=100 caddy gateway core" >&2
+echo "Health check failed. Check: docker compose logs --tail=100 caddy app" >&2
 docker compose ps
 exit 1

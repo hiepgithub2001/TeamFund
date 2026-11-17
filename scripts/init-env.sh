@@ -33,7 +33,6 @@ TELEGRAM_MODE=webhook
 
 # Generated secrets. Keep TOKEN_ENC_KEY safe: it decrypts the stored team bot tokens.
 POSTGRES_PASSWORD=$(rand 24)
-INTERNAL_KEY=$(rand 32)
 MASTER_WEBHOOK_SECRET=$(rand 32)
 TOKEN_ENC_KEY=$(fernet)
 EOF

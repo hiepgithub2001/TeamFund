@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="860" height="400" viewBox="0 0 860 400" role="img" aria-label="Sequence: a person sends /requestmanager to the team bot, the Core API records the request and the bot sends the owner a card with Approve and Reject buttons. When the owner taps Approve, the Core API checks that the tapper is the owner, adds the manager role and writes the audit log, then the bot tells the person and posts to the group."><style>svg{
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="400" viewBox="0 0 860 400" role="img" aria-label="Sequence: a person sends /requestmanager to the team bot, the domain layer records the request and the bot sends the owner a card with Approve and Reject buttons. When the owner taps Approve, the domain layer checks that the tapper is the owner, adds the manager role and writes the audit log, then the bot tells the person and posts to the group."><style>svg{
   --bg:#f5f7f8; --surface:#ffffff; --fg:#17212b; --muted:#5b6b78; --line:#c9d3db;
   --tg:#2b7bb9; --tg-soft:#eaf3fa; --money:#b8730f; --money-soft:#fbf1df;
   --display:"Space Grotesk",system-ui,sans-serif;
@@ -37,7 +37,7 @@
       </defs>
       <rect class="box" x="25" y="16" width="130" height="40" rx="8"/><text class="t" x="90" y="41" text-anchor="middle">Person</text>
       <rect class="box tg" x="235" y="16" width="130" height="40" rx="8"/><text class="t" x="300" y="41" text-anchor="middle">Team bot</text>
-      <rect class="box" x="445" y="16" width="130" height="40" rx="8"/><text class="t" x="510" y="41" text-anchor="middle">Core API</text>
+      <rect class="box" x="445" y="16" width="130" height="40" rx="8"/><text class="t" x="510" y="41" text-anchor="middle">Domain layer</text>
       <rect class="box" x="655" y="16" width="130" height="40" rx="8"/><text class="t" x="720" y="41" text-anchor="middle">Owner</text>
       <line class="life" x1="90" y1="56" x2="90" y2="385"/>
       <line class="life" x1="300" y1="56" x2="300" y2="385"/>

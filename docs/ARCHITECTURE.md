@@ -2,17 +2,17 @@
 
 > Generated from `docs/architecture.html` by `scripts/build-docs.py`. Open the HTML file for the interactive version with dark mode.
 
-_System design · v4 · all Python_
+_System design · v5 · one server_
 
-Every team gets its own Telegram bot for collecting the monthly fee. A master bot registers new teams. Members open their team's bot, tap whose fee they are paying, scan a SePay QR, and the payment confirms itself. One server runs the master bot and every team bot. Every service is written in Python.
+Every team gets its own Telegram bot for collecting the monthly fee. A master bot registers new teams. Members open their team's bot, tap whose fee they are paying, scan a SePay QR, and the payment confirms itself. One Python server runs the master bot, every team bot and the webhooks. Its business rules live in a domain layer that the bot and HTTP controllers share.
 
 ## System overview
 
 ![The owner creates bots in BotFather and registers a team bot with the master bot. Members and the team group use the tea](diagrams/01-system-overview.svg)
 
-Legend: Telegram traffic and internal calls · Money path: transfer to confirmation
+Legend: Telegram traffic and calls inside the app · Money path: transfer to confirmation
 
-_The master bot's token is set once in `.env`. Team bot tokens come from owners through `/newteam`, are stored encrypted by the Core API, and are loaded by the gateway when it starts. Caddy sends each bot's updates to its own path, so the gateway knows which team a message belongs to. Only the Core API writes to PostgreSQL, and it runs the role check for every manager action. The public address is `teamfund.103-90-225-28.sslip.io`. The existing nginx keeps port 80, so Caddy gets its certificate on port 443._
+_The master bot's token is set once in `.env`. Team bot tokens come from owners through `/newteam` and are stored encrypted. Inside the one app process, the controllers only translate input and output: `api/` for HTTP, `bot/` for Telegram, `jobs.py` for the clock. Every rule, from who may change the bank account to how a transfer is matched to bills, is in `domain/`, so the bots, the webhooks and the jobs all share one implementation. The amber arrows are the money path: a SePay webhook enters through `api/`, is matched in `domain/`, and the resulting event goes to `bot/` for the receipt and group post. The public address is `teamfund.103-90-225-28.sslip.io`; the existing nginx keeps port 80, so Caddy gets its certificate on 443._
 
 ## Setting up
 
@@ -20,7 +20,7 @@ _The master bot's token is set once in `.env`. Team bot tokens come from owners 
 
 1. **Create it in @BotFather** with `/newbot`, e.g. `@TeamFundSetupBot`. Turn off `/setjoingroups` so it only works in private chats.
 2. **Put the token in `.env`** as `MASTER_BOT_TOKEN`, with your Telegram ID in `MASTER_ADMIN_IDS`.
-3. **Start the server.** The gateway sets the master bot's webhook to `/tg/master`.
+3. **Start the server.** The app sets the master bot's webhook to `/tg/master`.
 
 ### Per team, by its owner
 
@@ -42,7 +42,7 @@ _The unique code in the transfer memo is what lets the server match money to bil
 
 ## Roles in a team bot
 
-Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID comes with every message and button tap and can't be faked, so the Core API checks it before every manager action.
+Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID comes with every message and button tap and can't be faked, so the domain layer checks it before every manager action.
 
 | Role | Who | Can do |
 |---|---|---|
@@ -52,7 +52,7 @@ Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID
 
 ### Becoming a manager: request and approve
 
-![Sequence: a person sends /requestmanager to the team bot, the Core API records the request and the bot sends the owner a](diagrams/03-roles-in-a-team-bot.svg)
+![Sequence: a person sends /requestmanager to the team bot, the domain layer records the request and the bot sends the own](diagrams/03-roles-in-a-team-bot.svg)
 
 _The role check in step 7 runs on the server, so a forwarded Approve button does nothing for anyone but the owner. Requests that get no answer expire after 7 days._
 
@@ -62,15 +62,18 @@ _The role check in step 7 runs on the server, so a forwarded Approve button does
 - A change to the bank account is announced in the group, so nobody can quietly redirect the fund.
 - Every manager action goes into the audit log: who, what, when, and the old and new values.
 
-## Who runs what
+## Layers
 
-| Service | Language | Responsible for |
+One process, three kinds of controller over one domain layer. A controller never contains a business rule; it calls the domain and renders the answer.
+
+| Layer | Built with | Responsible for |
 |---|---|---|
-| Bot Gateway | Python, aiogram 3, aiohttp | One process for the master bot and every team bot. Menus, buttons, EN/VI text, per-role command menus, QR images and receipts |
-| Core API | Python, FastAPI, SQLAlchemy | Team registry and encrypted bot tokens, roles and manager requests, members, fees, bills, payment intents, SePay webhook and matching, audit log, Excel export |
-| Scheduler | Python, APScheduler | Creates bills on the 1st, posts reminders to each group, sends month-end reports, expires old requests and intents |
-| PostgreSQL | 16 | The only data store, written only by the Core API |
-| Caddy | — | Automatic HTTPS on port 443. Routes `/tg/master` and `/tg/{botId}` to the gateway and `/sepay/{teamId}` to the core |
+| api/ | FastAPI | Telegram webhooks, one per bot, checked by secret token. The SePay webhook, checked by the team's API key. Turns each request into domain calls. |
+| bot/ | aiogram 3 | The master bot and every team bot: commands, buttons, EN/VI texts, per-role command menus, QR images, receipts and group posts. Calls the domain through `bot/run.py`, which gives each call its own database session in a worker thread. |
+| jobs.py | APScheduler | Monthly bills, group reminders, the month-end report, expiring old requests and payment intents. Runs inside the app, so it needs one uvicorn worker. |
+| domain/ | plain Python | Every business rule: who may do what (`access`), team registration, team settings and managers (`teams`), the roster (`members`), paying, cash, charges, expenses and reports (`money`), bills and SePay matching (`billing`), audit log, Excel export. |
+| models.py | SQLAlchemy 2 | The tables. PostgreSQL 16 in production, SQLite in tests. |
+| Caddy | Caddy 2 | HTTPS on port 443; passes `/tg/*`, `/sepay/*` and `/health` to the app, everything else gets 404. |
 
 ## Deployment on the VPS
 
@@ -80,7 +83,7 @@ Everything runs on the one VPS with Docker Compose. Only port 443 is added to th
 
 Legend: Telegram traffic · Money path · Other traffic, mounts, builds · Already on the server, not part of Team Fund
 
-_Requests from Telegram, SePay and Let's Encrypt arrive on port 443 and Docker forwards them to Caddy. Caddy holds the certificate and passes `/tg/*` to the gateway and `/sepay/*` to the core over the private Docker network; nothing else is public. Containers find each other by name (`gateway`, `core`, `db`). All state lives in three named volumes, so rebuilding or recreating containers loses nothing._
+_Requests from Telegram, SePay and Let's Encrypt arrive on port 443 and Docker forwards them to Caddy. Caddy holds the certificate and passes `/tg/*` and `/sepay/*` to the app over the private Docker network; nothing else is public. The app is the only code container: three containers in total. All state lives in three named volumes, so rebuilding or recreating containers loses nothing._
 
 ## How a deploy works
 
@@ -96,9 +99,8 @@ _Pushing to GitHub doesn't deploy anything by itself; running `scripts/deploy.sh
 |---|---|---|---|
 | 443/tcp | host → caddy | Internet | Telegram webhooks, SePay webhooks, Let's Encrypt challenge, `/health` |
 | 22/tcp | host sshd | Internet | Admin login. Git to GitHub goes outbound on 22. |
-| 3000 | gateway container | Docker network only | Bot webhooks (via Caddy) and `/internal/events` from core and scheduler |
-| 8000 | core container | Docker network only | `/api/*` for the gateway, `/sepay/*` via Caddy. Not the host's own port 8000. |
-| 5432 | db container | Docker network only | PostgreSQL for core and scheduler. Not the host's own Postgres. |
+| 8000 | app container | Docker network only | Telegram and SePay webhooks, via Caddy. Not the host's own port 8000. |
+| 5432 | db container | Docker network only | PostgreSQL for the app. Not the host's own Postgres. |
 | 80/tcp | host nginx | Internet | Not used by Team Fund |
 
 ## Secrets and data
@@ -108,7 +110,6 @@ _Pushing to GitHub doesn't deploy anything by itself; running `scripts/deploy.sh
 | MASTER_BOT_TOKEN | `.env` | From @BotFather. Anyone with it controls the master bot. |
 | MASTER_ADMIN_IDS | `.env` | Telegram IDs that approve new teams |
 | TOKEN_ENC_KEY | `.env` | Fernet key that encrypts team bot tokens in the database. Losing it means re-registering every team bot. |
-| INTERNAL_KEY | `.env` | Shared by gateway and core for internal calls |
 | MASTER_WEBHOOK_SECRET | `.env` | Telegram sends it on every master bot update; team bots each get their own, stored in the database |
 | POSTGRES_PASSWORD | `.env` | Only used inside the Docker network |
 | SePay API keys | database (SHA-256 hash) | One per team, shown once by `/sepay` |
@@ -121,7 +122,7 @@ _Pushing to GitHub doesn't deploy anything by itself; running `scripts/deploy.sh
 1. **Give the user Docker access** (once, needs sudo): `sudo usermod -aG docker lehiepvps`
 2. **Open TCP 443** in the VPS provider's firewall, if it has one.
 3. **Fill in `.env`**: `MASTER_BOT_TOKEN` and `MASTER_ADMIN_IDS`. The other secrets are already generated.
-4. **Start everything:** `docker compose up -d --build`, then `docker compose logs -f caddy gateway` until the certificate is issued and the master bot reports ready.
+4. **Start everything:** `docker compose up -d --build`, then `docker compose logs -f caddy app` until the certificate is issued and the master bot reports ready.
 5. **Check from outside:** `curl https://teamfund.103-90-225-28.sslip.io/health` returns `ok`.
 6. **Schedule backups:** add `0 3 * * * …/scripts/backup.sh` to `crontab -e`.
 
@@ -131,8 +132,8 @@ _Pushing to GitHub doesn't deploy anything by itself; running `scripts/deploy.sh
 scripts/deploy.sh                       # deploy latest main
 scripts/deploy.sh 94516db               # roll back to a commit
 docker compose ps                       # what is running
-docker compose logs -f --tail=100 gateway core scheduler
-docker compose restart gateway          # reconnect all bots
+docker compose logs -f --tail=100 app
+docker compose restart app              # reconnect all bots
 scripts/backup.sh                       # backup now
 gunzip -c ~/backups/teamfund-2026-11-17.sql.gz | docker compose exec -T db psql -U teamfund teamfund   # restore
 ```

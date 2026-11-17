@@ -10,22 +10,31 @@ Telegram bots that collect a football team's monthly fee and confirm payments au
 
 Diagrams and the full design are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (open [docs/architecture.html](docs/architecture.html) in a browser for the interactive page). Rebuild them after changing the page with `python3 scripts/build-docs.py docs/architecture.html`.
 
-## Services
+One Python server, in layers:
 
-| Service | Stack | Job |
+```
+server/app/
+  domain/     business rules and use cases: who may do what, billing, SePay matching, members, teams
+  bot/        Telegram controllers: the master bot and every team bot (aiogram 3), EN/VI texts
+  api/        HTTP controllers: Telegram webhooks (/tg/*) and the SePay webhook (/sepay/{team})
+  jobs.py     scheduled jobs: monthly bills, reminders, month-end report
+  models.py   database tables (SQLAlchemy)
+```
+
+Controllers only translate input and output; every rule lives in `domain/`, so the bots and the webhooks share one implementation. Bot handlers call domain functions through `bot/run.py`, which runs them in a worker thread with their own database session.
+
+| Container | Image | Job |
 |---|---|---|
-| `gateway` | Python, aiogram 3, aiohttp | Every Telegram bot (master + teams), menus, EN/VI text |
-| `core` | Python, FastAPI | Data, roles, billing, SePay webhook, Excel export |
-| `scheduler` | Python, APScheduler | Monthly bills, group reminders, month-end report |
-| `db` | PostgreSQL 16 | Storage (only `core` writes to it) |
-| `caddy` | Caddy 2 | HTTPS on 443; `/tg/*` → gateway, `/sepay/*` → core |
+| `app` | `./server` (Python 3.12, FastAPI, aiogram) | Everything above. Runs with one worker, because the bots and jobs live in this process. |
+| `db` | `postgres:16-alpine` | Storage |
+| `caddy` | `caddy:2.8.4` | HTTPS on 443; `/tg/*`, `/sepay/*`, `/health` → app |
 
 ## Run
 
 ```bash
 scripts/init-env.sh <MASTER_BOT_TOKEN> <YOUR_TELEGRAM_ID>   # writes .env with fresh secrets
 docker compose up -d --build
-docker compose logs -f gateway core
+docker compose logs -f app
 ```
 
 To update later: `scripts/deploy.sh` (pulls `main`, rebuilds, restarts, checks `/health`).
@@ -50,16 +59,13 @@ Port 443 must be reachable from the internet; Telegram and SePay both call it. P
 
 ## Tests
 
-Everything is Python. Install both services' requirements in one virtualenv:
-
 ```bash
-pip install -r core/requirements.txt -r gateway/requirements.txt pytest
-(cd core && python -m pytest -q tests)
-(cd gateway && python -m pytest -q tests)
-python tests/e2e.py                   # core + gateway against a fake Telegram API
+pip install -r server/requirements.txt pytest
+(cd server && python -m pytest -q tests)   # domain rules + bot helpers
+python tests/e2e.py                         # the whole server against a fake Telegram API
 ```
 
-Bot texts live in `gateway/app/locales/en.json` and `vi.json`; both files must have the same keys.
+Bot texts live in `server/app/bot/locales/en.json` and `vi.json`; both files must have the same keys.
 
 ## Backups
 

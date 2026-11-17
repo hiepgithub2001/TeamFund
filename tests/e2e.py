@@ -1,8 +1,8 @@
-"""End-to-end test: the real core and gateway, with a fake Telegram Bot API.
+"""End-to-end test: the real server, with a fake Telegram Bot API.
 
-    python tests/e2e.py          (VERBOSE=1 to see service logs)
+    python tests/e2e.py          (VERBOSE=1 to see the server log)
 
-Needs the core and gateway requirements installed in the same Python."""
+Needs server/requirements.txt installed."""
 import asyncio
 import json
 import os
@@ -18,7 +18,7 @@ from cryptography.fernet import Fernet
 
 ROOT = Path(__file__).resolve().parent.parent
 PY = sys.executable
-TG_PORT, CORE_PORT, GW_PORT = 18081, 18000, 18002
+TG_PORT, PORT = 18081, 18000
 MASTER_TOKEN = "999999:" + "A" * 35
 TEAM_TOKEN = "555555:" + "B" * 35
 SUPER, OWNER, MEMBER, GROUP = 1, 100, 300, -1001
@@ -127,37 +127,30 @@ async def main():
     await web.TCPSite(runner, "127.0.0.1", TG_PORT).start()
 
     tmp = tempfile.mkdtemp(prefix="tf-e2e-")
-    shared = {"INTERNAL_KEY": "ik", "MASTER_ADMIN_IDS": str(SUPER), "DEFAULT_LANG": "en", "PATH": os.environ["PATH"],
-              "PUBLIC_URL": "https://teamfund.test"}
     out = None if os.getenv("VERBOSE") else subprocess.DEVNULL
     procs = [subprocess.Popen(
-        [PY, "-m", "uvicorn", "app.main:app", "--port", str(CORE_PORT)], cwd=ROOT / "core", stdout=out, stderr=out,
-        env={**shared, "DATABASE_URL": f"sqlite:///{tmp}/e2e.db", "TOKEN_ENC_KEY": Fernet.generate_key().decode(),
-             "GATEWAY_URL": f"http://127.0.0.1:{GW_PORT}"})]
+        [PY, "-m", "uvicorn", "app.main:app", "--port", str(PORT)], cwd=ROOT / "server", stdout=out, stderr=out,
+        env={"PATH": os.environ["PATH"], "DATABASE_URL": f"sqlite:///{tmp}/e2e.db",
+             "TOKEN_ENC_KEY": Fernet.generate_key().decode(), "PUBLIC_URL": "https://teamfund.test",
+             "MASTER_ADMIN_IDS": str(SUPER), "DEFAULT_LANG": "en", "MASTER_BOT_TOKEN": MASTER_TOKEN,
+             "MASTER_WEBHOOK_SECRET": "msecret", "TELEGRAM_API_ROOT": f"http://127.0.0.1:{TG_PORT}",
+             "RUN_JOBS": "0"})]
     http = ClientSession()
     try:
-        async def up():
-            try:
-                async with http.get(f"http://127.0.0.1:{CORE_PORT}/health") as r:
-                    return r.status == 200
-            except Exception:
-                return False
-        for _ in range(150):
-            if await up():
-                break
-            await asyncio.sleep(0.1)
-        procs.append(subprocess.Popen(
-            [PY, "-m", "app.main"], cwd=ROOT / "gateway", stdout=out, stderr=out,
-            env={**shared, "PORT": str(GW_PORT), "CORE_URL": f"http://127.0.0.1:{CORE_PORT}",
-                 "MASTER_BOT_TOKEN": MASTER_TOKEN, "MASTER_WEBHOOK_SECRET": "msecret",
-                 "TELEGRAM_API_ROOT": f"http://127.0.0.1:{TG_PORT}"}))
         await until(lambda: any(c["method"] == "setWebhook" and str(c["params"].get("url", "")).endswith("/tg/master")
                                 for c in calls), "master webhook")
+        for _ in range(150):  # webhooks are set during startup, before the server listens
+            try:
+                async with http.get(f"http://127.0.0.1:{PORT}/health") as r:
+                    if r.status == 200:
+                        break
+            except Exception:
+                await asyncio.sleep(0.1)
 
         async def send(path, secret, update, expect=200):
             global update_id
             update_id += 1
-            async with http.post(f"http://127.0.0.1:{GW_PORT}{path}", json={"update_id": update_id, **update},
+            async with http.post(f"http://127.0.0.1:{PORT}{path}", json={"update_id": update_id, **update},
                                  headers={"X-Telegram-Bot-Api-Secret-Token": secret}) as r:
                 assert r.status == expect, f"{path} -> {r.status}"
 
@@ -212,7 +205,7 @@ async def main():
 
         # 4. SePay confirms
         sepay_headers = {"Authorization": f"Apikey {api_key}"}
-        async with http.post(f"http://127.0.0.1:{CORE_PORT}/sepay/1", headers=sepay_headers, json={
+        async with http.post(f"http://127.0.0.1:{PORT}/sepay/1", headers=sepay_headers, json={
                 "id": 1, "gateway": "MBBank", "transferType": "in", "transferAmount": 400000,
                 "content": f"CT {code} FT2611"}) as r:
             assert await r.json() == {"success": True}
@@ -222,7 +215,7 @@ async def main():
         # 5. status, an unmatched transfer, assign it
         await T(text_update(MEMBER, "/status"))
         await wait_sent(lambda c: to(MEMBER, r"Paid \(2\)")(c) and "Cường: 200,000đ" in c["params"]["text"], "status")
-        async with http.post(f"http://127.0.0.1:{CORE_PORT}/sepay/1", headers=sepay_headers, json={
+        async with http.post(f"http://127.0.0.1:{PORT}/sepay/1", headers=sepay_headers, json={
                 "id": 2, "transferType": "in", "transferAmount": 200000, "content": "cuong dong quy"}):
             pass
         um = await wait_sent(to(OWNER, "needs checking"), "unmatched card")
@@ -264,7 +257,10 @@ async def main():
         for p in procs:
             p.terminate()
         for p in procs:
-            p.wait(timeout=10)
+            try:
+                p.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                p.kill()
         await runner.cleanup()
         shutil.rmtree(tmp, ignore_errors=True)
 

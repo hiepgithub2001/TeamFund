@@ -11,21 +11,14 @@
 		}
 	}
 
-	# Telegram updates for the master bot and every team bot
-	handle /tg/* {
-		reverse_proxy gateway:3000
+	# Telegram updates for the master bot and every team bot,
+	# SePay webhooks (one URL per team), and the health check
+	@public path /tg/* /sepay/* /health
+	handle @public {
+		reverse_proxy app:8000
 	}
 
-	# SePay webhooks, one URL per team
-	handle /sepay/* {
-		reverse_proxy core:8000
-	}
-
-	handle /health {
-		respond "ok" 200
-	}
-
-	# Nothing else is public. The core API and the gateway's internal routes stay inside Docker.
+	# Nothing else is public.
 	handle {
 		respond 404
 	}

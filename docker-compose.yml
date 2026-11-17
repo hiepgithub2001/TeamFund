@@ -1,17 +1,5 @@
 name: teamfund
 
-x-core: &core
-  build: ./core
-  restart: unless-stopped
-  env_file: .env
-  environment:
-    DATABASE_URL: postgresql+psycopg://teamfund:${POSTGRES_PASSWORD}@db:5432/teamfund
-    GATEWAY_URL: http://gateway:3000
-    PUBLIC_URL: https://${PUBLIC_HOST}
-  depends_on:
-    db:
-      condition: service_healthy
-
 services:
   db:
     image: postgres:16-alpine
@@ -28,22 +16,17 @@ services:
       timeout: 3s
       retries: 20
 
-  core:
-    <<: *core
-
-  scheduler:
-    <<: *core
-    command: ["python", "-m", "app.scheduler"]
-
-  gateway:
-    build: ./gateway
+  # The whole application: domain layer, Telegram bots, webhooks and scheduled jobs.
+  app:
+    build: ./server
     restart: unless-stopped
     env_file: .env
     environment:
-      CORE_URL: http://core:8000
+      DATABASE_URL: postgresql+psycopg://teamfund:${POSTGRES_PASSWORD}@db:5432/teamfund
       PUBLIC_URL: https://${PUBLIC_HOST}
     depends_on:
-      - core
+      db:
+        condition: service_healthy
 
   caddy:
     image: caddy:2.8.4
@@ -57,8 +40,7 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - core
-      - gateway
+      - app
 
 volumes:
   db_data:

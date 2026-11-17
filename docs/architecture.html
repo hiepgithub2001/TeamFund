@@ -89,16 +89,16 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
 <body>
 <div class="wrap">
 <header>
-  <span class="eyebrow">System design · v4 · all Python</span>
+  <span class="eyebrow">System design · v5 · one server</span>
   <h1>Team Fund Bot</h1>
-  <p class="lead">Every team gets its own Telegram bot for collecting the monthly fee. A master bot registers new teams. Members open their team's bot, tap whose fee they are paying, scan a SePay QR, and the payment confirms itself. One server runs the master bot and every team bot. Every service is written in Python.</p>
+  <p class="lead">Every team gets its own Telegram bot for collecting the monthly fee. A master bot registers new teams. Members open their team's bot, tap whose fee they are paying, scan a SePay QR, and the payment confirms itself. One Python server runs the master bot, every team bot and the webhooks. Its business rules live in a domain layer that the bot and HTTP controllers share.</p>
 </header>
 
 <section>
   <h2>System overview</h2>
   <figure>
     <div class="frame">
-    <svg viewBox="0 0 1040 590" role="img" aria-label="The owner creates bots in BotFather and registers a team bot with the master bot. Members and the team group use the team bots. All bots send updates through Telegram's Bot API to Caddy on the VPS, which routes master and team bot updates to separate handlers in the Python gateway and SePay webhooks to the Python core API. The core API owns PostgreSQL, the team registry and the role checks.">
+    <svg viewBox="0 0 1040 590" role="img" aria-label="The owner creates bots in BotFather and registers a team bot with the master bot. Members and the team group use the team bots. All bots send updates through Telegram's Bot API to Caddy on the VPS, which passes them and SePay webhooks to one app process. Inside it, the api and bot controllers and the scheduled jobs call the domain layer, which holds every business rule and uses the models to reach PostgreSQL.">
       <defs>
         <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="head-fg"/></marker>
         <marker id="am" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="head-m"/></marker>
@@ -168,63 +168,66 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <text class="s" x="520" y="214" text-anchor="middle">HTTPS :443</text>
       <text class="s" x="520" y="229" text-anchor="middle">routes by path</text>
 
-      <rect class="box tg" x="660" y="40" width="200" height="150" rx="8"/>
-      <text class="t" x="760" y="62" text-anchor="middle">Bot Gateway · Python</text>
-      <rect class="box in" x="675" y="76" width="170" height="44" rx="6"/>
-      <text class="t" x="760" y="95" text-anchor="middle">Master handler</text>
-      <text class="s" x="760" y="111" text-anchor="middle">/newteam, /myteams</text>
-      <rect class="box in" x="675" y="129" width="170" height="48" rx="6"/>
-      <text class="t" x="760" y="149" text-anchor="middle">Team handler × N</text>
-      <text class="s" x="760" y="166" text-anchor="middle">pay, members, roles</text>
+      <rect class="zone tg" x="640" y="40" width="365" height="345" rx="10"/>
+      <text class="lb z" x="656" y="58">APP · ONE PYTHON PROCESS</text>
 
-      <rect class="box" x="885" y="70" width="120" height="56" rx="8"/>
-      <text class="t" x="945" y="94" text-anchor="middle">.env</text>
-      <text class="s" x="945" y="111" text-anchor="middle">MASTER_BOT_TOKEN</text>
+      <rect class="box in" x="655" y="68" width="335" height="48" rx="6"/>
+      <text class="t" x="822" y="88" text-anchor="middle">api/ · HTTP controllers</text>
+      <text class="s" x="822" y="106" text-anchor="middle">/tg/master · /tg/{bot} · /sepay/{team}</text>
 
-      <rect class="box" x="660" y="260" width="200" height="120" rx="8"/>
-      <text class="t" x="760" y="286" text-anchor="middle">Core API · Python</text>
-      <text class="s" x="760" y="306" text-anchor="middle">team registry + bot tokens</text>
-      <text class="s" x="760" y="322" text-anchor="middle">roles: require_role()</text>
-      <text class="s" x="760" y="338" text-anchor="middle">bills, intents, SePay match</text>
-      <text class="s" x="760" y="354" text-anchor="middle">audit log, export</text>
+      <rect class="box tg" x="655" y="145" width="160" height="60" rx="6"/>
+      <text class="t" x="735" y="166" text-anchor="middle">bot/ · Telegram</text>
+      <text class="s" x="735" y="183" text-anchor="middle">master + team bots</text>
+      <text class="s" x="735" y="198" text-anchor="middle">menus, EN/VI texts</text>
 
-      <rect class="box" x="885" y="275" width="120" height="90" rx="8"/>
-      <text class="t" x="945" y="305" text-anchor="middle">Scheduler</text>
-      <text class="s" x="945" y="323" text-anchor="middle">Python</text>
-      <text class="s" x="945" y="339" text-anchor="middle">bills, reminders</text>
+      <rect class="box" x="830" y="145" width="160" height="60" rx="6"/>
+      <text class="t" x="910" y="166" text-anchor="middle">jobs.py · clock</text>
+      <text class="s" x="910" y="183" text-anchor="middle">bills, reminders,</text>
+      <text class="s" x="910" y="198" text-anchor="middle">month-end report</text>
+
+      <rect class="box hot" x="655" y="235" width="335" height="74" rx="6"/>
+      <text class="t" x="822" y="256" text-anchor="middle">domain/ · business rules</text>
+      <text class="s" x="822" y="273" text-anchor="middle">access: owner / manager checks</text>
+      <text class="s" x="822" y="288" text-anchor="middle">teams · members · money · billing</text>
+      <text class="s" x="822" y="303" text-anchor="middle">SePay matching · audit log</text>
+
+      <rect class="box" x="655" y="325" width="335" height="48" rx="6"/>
+      <text class="t" x="822" y="345" text-anchor="middle">models.py · SQLAlchemy</text>
+      <text class="s" x="822" y="362" text-anchor="middle">team registry, encrypted bot tokens</text>
 
       <rect class="box" x="660" y="470" width="200" height="70" rx="8"/>
       <text class="t" x="760" y="500" text-anchor="middle">PostgreSQL</text>
       <text class="s" x="760" y="518" text-anchor="middle">teams, admins, bills, tx, audit</text>
 
+      <rect class="box" x="885" y="470" width="120" height="56" rx="8"/>
+      <text class="t" x="945" y="494" text-anchor="middle">.env</text>
+      <text class="s" x="945" y="511" text-anchor="middle">tokens, keys</text>
+
       <!-- telegram <-> vps -->
       <line class="ln" x1="402" y1="250" x2="462" y2="250" marker-end="url(#a)"/>
       <text class="lb" x="432" y="243" text-anchor="middle">updates</text>
-      <line class="ln" x1="658" y1="48" x2="403" y2="48" marker-end="url(#a)"/>
-      <text class="lb" x="530" y="41" text-anchor="middle">sendMessage, setWebhook</text>
+      <polyline class="ln" points="700,38 700,32 403,32" marker-end="url(#a)"/>
+      <text class="lb" x="540" y="46" text-anchor="middle">sendMessage, setWebhook</text>
 
-      <line class="ln" x1="577" y1="98" x2="672" y2="98" marker-end="url(#a)"/>
-      <text class="lb" x="624" y="91" text-anchor="middle">/tg/master</text>
-      <line class="ln" x1="577" y1="153" x2="672" y2="153" marker-end="url(#a)"/>
-      <text class="lb" x="624" y="146" text-anchor="middle">/tg/{bot}</text>
-      <line class="ln m" x1="577" y1="330" x2="657" y2="330" marker-end="url(#am)"/>
-      <text class="lb m" x="617" y="323" text-anchor="middle">/sepay/*</text>
+      <line class="ln" x1="577" y1="86" x2="652" y2="86" marker-end="url(#a)"/>
+      <text class="lb" x="614" y="79" text-anchor="middle">/tg/*</text>
+      <line class="ln m" x1="577" y1="104" x2="652" y2="104" marker-end="url(#am)"/>
+      <text class="lb m" x="614" y="120" text-anchor="middle">/sepay/*</text>
 
-      <line class="ln" x1="883" y1="98" x2="848" y2="98" marker-end="url(#a)"/>
-      <text class="lb" x="866" y="91" text-anchor="middle">boot</text>
-
-      <!-- gateway <-> core -->
-      <line class="ln" x1="720" y1="192" x2="720" y2="257" marker-end="url(#a)"/>
-      <text class="lb" x="712" y="220" text-anchor="end">register team,</text>
-      <text class="lb" x="712" y="234" text-anchor="end">role check, bills</text>
-      <line class="ln m" x1="800" y1="258" x2="800" y2="193" marker-end="url(#am)"/>
-      <text class="lb m" x="808" y="220">notify paid,</text>
-      <text class="lb m" x="808" y="234">team tokens</text>
-
-      <line class="ln" x1="883" y1="320" x2="863" y2="320" marker-end="url(#a)"/>
-      <text class="lb" x="873" y="312" text-anchor="middle">jobs</text>
-      <line class="ln" x1="760" y1="382" x2="760" y2="467" marker-start="url(#a)" marker-end="url(#a)"/>
+      <!-- inside the app -->
+      <line class="ln" x1="735" y1="118" x2="735" y2="142" marker-end="url(#a)"/>
+      <text class="lb" x="741" y="135">updates</text>
+      <line class="ln m" x1="822" y1="118" x2="822" y2="232" marker-end="url(#am)"/>
+      <line class="ln" x1="700" y1="207" x2="700" y2="232" marker-end="url(#a)"/>
+      <text class="lb" x="706" y="224">calls</text>
+      <line class="ln m" x1="785" y1="233" x2="785" y2="208" marker-end="url(#am)"/>
+      <line class="ln" x1="910" y1="207" x2="910" y2="232" marker-end="url(#a)"/>
+      <text class="lb" x="916" y="224">calls</text>
+      <line class="ln" x1="822" y1="311" x2="822" y2="322" marker-end="url(#a)"/>
+      <line class="ln" x1="760" y1="375" x2="760" y2="467" marker-start="url(#a)" marker-end="url(#a)"/>
       <text class="lb" x="768" y="428">SQL</text>
+      <line class="ln" x1="945" y1="468" x2="945" y2="388" marker-end="url(#a)"/>
+      <text class="lb" x="953" y="430">settings</text>
 
       <!-- sepay -> vps -->
       <polyline class="ln m" points="384,498 520,498 520,363" marker-end="url(#am)"/>
@@ -232,10 +235,10 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
     </svg>
     </div>
     <div class="legend">
-      <span><i class="sw"></i>Telegram traffic and internal calls</span>
+      <span><i class="sw"></i>Telegram traffic and calls inside the app</span>
       <span><i class="sw m"></i>Money path: transfer to confirmation</span>
     </div>
-    <figcaption>The master bot's token is set once in <code>.env</code>. Team bot tokens come from owners through <code>/newteam</code>, are stored encrypted by the Core API, and are loaded by the gateway when it starts. Caddy sends each bot's updates to its own path, so the gateway knows which team a message belongs to. Only the Core API writes to PostgreSQL, and it runs the role check for every manager action. The public address is <code>teamfund.103-90-225-28.sslip.io</code>. The existing nginx keeps port 80, so Caddy gets its certificate on port 443.</figcaption>
+    <figcaption>The master bot's token is set once in <code>.env</code>. Team bot tokens come from owners through <code>/newteam</code> and are stored encrypted. Inside the one app process, the controllers only translate input and output: <code>api/</code> for HTTP, <code>bot/</code> for Telegram, <code>jobs.py</code> for the clock. Every rule, from who may change the bank account to how a transfer is matched to bills, is in <code>domain/</code>, so the bots, the webhooks and the jobs all share one implementation. The amber arrows are the money path: a SePay webhook enters through <code>api/</code>, is matched in <code>domain/</code>, and the resulting event goes to <code>bot/</code> for the receipt and group post. The public address is <code>teamfund.103-90-225-28.sslip.io</code>; the existing nginx keeps port 80, so Caddy gets its certificate on 443.</figcaption>
   </figure>
 </section>
 
@@ -245,7 +248,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
   <ol class="steps">
     <li><span><b>Create it in @BotFather</b> with <code>/newbot</code>, e.g. <code>@TeamFundSetupBot</code>. Turn off <code>/setjoingroups</code> so it only works in private chats.</span></li>
     <li><span><b>Put the token in <code>.env</code></b> as <code>MASTER_BOT_TOKEN</code>, with your Telegram ID in <code>MASTER_ADMIN_IDS</code>.</span></li>
-    <li><span><b>Start the server.</b> The gateway sets the master bot's webhook to <code>/tg/master</code>.</span></li>
+    <li><span><b>Start the server.</b> The app sets the master bot's webhook to <code>/tg/master</code>.</span></li>
   </ol>
   <h3 class="sub">Per team, by its owner</h3>
   <ol class="steps">
@@ -264,14 +267,14 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
   <p>No one signs in. Whoever opens the team bot sees this month's unpaid list and taps the names they are paying for, usually just their own.</p>
   <figure>
     <div class="frame">
-    <svg viewBox="0 0 940 600" role="img" aria-label="Sequence: a member starts the bot, selects names, receives a SePay QR with a unique code, transfers money, SePay sends a webhook to the Core API, which matches the code and amount, marks the bills paid, and the bot sends a receipt and posts to the group.">
+    <svg viewBox="0 0 940 600" role="img" aria-label="Sequence: a member starts the bot, selects names, receives a SePay QR with a unique code, transfers money, SePay sends a webhook to the server, whose domain layer matches the code and amount, marks the bills paid, and the bot sends a receipt and posts to the group.">
       <defs>
         <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-fg"/></marker>
         <marker id="bm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-m"/></marker>
       </defs>
       <rect class="box" x="15" y="16" width="130" height="40" rx="8"/><text class="t" x="80" y="41" text-anchor="middle">Member</text>
       <rect class="box tg" x="205" y="16" width="130" height="40" rx="8"/><text class="t" x="270" y="41" text-anchor="middle">Team bot</text>
-      <rect class="box" x="395" y="16" width="130" height="40" rx="8"/><text class="t" x="460" y="41" text-anchor="middle">Core API</text>
+      <rect class="box" x="395" y="16" width="130" height="40" rx="8"/><text class="t" x="460" y="41" text-anchor="middle">Domain layer</text>
       <rect class="box mo" x="585" y="16" width="130" height="40" rx="8"/><text class="t" x="650" y="41" text-anchor="middle">Bank</text>
       <rect class="box mo" x="775" y="16" width="130" height="40" rx="8"/><text class="t" x="840" y="41" text-anchor="middle">SePay</text>
       <line class="life" x1="80" y1="56" x2="80" y2="585"/>
@@ -318,7 +321,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
 
 <section>
   <h2>Roles in a team bot</h2>
-  <p>Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID comes with every message and button tap and can't be faked, so the Core API checks it before every manager action.</p>
+  <p>Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID comes with every message and button tap and can't be faked, so the domain layer checks it before every manager action.</p>
   <div class="tbl">
   <table>
     <thead><tr><th>Role</th><th>Who</th><th>Can do</th></tr></thead>
@@ -333,13 +336,13 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
   <h3 class="sub">Becoming a manager: request and approve</h3>
   <figure>
     <div class="frame">
-    <svg viewBox="0 0 860 400" role="img" aria-label="Sequence: a person sends /requestmanager to the team bot, the Core API records the request and the bot sends the owner a card with Approve and Reject buttons. When the owner taps Approve, the Core API checks that the tapper is the owner, adds the manager role and writes the audit log, then the bot tells the person and posts to the group.">
+    <svg viewBox="0 0 860 400" role="img" aria-label="Sequence: a person sends /requestmanager to the team bot, the domain layer records the request and the bot sends the owner a card with Approve and Reject buttons. When the owner taps Approve, the domain layer checks that the tapper is the owner, adds the manager role and writes the audit log, then the bot tells the person and posts to the group.">
       <defs>
         <marker id="c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-fg"/></marker>
       </defs>
       <rect class="box" x="25" y="16" width="130" height="40" rx="8"/><text class="t" x="90" y="41" text-anchor="middle">Person</text>
       <rect class="box tg" x="235" y="16" width="130" height="40" rx="8"/><text class="t" x="300" y="41" text-anchor="middle">Team bot</text>
-      <rect class="box" x="445" y="16" width="130" height="40" rx="8"/><text class="t" x="510" y="41" text-anchor="middle">Core API</text>
+      <rect class="box" x="445" y="16" width="130" height="40" rx="8"/><text class="t" x="510" y="41" text-anchor="middle">Domain layer</text>
       <rect class="box" x="655" y="16" width="130" height="40" rx="8"/><text class="t" x="720" y="41" text-anchor="middle">Owner</text>
       <line class="life" x1="90" y1="56" x2="90" y2="385"/>
       <line class="life" x1="300" y1="56" x2="300" y2="385"/>
@@ -378,16 +381,18 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
 </section>
 
 <section>
-  <h2>Who runs what</h2>
+  <h2>Layers</h2>
+  <p>One process, three kinds of controller over one domain layer. A controller never contains a business rule; it calls the domain and renders the answer.</p>
   <div class="tbl">
   <table>
-    <thead><tr><th>Service</th><th>Language</th><th>Responsible for</th></tr></thead>
+    <thead><tr><th>Layer</th><th>Built with</th><th>Responsible for</th></tr></thead>
     <tbody>
-      <tr><td>Bot Gateway</td><td>Python, aiogram 3, aiohttp</td><td>One process for the master bot and every team bot. Menus, buttons, EN/VI text, per-role command menus, QR images and receipts</td></tr>
-      <tr><td>Core API</td><td>Python, FastAPI, SQLAlchemy</td><td>Team registry and encrypted bot tokens, roles and manager requests, members, fees, bills, payment intents, SePay webhook and matching, audit log, Excel export</td></tr>
-      <tr><td>Scheduler</td><td>Python, APScheduler</td><td>Creates bills on the 1st, posts reminders to each group, sends month-end reports, expires old requests and intents</td></tr>
-      <tr><td>PostgreSQL</td><td>16</td><td>The only data store, written only by the Core API</td></tr>
-      <tr><td>Caddy</td><td>—</td><td>Automatic HTTPS on port 443. Routes <code>/tg/master</code> and <code>/tg/{botId}</code> to the gateway and <code>/sepay/{teamId}</code> to the core</td></tr>
+      <tr><td>api/</td><td>FastAPI</td><td>Telegram webhooks, one per bot, checked by secret token. The SePay webhook, checked by the team's API key. Turns each request into domain calls.</td></tr>
+      <tr><td>bot/</td><td>aiogram 3</td><td>The master bot and every team bot: commands, buttons, EN/VI texts, per-role command menus, QR images, receipts and group posts. Calls the domain through <code>bot/run.py</code>, which gives each call its own database session in a worker thread.</td></tr>
+      <tr><td>jobs.py</td><td>APScheduler</td><td>Monthly bills, group reminders, the month-end report, expiring old requests and payment intents. Runs inside the app, so it needs one uvicorn worker.</td></tr>
+      <tr><td>domain/</td><td>plain Python</td><td>Every business rule: who may do what (<code>access</code>), team registration, team settings and managers (<code>teams</code>), the roster (<code>members</code>), paying, cash, charges, expenses and reports (<code>money</code>), bills and SePay matching (<code>billing</code>), audit log, Excel export.</td></tr>
+      <tr><td>models.py</td><td>SQLAlchemy 2</td><td>The tables. PostgreSQL 16 in production, SQLite in tests.</td></tr>
+      <tr><td>Caddy</td><td>Caddy 2</td><td>HTTPS on port 443; passes <code>/tg/*</code>, <code>/sepay/*</code> and <code>/health</code> to the app, everything else gets 404.</td></tr>
     </tbody>
   </table>
   </div>
@@ -398,7 +403,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
   <p>Everything runs on the one VPS with Docker Compose. Only port 443 is added to the internet. The services that were already on the server (nginx on 80, the app on 8000, the host Postgres, Tailscale) are left alone.</p>
   <figure>
     <div class="frame">
-    <svg viewBox="0 0 1200 860" role="img" aria-label="Deployment: the sslip.io hostname resolves to 103.90.225.28. Telegram, SePay and Let's Encrypt reach port 443, where Docker forwards to the Caddy container. Caddy routes /tg to the gateway container and /sepay to the core container. Gateway and core talk over the internal Docker network; core and scheduler use the Postgres container, whose data lives in the db_data volume. The gateway calls api.telegram.org outbound. The project folder on the host holds .env, the Caddyfile, the source used for docker build, and the deploy and backup scripts, and syncs with GitHub over SSH.">
+    <svg viewBox="0 0 1200 860" role="img" aria-label="Deployment: the sslip.io hostname resolves to 103.90.225.28. Telegram, SePay and Let's Encrypt reach port 443, where Docker forwards to the Caddy container. Caddy passes /tg and /sepay to the app container over the internal Docker network. The app, which holds the bots, the webhooks, the scheduled jobs and the domain layer, uses the Postgres container, whose data lives in the db_data volume. The app calls api.telegram.org outbound. The project folder on the host holds .env, the Caddyfile, the source used for docker build, and the deploy and backup scripts, and syncs with GitHub over SSH.">
       <defs>
         <marker id="d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="head-fg"/></marker>
         <marker id="dm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="head-m"/></marker>
@@ -486,33 +491,31 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <text class="t" x="605" y="292" text-anchor="middle">caddy</text>
       <text class="s" x="605" y="309" text-anchor="middle">caddy:2.8.4</text>
       <text class="s" x="605" y="325" text-anchor="middle">TLS termination, HTTP/2</text>
-      <text class="s" x="605" y="341" text-anchor="middle">/tg/* → gateway:3000</text>
-      <text class="s" x="605" y="357" text-anchor="middle">/sepay/* → core:8000</text>
+      <text class="s" x="605" y="341" text-anchor="middle">/tg/* → app:8000</text>
+      <text class="s" x="605" y="357" text-anchor="middle">/sepay/* → app:8000</text>
       <text class="s" x="605" y="373" text-anchor="middle">/health → ok, else 404</text>
 
-      <rect class="box tg" x="760" y="90" width="192" height="122" rx="8"/>
-      <text class="t" x="856" y="112" text-anchor="middle">gateway</text>
-      <text class="s" x="856" y="129" text-anchor="middle">python:3.12-slim · :3000</text>
-      <text class="s" x="856" y="145" text-anchor="middle">aiogram: master + team bots</text>
-      <text class="s" x="856" y="161" text-anchor="middle">/tg/master, /tg/{botId}</text>
-      <text class="s" x="856" y="177" text-anchor="middle">/internal/events (key)</text>
-      <text class="s" x="856" y="193" text-anchor="middle">aiohttp, runs as user app</text>
-
-      <rect class="box" x="760" y="300" width="192" height="122" rx="8"/>
-      <text class="t" x="856" y="322" text-anchor="middle">core</text>
-      <text class="s" x="856" y="339" text-anchor="middle">python:3.12-slim</text>
-      <text class="s" x="856" y="355" text-anchor="middle">uvicorn + FastAPI :8000</text>
-      <text class="s" x="856" y="371" text-anchor="middle">/api/* needs internal key</text>
-      <text class="s" x="856" y="387" text-anchor="middle">/sepay/{teamId} needs Apikey</text>
-      <text class="s" x="856" y="403" text-anchor="middle">creates tables at start</text>
-
-      <rect class="box" x="990" y="300" width="150" height="122" rx="8"/>
-      <text class="t" x="1065" y="322" text-anchor="middle">scheduler</text>
-      <text class="s" x="1065" y="339" text-anchor="middle">same image as core</text>
-      <text class="s" x="1065" y="355" text-anchor="middle">python -m app.scheduler</text>
-      <text class="s" x="1065" y="371" text-anchor="middle">:05 hourly · bills</text>
-      <text class="s" x="1065" y="387" text-anchor="middle">09:00 · reminders</text>
-      <text class="s" x="1065" y="403" text-anchor="middle">20:00 · month report</text>
+      <rect class="box tg" x="760" y="90" width="380" height="332" rx="8"/>
+      <text class="t" x="950" y="112" text-anchor="middle">app</text>
+      <text class="s" x="950" y="129" text-anchor="middle">./server · python:3.12-slim · uvicorn :8000 · 1 worker</text>
+      <rect class="box in" x="776" y="144" width="348" height="46" rx="6"/>
+      <text class="t" x="950" y="163" text-anchor="middle">api/ · HTTP controllers</text>
+      <text class="s" x="950" y="180" text-anchor="middle">/tg/master · /tg/{botId} · /sepay/{teamId}</text>
+      <rect class="box in" x="776" y="204" width="168" height="62" rx="6"/>
+      <text class="t" x="860" y="224" text-anchor="middle">bot/</text>
+      <text class="s" x="860" y="241" text-anchor="middle">aiogram: master +</text>
+      <text class="s" x="860" y="256" text-anchor="middle">team bots, EN/VI</text>
+      <rect class="box in" x="956" y="204" width="168" height="62" rx="6"/>
+      <text class="t" x="1040" y="224" text-anchor="middle">jobs.py</text>
+      <text class="s" x="1040" y="241" text-anchor="middle">APScheduler in-process</text>
+      <text class="s" x="1040" y="256" text-anchor="middle">:05 bills · 09:00 · 20:00</text>
+      <rect class="box hot" x="776" y="280" width="348" height="62" rx="6"/>
+      <text class="t" x="950" y="300" text-anchor="middle">domain/ · business rules</text>
+      <text class="s" x="950" y="317" text-anchor="middle">access · teams · members · money · billing</text>
+      <text class="s" x="950" y="332" text-anchor="middle">SePay matching · audit log · export</text>
+      <rect class="box file" x="776" y="356" width="348" height="52" rx="6"/>
+      <text class="t" x="950" y="376" text-anchor="middle">models.py · SQLAlchemy</text>
+      <text class="s" x="950" y="394" text-anchor="middle">creates tables at start · runs as user app</text>
 
       <rect class="box" x="760" y="500" width="192" height="80" rx="8"/>
       <text class="t" x="856" y="524" text-anchor="middle">db</text>
@@ -544,20 +547,15 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <text class="lb tgc" x="620" y="105" text-anchor="middle">outbound HTTPS: sendMessage, sendPhoto, setWebhook</text>
 
       <!-- inside docker -->
-      <polyline class="ln tg" points="692,300 725,300 725,150 757,150" marker-end="url(#dt)"/>
+      <polyline class="ln tg" points="692,300 725,300 725,160 773,160" marker-end="url(#dt)"/>
       <text class="lb tgc" x="719" y="225" text-anchor="end">/tg/*</text>
-      <line class="ln m" x1="692" y1="355" x2="757" y2="355" marker-end="url(#dm)"/>
-      <text class="lb m" x="724" y="348" text-anchor="middle">/sepay/*</text>
-
-      <line class="ln" x1="820" y1="214" x2="820" y2="297" marker-end="url(#d)"/>
-      <text class="lb" x="814" y="262" text-anchor="end">REST /api/*</text>
-      <line class="ln m" x1="890" y1="298" x2="890" y2="215" marker-end="url(#dm)"/>
-      <text class="lb m" x="896" y="262">events</text>
-
-      <polyline class="ln" points="1065,298 1065,151 955,151" marker-end="url(#d)"/>
-      <text class="lb" x="1071" y="225">events</text>
-      <polyline class="ln" points="1065,424 1065,540 955,540" marker-end="url(#d)"/>
-      <text class="lb" x="1071" y="485">SQL</text>
+      <polyline class="ln m" points="692,355 742,355 742,178 773,178" marker-end="url(#dm)"/>
+      <text class="lb m" x="700" y="374">/sepay/*</text>
+      <line class="ln" x1="860" y1="192" x2="860" y2="202" marker-end="url(#d)"/>
+      <line class="ln m" x1="950" y1="192" x2="950" y2="278" marker-end="url(#dm)"/>
+      <line class="ln" x1="860" y1="268" x2="860" y2="278" marker-end="url(#d)"/>
+      <line class="ln" x1="1040" y1="268" x2="1040" y2="278" marker-end="url(#d)"/>
+      <line class="ln" x1="950" y1="344" x2="950" y2="354" marker-end="url(#d)"/>
       <line class="ln" x1="856" y1="424" x2="856" y2="497" marker-start="url(#d)" marker-end="url(#d)"/>
       <text class="lb" x="864" y="465">SQL (psycopg)</text>
 
@@ -579,8 +577,8 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <text class="t" x="759" y="781" text-anchor="middle">Caddyfile</text>
       <text class="s" x="759" y="799" text-anchor="middle">hostname, routes, TLS</text>
       <rect class="box file" x="848" y="758" width="150" height="56" rx="6"/>
-      <text class="t" x="923" y="781" text-anchor="middle">core/ · gateway/</text>
-      <text class="s" x="923" y="799" text-anchor="middle">code + Dockerfiles</text>
+      <text class="t" x="923" y="781" text-anchor="middle">server/</text>
+      <text class="s" x="923" y="799" text-anchor="middle">code + Dockerfile</text>
       <rect class="box file" x="1012" y="758" width="138" height="56" rx="6"/>
       <text class="t" x="1081" y="781" text-anchor="middle">scripts/backup.sh</text>
       <text class="s" x="1081" y="799" text-anchor="middle">pg_dump → ~/backups</text>
@@ -601,7 +599,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <span><i class="sw"></i>Other traffic, mounts, builds</span>
       <span><i class="sw" style="border-top:2px dashed var(--line)"></i>Already on the server, not part of Team Fund</span>
     </div>
-    <figcaption>Requests from Telegram, SePay and Let's Encrypt arrive on port 443 and Docker forwards them to Caddy. Caddy holds the certificate and passes <code>/tg/*</code> to the gateway and <code>/sepay/*</code> to the core over the private Docker network; nothing else is public. Containers find each other by name (<code>gateway</code>, <code>core</code>, <code>db</code>). All state lives in three named volumes, so rebuilding or recreating containers loses nothing.</figcaption>
+    <figcaption>Requests from Telegram, SePay and Let's Encrypt arrive on port 443 and Docker forwards them to Caddy. Caddy holds the certificate and passes <code>/tg/*</code> and <code>/sepay/*</code> to the app over the private Docker network; nothing else is public. The app is the only code container: three containers in total. All state lives in three named volumes, so rebuilding or recreating containers loses nothing.</figcaption>
   </figure>
 </section>
 
@@ -610,7 +608,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
   <p>The code goes to GitHub first, then the VPS pulls it and Compose rebuilds only what changed.</p>
   <figure>
     <div class="frame">
-    <svg viewBox="0 0 1060 470" role="img" aria-label="Deploy pipeline in four lanes: change and test the code, commit, push to GitHub over SSH, on the VPS run deploy.sh which pulls main and runs docker compose build, then compose up recreates changed containers, the gateway reconnects every bot's webhook, and the script checks the public health URL. A rollback runs deploy.sh with an older commit.">
+    <svg viewBox="0 0 1060 470" role="img" aria-label="Deploy pipeline in four lanes: change and test the code, commit, push to GitHub over SSH, on the VPS run deploy.sh which pulls main and runs docker compose build, then compose up recreates changed containers, the app reconnects every bot's webhook, and the script checks the public health URL. A rollback runs deploy.sh with an older commit.">
       <defs>
         <marker id="p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-fg"/></marker>
       </defs>
@@ -647,8 +645,8 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <text class="s" x="925" y="359" text-anchor="middle">recreates changed</text>
       <text class="s" x="925" y="374" text-anchor="middle">containers; volumes kept</text>
       <rect class="box tg" x="680" y="318" width="150" height="70" rx="8"/>
-      <text class="t" x="755" y="341" text-anchor="middle">7 · gateway boots</text>
-      <text class="s" x="755" y="359" text-anchor="middle">loads bots from core,</text>
+      <text class="t" x="755" y="341" text-anchor="middle">7 · app boots</text>
+      <text class="s" x="755" y="359" text-anchor="middle">loads bots, jobs start,</text>
       <text class="s" x="755" y="374" text-anchor="middle">setWebhook for each</text>
       <rect class="box" x="510" y="318" width="150" height="70" rx="8"/>
       <text class="t" x="585" y="341" text-anchor="middle">8 · health check</text>
@@ -662,10 +660,10 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <rect class="box file" x="170" y="318" width="300" height="130" rx="8"/>
       <text class="t" x="186" y="340">Start order inside Compose</text>
       <text class="s" x="186" y="360">db → healthy (pg_isready)</text>
-      <text class="s" x="186" y="377">core, scheduler → create tables, start</text>
-      <text class="s" x="186" y="394">gateway → waits for core, loads bots</text>
+      <text class="s" x="186" y="377">app → create tables, start bots + jobs</text>
+      <text class="s" x="186" y="394">app → setWebhook for every bot</text>
       <text class="s" x="186" y="411">caddy → certificate on first start</text>
-      <text class="s" x="186" y="428">restart: unless-stopped on all five</text>
+      <text class="s" x="186" y="428">restart: unless-stopped on all three</text>
 
       <line class="ln" x1="322" y1="60" x2="337" y2="60" marker-end="url(#p)"/>
       <polyline class="ln" points="415,90 415,150 507,150" marker-end="url(#p)"/>
@@ -692,9 +690,8 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
     <tbody>
       <tr><td>443/tcp</td><td>host → caddy</td><td>Internet</td><td>Telegram webhooks, SePay webhooks, Let's Encrypt challenge, <code>/health</code></td></tr>
       <tr><td>22/tcp</td><td>host sshd</td><td>Internet</td><td>Admin login. Git to GitHub goes outbound on 22.</td></tr>
-      <tr><td>3000</td><td>gateway container</td><td>Docker network only</td><td>Bot webhooks (via Caddy) and <code>/internal/events</code> from core and scheduler</td></tr>
-      <tr><td>8000</td><td>core container</td><td>Docker network only</td><td><code>/api/*</code> for the gateway, <code>/sepay/*</code> via Caddy. Not the host's own port 8000.</td></tr>
-      <tr><td>5432</td><td>db container</td><td>Docker network only</td><td>PostgreSQL for core and scheduler. Not the host's own Postgres.</td></tr>
+      <tr><td>8000</td><td>app container</td><td>Docker network only</td><td>Telegram and SePay webhooks, via Caddy. Not the host's own port 8000.</td></tr>
+      <tr><td>5432</td><td>db container</td><td>Docker network only</td><td>PostgreSQL for the app. Not the host's own Postgres.</td></tr>
       <tr><td>80/tcp</td><td>host nginx</td><td>Internet</td><td>Not used by Team Fund</td></tr>
     </tbody>
   </table>
@@ -710,7 +707,6 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <tr><td>MASTER_BOT_TOKEN</td><td><code>.env</code></td><td>From @BotFather. Anyone with it controls the master bot.</td></tr>
       <tr><td>MASTER_ADMIN_IDS</td><td><code>.env</code></td><td>Telegram IDs that approve new teams</td></tr>
       <tr><td>TOKEN_ENC_KEY</td><td><code>.env</code></td><td>Fernet key that encrypts team bot tokens in the database. Losing it means re-registering every team bot.</td></tr>
-      <tr><td>INTERNAL_KEY</td><td><code>.env</code></td><td>Shared by gateway and core for internal calls</td></tr>
       <tr><td>MASTER_WEBHOOK_SECRET</td><td><code>.env</code></td><td>Telegram sends it on every master bot update; team bots each get their own, stored in the database</td></tr>
       <tr><td>POSTGRES_PASSWORD</td><td><code>.env</code></td><td>Only used inside the Docker network</td></tr>
       <tr><td>SePay API keys</td><td>database (SHA-256 hash)</td><td>One per team, shown once by <code>/sepay</code></td></tr>
@@ -728,7 +724,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
     <li><span><b>Give the user Docker access</b> (once, needs sudo): <code>sudo usermod -aG docker lehiepvps</code></span></li>
     <li><span><b>Open TCP 443</b> in the VPS provider's firewall, if it has one.</span></li>
     <li><span><b>Fill in <code>.env</code></b>: <code>MASTER_BOT_TOKEN</code> and <code>MASTER_ADMIN_IDS</code>. The other secrets are already generated.</span></li>
-    <li><span><b>Start everything:</b> <code>docker compose up -d --build</code>, then <code>docker compose logs -f caddy gateway</code> until the certificate is issued and the master bot reports ready.</span></li>
+    <li><span><b>Start everything:</b> <code>docker compose up -d --build</code>, then <code>docker compose logs -f caddy app</code> until the certificate is issued and the master bot reports ready.</span></li>
     <li><span><b>Check from outside:</b> <code>curl https://teamfund.103-90-225-28.sslip.io/health</code> returns <code>ok</code>.</span></li>
     <li><span><b>Schedule backups:</b> add <code>0 3 * * * …/scripts/backup.sh</code> to <code>crontab -e</code>.</span></li>
   </ol>
@@ -736,8 +732,8 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
 <pre class="cmd">scripts/deploy.sh                       # deploy latest main
 scripts/deploy.sh 94516db               # roll back to a commit
 docker compose ps                       # what is running
-docker compose logs -f --tail=100 gateway core scheduler
-docker compose restart gateway          # reconnect all bots
+docker compose logs -f --tail=100 app
+docker compose restart app              # reconnect all bots
 scripts/backup.sh                       # backup now
 gunzip -c ~/backups/teamfund-2026-11-17.sql.gz | docker compose exec -T db psql -U teamfund teamfund   # restore</pre>
 </section>

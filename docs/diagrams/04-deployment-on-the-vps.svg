@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="860" viewBox="0 0 1200 860" role="img" aria-label="Deployment: the sslip.io hostname resolves to 103.90.225.28. Telegram, SePay and Let's Encrypt reach port 443, where Docker forwards to the Caddy container. Caddy routes /tg to the gateway container and /sepay to the core container. Gateway and core talk over the internal Docker network; core and scheduler use the Postgres container, whose data lives in the db_data volume. The gateway calls api.telegram.org outbound. The project folder on the host holds .env, the Caddyfile, the source used for docker build, and the deploy and backup scripts, and syncs with GitHub over SSH."><style>svg{
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="860" viewBox="0 0 1200 860" role="img" aria-label="Deployment: the sslip.io hostname resolves to 103.90.225.28. Telegram, SePay and Let's Encrypt reach port 443, where Docker forwards to the Caddy container. Caddy passes /tg and /sepay to the app container over the internal Docker network. The app, which holds the bots, the webhooks, the scheduled jobs and the domain layer, uses the Postgres container, whose data lives in the db_data volume. The app calls api.telegram.org outbound. The project folder on the host holds .env, the Caddyfile, the source used for docker build, and the deploy and backup scripts, and syncs with GitHub over SSH."><style>svg{
   --bg:#f5f7f8; --surface:#ffffff; --fg:#17212b; --muted:#5b6b78; --line:#c9d3db;
   --tg:#2b7bb9; --tg-soft:#eaf3fa; --money:#b8730f; --money-soft:#fbf1df;
   --display:"Space Grotesk",system-ui,sans-serif;
@@ -119,33 +119,31 @@
       <text class="t" x="605" y="292" text-anchor="middle">caddy</text>
       <text class="s" x="605" y="309" text-anchor="middle">caddy:2.8.4</text>
       <text class="s" x="605" y="325" text-anchor="middle">TLS termination, HTTP/2</text>
-      <text class="s" x="605" y="341" text-anchor="middle">/tg/* → gateway:3000</text>
-      <text class="s" x="605" y="357" text-anchor="middle">/sepay/* → core:8000</text>
+      <text class="s" x="605" y="341" text-anchor="middle">/tg/* → app:8000</text>
+      <text class="s" x="605" y="357" text-anchor="middle">/sepay/* → app:8000</text>
       <text class="s" x="605" y="373" text-anchor="middle">/health → ok, else 404</text>
 
-      <rect class="box tg" x="760" y="90" width="192" height="122" rx="8"/>
-      <text class="t" x="856" y="112" text-anchor="middle">gateway</text>
-      <text class="s" x="856" y="129" text-anchor="middle">python:3.12-slim · :3000</text>
-      <text class="s" x="856" y="145" text-anchor="middle">aiogram: master + team bots</text>
-      <text class="s" x="856" y="161" text-anchor="middle">/tg/master, /tg/{botId}</text>
-      <text class="s" x="856" y="177" text-anchor="middle">/internal/events (key)</text>
-      <text class="s" x="856" y="193" text-anchor="middle">aiohttp, runs as user app</text>
-
-      <rect class="box" x="760" y="300" width="192" height="122" rx="8"/>
-      <text class="t" x="856" y="322" text-anchor="middle">core</text>
-      <text class="s" x="856" y="339" text-anchor="middle">python:3.12-slim</text>
-      <text class="s" x="856" y="355" text-anchor="middle">uvicorn + FastAPI :8000</text>
-      <text class="s" x="856" y="371" text-anchor="middle">/api/* needs internal key</text>
-      <text class="s" x="856" y="387" text-anchor="middle">/sepay/{teamId} needs Apikey</text>
-      <text class="s" x="856" y="403" text-anchor="middle">creates tables at start</text>
-
-      <rect class="box" x="990" y="300" width="150" height="122" rx="8"/>
-      <text class="t" x="1065" y="322" text-anchor="middle">scheduler</text>
-      <text class="s" x="1065" y="339" text-anchor="middle">same image as core</text>
-      <text class="s" x="1065" y="355" text-anchor="middle">python -m app.scheduler</text>
-      <text class="s" x="1065" y="371" text-anchor="middle">:05 hourly · bills</text>
-      <text class="s" x="1065" y="387" text-anchor="middle">09:00 · reminders</text>
-      <text class="s" x="1065" y="403" text-anchor="middle">20:00 · month report</text>
+      <rect class="box tg" x="760" y="90" width="380" height="332" rx="8"/>
+      <text class="t" x="950" y="112" text-anchor="middle">app</text>
+      <text class="s" x="950" y="129" text-anchor="middle">./server · python:3.12-slim · uvicorn :8000 · 1 worker</text>
+      <rect class="box in" x="776" y="144" width="348" height="46" rx="6"/>
+      <text class="t" x="950" y="163" text-anchor="middle">api/ · HTTP controllers</text>
+      <text class="s" x="950" y="180" text-anchor="middle">/tg/master · /tg/{botId} · /sepay/{teamId}</text>
+      <rect class="box in" x="776" y="204" width="168" height="62" rx="6"/>
+      <text class="t" x="860" y="224" text-anchor="middle">bot/</text>
+      <text class="s" x="860" y="241" text-anchor="middle">aiogram: master +</text>
+      <text class="s" x="860" y="256" text-anchor="middle">team bots, EN/VI</text>
+      <rect class="box in" x="956" y="204" width="168" height="62" rx="6"/>
+      <text class="t" x="1040" y="224" text-anchor="middle">jobs.py</text>
+      <text class="s" x="1040" y="241" text-anchor="middle">APScheduler in-process</text>
+      <text class="s" x="1040" y="256" text-anchor="middle">:05 bills · 09:00 · 20:00</text>
+      <rect class="box hot" x="776" y="280" width="348" height="62" rx="6"/>
+      <text class="t" x="950" y="300" text-anchor="middle">domain/ · business rules</text>
+      <text class="s" x="950" y="317" text-anchor="middle">access · teams · members · money · billing</text>
+      <text class="s" x="950" y="332" text-anchor="middle">SePay matching · audit log · export</text>
+      <rect class="box file" x="776" y="356" width="348" height="52" rx="6"/>
+      <text class="t" x="950" y="376" text-anchor="middle">models.py · SQLAlchemy</text>
+      <text class="s" x="950" y="394" text-anchor="middle">creates tables at start · runs as user app</text>
 
       <rect class="box" x="760" y="500" width="192" height="80" rx="8"/>
       <text class="t" x="856" y="524" text-anchor="middle">db</text>
@@ -177,20 +175,15 @@
       <text class="lb tgc" x="620" y="105" text-anchor="middle">outbound HTTPS: sendMessage, sendPhoto, setWebhook</text>
 
       <!-- inside docker -->
-      <polyline class="ln tg" points="692,300 725,300 725,150 757,150" marker-end="url(#dt)"/>
+      <polyline class="ln tg" points="692,300 725,300 725,160 773,160" marker-end="url(#dt)"/>
       <text class="lb tgc" x="719" y="225" text-anchor="end">/tg/*</text>
-      <line class="ln m" x1="692" y1="355" x2="757" y2="355" marker-end="url(#dm)"/>
-      <text class="lb m" x="724" y="348" text-anchor="middle">/sepay/*</text>
-
-      <line class="ln" x1="820" y1="214" x2="820" y2="297" marker-end="url(#d)"/>
-      <text class="lb" x="814" y="262" text-anchor="end">REST /api/*</text>
-      <line class="ln m" x1="890" y1="298" x2="890" y2="215" marker-end="url(#dm)"/>
-      <text class="lb m" x="896" y="262">events</text>
-
-      <polyline class="ln" points="1065,298 1065,151 955,151" marker-end="url(#d)"/>
-      <text class="lb" x="1071" y="225">events</text>
-      <polyline class="ln" points="1065,424 1065,540 955,540" marker-end="url(#d)"/>
-      <text class="lb" x="1071" y="485">SQL</text>
+      <polyline class="ln m" points="692,355 742,355 742,178 773,178" marker-end="url(#dm)"/>
+      <text class="lb m" x="700" y="374">/sepay/*</text>
+      <line class="ln" x1="860" y1="192" x2="860" y2="202" marker-end="url(#d)"/>
+      <line class="ln m" x1="950" y1="192" x2="950" y2="278" marker-end="url(#dm)"/>
+      <line class="ln" x1="860" y1="268" x2="860" y2="278" marker-end="url(#d)"/>
+      <line class="ln" x1="1040" y1="268" x2="1040" y2="278" marker-end="url(#d)"/>
+      <line class="ln" x1="950" y1="344" x2="950" y2="354" marker-end="url(#d)"/>
       <line class="ln" x1="856" y1="424" x2="856" y2="497" marker-start="url(#d)" marker-end="url(#d)"/>
       <text class="lb" x="864" y="465">SQL (psycopg)</text>
 
@@ -212,8 +205,8 @@
       <text class="t" x="759" y="781" text-anchor="middle">Caddyfile</text>
       <text class="s" x="759" y="799" text-anchor="middle">hostname, routes, TLS</text>
       <rect class="box file" x="848" y="758" width="150" height="56" rx="6"/>
-      <text class="t" x="923" y="781" text-anchor="middle">core/ · gateway/</text>
-      <text class="s" x="923" y="799" text-anchor="middle">code + Dockerfiles</text>
+      <text class="t" x="923" y="781" text-anchor="middle">server/</text>
+      <text class="s" x="923" y="799" text-anchor="middle">code + Dockerfile</text>
       <rect class="box file" x="1012" y="758" width="138" height="56" rx="6"/>
       <text class="t" x="1081" y="781" text-anchor="middle">scripts/backup.sh</text>
       <text class="s" x="1081" y="799" text-anchor="middle">pg_dump → ~/backups</text>
