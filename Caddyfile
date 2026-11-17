@@ -1,0 +1,32 @@
+{
+	# nginx on this server already uses port 80, so certificates are issued
+	# through the TLS-ALPN challenge on port 443 only.
+	auto_https disable_redirects
+}
+
+{$PUBLIC_HOST} {
+	tls {
+		issuer acme {
+			disable_http_challenge
+		}
+	}
+
+	# Telegram updates for the master bot and every team bot
+	handle /tg/* {
+		reverse_proxy gateway:3000
+	}
+
+	# SePay webhooks, one URL per team
+	handle /sepay/* {
+		reverse_proxy core:8000
+	}
+
+	handle /health {
+		respond "ok" 200
+	}
+
+	# Nothing else is public. The core API and the gateway's internal routes stay inside Docker.
+	handle {
+		respond 404
+	}
+}

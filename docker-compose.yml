@@ -1,0 +1,66 @@
+name: teamfund
+
+x-core: &core
+  build: ./core
+  restart: unless-stopped
+  env_file: .env
+  environment:
+    DATABASE_URL: postgresql+psycopg://teamfund:${POSTGRES_PASSWORD}@db:5432/teamfund
+    GATEWAY_URL: http://gateway:3000
+    PUBLIC_URL: https://${PUBLIC_HOST}
+  depends_on:
+    db:
+      condition: service_healthy
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: teamfund
+      POSTGRES_USER: teamfund
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U teamfund -d teamfund"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  core:
+    <<: *core
+
+  scheduler:
+    <<: *core
+    command: ["python", "-m", "app.scheduler"]
+
+  gateway:
+    build: ./gateway
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      CORE_URL: http://core:8000
+      PUBLIC_URL: https://${PUBLIC_HOST}
+    depends_on:
+      - core
+
+  caddy:
+    image: caddy:2.8.4
+    restart: unless-stopped
+    ports:
+      - "443:443"
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - core
+      - gateway
+
+volumes:
+  db_data:
+  caddy_data:
+  caddy_config:
