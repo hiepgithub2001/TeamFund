@@ -5,6 +5,11 @@
 }
 
 {$PUBLIC_HOST} {
+	log {
+		output stdout
+		format console
+	}
+
 	tls {
 		issuer acme {
 			disable_http_challenge
