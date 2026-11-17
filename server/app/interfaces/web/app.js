@@ -21,7 +21,7 @@ const T = {
     tabPay: "Đóng quỹ", tabFund: "Quỹ", tabMembers: "Thành viên", owingPeople: "Còn nợ",
     tapMonth: "Bấm vào một tháng để xem mọi giao dịch của tháng đó.",
     noTx: "Tháng này không có giao dịch.",
-    paidOf: "Đã đóng {a}/{b}", due: "Hạn tháng này: {d}", lateRule: "Đóng trễ: phạt {f}/ngày", late: "Phạt trễ {n} ngày (quỹ {p})", feeIs: "Mức quỹ: {f}", feeN: "{f} × {n} người", feeCycle: "Quỹ {c} {p}",
+    paidOf: "Đã đóng {a}/{b}", due: "hạn {d}", lateRule: "phạt trễ {f}/ngày", late: "Phạt trễ {n} ngày (quỹ {p})", feeIs: "Mức quỹ: {f}", feeN: "{f} × {n} người", feeCycle: "Quỹ {c} {p}",
     c1: "tháng", c3: "quý", c6: "6 tháng", c12: "năm", otherFrom: "Thu khác: {n}", otherIncome: "Trong đó thu khác: {a}",
     paidList: "Đã đóng", unpaidList: "Chưa đóng", nobodyPaid: "Chưa ai đóng tháng này.", nobodyOwes: "Không ai còn nợ.",
     income: "Tổng thu", expense: "Tổng chi", balance: "Số dư", byMonth: "Theo tháng", in: "Thu", out: "Chi",
@@ -47,7 +47,7 @@ const T = {
     tabPay: "Pay", tabFund: "Fund", tabMembers: "Members", owingPeople: "Owing",
     tapMonth: "Tap a month to see all its transactions.",
     noTx: "No transactions this month.",
-    paidOf: "{a} of {b} paid", due: "Due this month: {d}", lateRule: "Paying late: {f} per day", late: "Late fee, {n} days (fee {p})", feeIs: "Fee: {f}", feeN: "{f} for {n}", feeCycle: "Fee per {c} {p}",
+    paidOf: "{a} of {b} paid", due: "due {d}", lateRule: "late fee {f}/day", late: "Late fee, {n} days (fee {p})", feeIs: "Fee: {f}", feeN: "{f} for {n}", feeCycle: "Fee per {c} {p}",
     c1: "month", c3: "quarter", c6: "6 months", c12: "year", otherFrom: "Other income: {n}", otherIncome: "Of which other income: {a}",
     paidList: "Paid", unpaidList: "Not paid yet", nobodyPaid: "Nobody has paid this month yet.", nobodyOwes: "Nobody owes anything.",
     income: "Money in", expense: "Money out", balance: "Balance", byMonth: "By month", in: "In", out: "Out",
@@ -131,11 +131,14 @@ function billText(b) {
   return (b.months || 1) > 1 ? t("feeCycle", { c: t("c" + b.months), p: b.period_label }) : t("monthly", { p: b.period_label });
 }
 function feeOf(amount, months) { return `${money(amount)}/${t("c" + (months || 1))}`; }
-function teamFees(d) {  // "200.000đ/tháng", or each plan with its head count
+function feeTerms(f) {  // " · hạn 20/11 · phạt trễ 1.000đ/ngày"
+  return (f.due ? " · " + t("due", { d: f.due }) : "") + (f.late_fee ? " · " + t("lateRule", { f: money(f.late_fee) }) : "");
+}
+function teamFees(d) {  // "200.000đ/tháng · hạn 20/11", or each package with its head count and terms
   const fs = d.fees || [];
   if (!fs.length) return d.fee ? feeOf(d.fee, 1) : "";
-  if (fs.length === 1) return feeOf(fs[0].amount, fs[0].months);
-  return fs.map((f) => t("feeN", { f: feeOf(f.amount, f.months), n: f.count })).join(" · ");
+  if (fs.length === 1) return feeOf(fs[0].amount, fs[0].months) + feeTerms(fs[0]);
+  return fs.map((f) => t("feeN", { f: feeOf(f.amount, f.months), n: f.count }) + feeTerms(f)).join("\n");
 }
 
 const TABS = [["pay", "tabPay"], ["fund", "tabFund"], ["members", "tabMembers"]];
@@ -255,8 +258,7 @@ function listView() {
     h("div", { class: "summary" },
       h("div", { class: "stat" }, h("span", { class: "muted small" }, t("owing")), h("b", {}, t("people", { n: d.unpaid.length }))),
       h("div", { class: "stat" }, h("span", { class: "muted small" }, t("total")), h("b", {}, money(d.total_unpaid)))),
-    h("p", { class: "muted small" }, d.due ? t("due", { d: d.due }) : null,
-      d.late_fee ? " · " + t("lateRule", { f: money(d.late_fee) }) : null),
+    teamFees(d) ? h("p", { class: "muted small fees" }, teamFees(d)) : null,
     h("p", { class: "muted small" }, t("pick")), search, h("ul", { class: "people" }, items), footer(),
     h("div", { class: "bar" }, h("div", { class: "wrap" },
       h("div", { class: "sel" }, t("selected", { n: chosen.length }), h("b", {}, money(sum))),

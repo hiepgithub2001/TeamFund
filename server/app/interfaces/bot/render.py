@@ -31,20 +31,29 @@ def fee_text(lang: str, amount: int, months: int = 1) -> str:
     return f"{money(amount, lang)}/{t(lang, f'cycle.{months}')}"
 
 
+def _terms(lang: str, f: dict) -> str:
+    """" · hạn 20/11 · phạt trễ 1.000đ/ngày" for one package."""
+    out = t(lang, "fees.due", due=f["due"]) if f.get("due") else ""
+    if f.get("late_fee"):
+        out += t(lang, "fees.late", fee=money(f["late_fee"], lang))
+    return out
+
+
 def fees_text(lang: str, fees: list[dict], default_fee: int = 0) -> str:
-    """What people pay: "200.000đ mỗi người" when it's one monthly fee, else each fee with its head count."""
-    if not fees or (len(fees) == 1 and fees[0]["months"] == 1):
-        return t(lang, "fees.each", fee=money(fees[0]["amount"] if fees else default_fee, lang))
-    return " · ".join(t(lang, "fees.item", fee=fee_text(lang, f["amount"], f["months"]), n=f["count"]) for f in fees)
+    """What people pay and when it's due: "200.000đ mỗi người · hạn 20/11" for one monthly fee,
+    else one line per package with its head count, due date and late fee."""
+    if not fees:
+        return t(lang, "fees.each", fee=money(default_fee, lang))
+    if len(fees) == 1 and fees[0]["months"] == 1:
+        return t(lang, "fees.each", fee=money(fees[0]["amount"], lang)) + _terms(lang, fees[0])
+    return "".join("\n• " + t(lang, "fees.item", fee=fee_text(lang, f["amount"], f["months"]), n=f["count"])
+                   + _terms(lang, f) for f in fees)
 
 
 def status_text(lang: str, s: dict) -> str:
     if not s.get("has_fees", s["fee"]):
         return t(lang, "status.no_fee")
-    parts = [t(lang, "status.title", period=s["period_label"], fees=fees_text(lang, s.get("fees", []), s["fee"]),
-               due=s["due"])]
-    if s.get("late_fee"):
-        parts[0] += "\n" + t(lang, "late.rule", fee=money(s["late_fee"], lang))
+    parts = [t(lang, "status.title", period=s["period_label"], fees=fees_text(lang, s.get("fees", []), s["fee"]))]
     if s["paid"]:
         parts.append(t(lang, "status.paid", n=len(s["paid"]), names=", ".join(esc(n) for n in s["paid"])))
     if s["unpaid"]:

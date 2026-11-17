@@ -241,6 +241,7 @@ async def main():
         await T(text_update(OWNER, "/plans"))
         pl = await wait_sent(to(OWNER, "Fee plans"), "plans for the default fee")
         await T(cb_update(OWNER, "p:f", pl["message_id"]))
+        await T(cb_update(OWNER, "p:fa", pl["message_id"]))
         await wait_sent(to(OWNER, "Send the default monthly fee"), "default fee asked")
         await T(text_update(OWNER, "200k"))
         await wait_sent(to(OWNER, "Monthly fee set to 200,000đ"), "fee set")
@@ -439,7 +440,7 @@ async def main():
         await T(text_update(OWNER, "/plans 1 fortnight"))
         await wait_sent(to(OWNER, "quick create"), "bad cycle explained")
         await T(text_update(OWNER, "/status"))
-        await wait_sent(lambda c: to(OWNER, "300,000đ/quarter for 2")(c) and "150,000đ/month for 1" in c["params"]["text"],
+        await wait_sent(lambda c: to(OWNER, "300,000đ/quarter × 2")(c) and "150,000đ/month × 1" in c["params"]["text"],
                         "status lists the fees")
 
         # 11. other income and backdated records
@@ -485,6 +486,7 @@ async def main():
         plans = await wait_sent(to(OWNER, "Fee plans"), "plans again")
         assert "p:f" in buttons(plans)
         await T(cb_update(OWNER, "p:f", plans["message_id"]))
+        await T(cb_update(OWNER, "p:fa", plans["message_id"]))
         await wait_sent(to(OWNER, "Send the default monthly fee"), "default fee asked")
         await T(text_update(OWNER, "250k"))
         await wait_sent(to(OWNER, "Monthly fee set to 250,000đ"), "default fee set from /plans")
@@ -527,19 +529,41 @@ async def main():
                         and "150,000đ is let go" in c["params"]["text"], "settled at 100k")
         await wait_sent(to(GROUP, r"Giang</b> paid 100,000đ"), "group sees the real amount")
 
-        # 14. schedule as announcement day + days, and a late fee
-        await T(text_update(OWNER, "/setdue"))
-        await wait_sent(to(OWNER, "<code>/setdue 15 5</code>"), "setdue explains")
+        # 14. each package's deadline and late fee, in /plans
         await T(text_update(OWNER, "/setdue 15 5"))
-        await wait_sent(to(OWNER, "announced on day 15 of each month and due 5 days later"), "schedule set")
-        await T(text_update(OWNER, "/latefee 1k"))
-        await wait_sent(to(OWNER, "Late fee 1,000đ/day"), "late fee on")
+        await asyncio.sleep(0.3)  # /setdue is gone: no reply
+        await T(text_update(OWNER, "/plans"))
+        pl = await wait_sent(to(OWNER, "Fee plans"), "plans with terms")
+        assert "📅 announced on day 1, due +4 days · ⏰ no late fee" in pl["params"]["text"], pl["params"]["text"]
+        assert buttons(pl)[0] == "p:f"
+        await T(cb_update(OWNER, "p:f", pl["message_id"]))
+        dv = await wait_sent(lambda c: c["method"] == "editMessageText" and "Default package" in c["params"]["text"],
+                             "default package view")
+        assert buttons(dv)[:3] == ["p:fa", "p:ds:0", "p:dl:0"]
+        await T(cb_update(OWNER, "p:ds:0", pl["message_id"]))
+        await wait_sent(to(OWNER, "Send the <b>announcement day</b>"), "deadline asked")
+        await T(text_update(OWNER, "15 5"))
+        await wait_sent(lambda c: to(OWNER, "Saved")(c) and "announced on day 15, due +5 days" in c["params"]["text"],
+                        "default deadline saved")
+        await T(cb_update(OWNER, "p:dl:0", pl["message_id"]))
+        await wait_sent(to(OWNER, "late fee per overdue day"), "late fee asked")
+        await T(text_update(OWNER, "1k"))
+        await wait_sent(lambda c: to(OWNER, "Saved")(c) and "late fee 1,000đ/day" in c["params"]["text"],
+                        "default late fee saved")
+        # the quarterly plan follows the default until it gets its own
+        await T(text_update(OWNER, "/plans"))
+        pl = await wait_sent(lambda c: to(OWNER, "Fee plans")(c) and "(as default)" in c["params"]["text"],
+                             "plans follow the default")
+        plan_btn = next(b for b in buttons(pl) if b.startswith("p:v:"))
+        pid = plan_btn.split(":")[2]
+        await T(cb_update(OWNER, f"p:dl:{pid}", pl["message_id"]))
+        await wait_sent(to(OWNER, "to use the default package"), "plan late fee asked, with the default option")
+        await T(text_update(OWNER, "2k"))
+        await wait_sent(lambda c: to(OWNER, "Saved")(c) and "late fee 2,000đ/day" in c["params"]["text"]
+                        and "late fee 2,000đ/day (as default)" not in c["params"]["text"], "plan late fee saved")
         await T(text_update(OWNER, "/status"))
-        await wait_sent(to(OWNER, "Paying late: 1,000đ per day overdue"), "status shows the late fee rule")
-        await T(text_update(OWNER, "/settings"))
-        await wait_sent(to(OWNER, "announced on day 15, due 5 days later · Late fee: 1,000đ/day"), "settings")
-        await T(text_update(OWNER, "/latefee 0"))
-        await wait_sent(to(OWNER, "Late fee turned off"), "late fee off")
+        await wait_sent(lambda c: to(OWNER, "due ")(c) and "late fee 2,000đ/day" in c["params"]["text"]
+                        and "late fee 1,000đ/day" in c["params"]["text"], "status lists each package's terms")
 
         print(f"e2e passed ({len(calls)} Telegram API calls)")
     finally:

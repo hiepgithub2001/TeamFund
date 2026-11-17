@@ -1,7 +1,7 @@
 """Domain rules: pure functions, no database."""
 from app.domain.entities import Member, Team
 from app.domain.rules import (add_months, covers, months_between, effective_fee, find_payment_codes, is_last_day_of_month,
-                              new_payment_code, period_label, should_remind, due_date, notify_date, late_days, schedule, split_share, transfer_content,
+                              new_payment_code, period_label, should_remind, due_date, notify_date, late_days, schedule, terms, split_share, transfer_content,
                               valid_bank)
 
 
@@ -47,14 +47,20 @@ def test_reminder_schedule():
     t = team()
     assert schedule(t) == (1, 4)  # an old team: announced on the 1st, due on its old due day (5)
     t.notify_day, t.due_days = 15, 5
-    assert (notify_date(t, "2026-11"), due_date(t, "2026-11")) == (date(2026, 11, 15), date(2026, 11, 20))
+    assert (notify_date(terms(t), "2026-11"), due_date(terms(t), "2026-11")) == (date(2026, 11, 15), date(2026, 11, 20))
     t.notify_day, t.due_days = 25, 10
-    assert due_date(t, "2026-11") == date(2026, 12, 5), "a deadline can run into next month"
+    assert due_date(terms(t), "2026-11") == date(2026, 12, 5), "a deadline can run into next month"
     t.notify_day, t.due_days = 15, 5
-    n, d = notify_date(t, "2026-11"), due_date(t, "2026-11")
+    n, d = notify_date(terms(t), "2026-11"), due_date(terms(t), "2026-11")
     assert [x for x in range(10, 31) if should_remind(date(2026, 11, x), n, d)] == [17, 20, 23, 26, 29]
     t.notify_day, t.due_days = 15, 2  # 3 days before the due date is before the announcement: skipped
-    assert not should_remind(date(2026, 11, 14), notify_date(t, "2026-11"), due_date(t, "2026-11"))
+    assert not should_remind(date(2026, 11, 14), notify_date(terms(t), "2026-11"), due_date(terms(t), "2026-11"))
+    from app.domain.entities import FeePlan
+    t.late_fee = 1000
+    plan = FeePlan(team_id=1, amount=600000, months=3)
+    assert terms(t, plan) == terms(t), "a plan with nothing of its own follows the default"
+    plan.notify_day, plan.due_days, plan.late_fee = 1, 10, 0
+    assert (terms(t, plan).notify_day, terms(t, plan).due_days, terms(t, plan).late_fee) == (1, 10, 0)
     assert late_days(date(2026, 11, 20), date(2026, 11, 23), None) == 3
     assert late_days(date(2026, 11, 20), date(2026, 11, 23), date(2026, 11, 22)) == 1, "only since it was turned on"
     assert late_days(date(2026, 11, 20), date(2026, 11, 20), None) == 0

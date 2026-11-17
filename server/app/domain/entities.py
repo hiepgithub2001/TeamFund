@@ -114,6 +114,11 @@ class FeePlan:
     team_id: int
     amount: int
     months: int = 1  # 1 monthly | 3 quarterly | 6 half-yearly | 12 yearly
+    # the plan's own deadline and late fee; None: the same as the team's default package
+    notify_day: int | None = None
+    due_days: int | None = None
+    late_fee: int | None = None
+    late_fee_since: date | None = None
     created_at: datetime | None = None
     id: int | None = None
 
@@ -130,6 +135,7 @@ class Bill:
     # "<member_id>:<period>" for fee bills only, so a member is never billed twice for a month
     monthly_key: str | None = None
     months: int | None = None  # fee bills: how many months from `period` this bill covers (None = 1)
+    plan_id: int | None = None  # fee and late bills: the plan billed under (None: the default package)
     payment_id: int | None = None
     created_at: datetime | None = None
     paid_at: datetime | None = None

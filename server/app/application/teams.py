@@ -10,7 +10,7 @@ from typing import Callable
 from ..domain.entities import MANAGER, OWNER, ManagerRequest, Team, TeamAdmin
 from ..domain.errors import DomainError, invalid
 from ..domain.rules import (LANGS, MAX_DUE_DAYS, MAX_FEE, MAX_LATE_FEE, due_date, hash_secret, new_public_token,
-                            schedule, valid_bank)
+                            schedule, terms, valid_bank)
 from .access import get_team, is_super, manager_team, owner_team, role_of
 from .billing import reprice_current_month, update_late_fees
 from .people import audit, display_name, user_info
@@ -108,7 +108,7 @@ class TeamUseCases:
             notify, days = schedule(team)
             return {"fee": team.fee, "lang": team.lang, "notify_day": notify, "due_days": days,
                     "late_fee": team.late_fee or 0,
-                    "due": due_date(team, self.d.clock.current_period()).strftime("%d/%m")}
+                    "due": due_date(terms(team), self.d.clock.current_period()).strftime("%d/%m")}
 
     def sepay_info(self, team_id: int, actor: int) -> dict:
         with self.d.uow() as uow:

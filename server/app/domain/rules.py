@@ -6,6 +6,7 @@ import math
 import re
 import secrets
 import unicodedata
+from dataclasses import dataclass
 
 from .entities import MANAGER, OWNER, FeePlan, Member, Team
 
@@ -136,14 +137,35 @@ def schedule(team: Team) -> tuple[int, int]:
     return 1, max(0, (team.due_day or 1) - 1)
 
 
-def notify_date(team: Team, period: str) -> date:
+@dataclass(frozen=True)
+class Terms:
+    """A package's deadline and late fee: announced on notify_day, due due_days later, late_fee đ a day."""
+    notify_day: int
+    due_days: int
+    late_fee: int
+    late_since: date | None
+
+
+def terms(team: Team, plan: FeePlan | None = None) -> Terms:
+    """The default package's terms (the team's), or a plan's: its own where set, else the default's."""
+    nd, dd = schedule(team)
+    t = Terms(nd, dd, team.late_fee or 0, team.late_fee_since)
+    if plan is None:
+        return t
+    if plan.notify_day:
+        nd, dd = plan.notify_day, plan.due_days or 0
+    lf, ls = (plan.late_fee, plan.late_fee_since) if plan.late_fee is not None else (t.late_fee, t.late_since)
+    return Terms(nd, dd, lf or 0, ls)
+
+
+def notify_date(tm: Terms, period: str) -> date:
     y, m = map(int, period.split("-"))
-    return date(y, m, min(schedule(team)[0], calendar.monthrange(y, m)[1]))
+    return date(y, m, min(tm.notify_day, calendar.monthrange(y, m)[1]))
 
 
-def due_date(team: Team, period: str) -> date:
-    """The announcement day of the bill's first month plus the team's deadline (it may fall next month)."""
-    return notify_date(team, period) + timedelta(days=schedule(team)[1])
+def due_date(tm: Terms, period: str) -> date:
+    """The announcement day of the bill's first month plus the deadline (it may fall next month)."""
+    return notify_date(tm, period) + timedelta(days=tm.due_days)
 
 
 def late_days(due: date, today: date, since: date | None) -> int:

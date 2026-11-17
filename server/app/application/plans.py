@@ -6,11 +6,12 @@ that month and the next ones: a quarterly member who joins in November gets one 
 the next in February. Changing a plan reprices only unpaid bills opened this month (like the default fee)."""
 from ..domain.entities import FeePlan, Team
 from ..domain.errors import DomainError, invalid
-from ..domain.rules import CYCLES, MAX_FEE
+from ..domain.rules import CYCLES, MAX_DUE_DAYS, MAX_FEE, MAX_LATE_FEE, terms
 from . import billing
 from .access import manager_team
 from .people import audit
 from .ports import Deps, UnitOfWork
+from .teams import TeamUseCases
 
 MAX_PLANS = 20
 
@@ -42,9 +43,16 @@ class PlanUseCases:
         plans = uow.plans.of_team(team.id)
         ids = {p.id for p in plans}
         on = lambda pid: [{"id": m.id, "name": m.name} for m in members if m.plan_id == pid]  # noqa: E731
-        return {"fee": team.fee,
+
+        def tm(plan=None) -> dict:
+            t = terms(team, plan)
+            return {"notify_day": t.notify_day, "due_days": t.due_days, "late_fee": t.late_fee,
+                    "own_schedule": plan is None or bool(plan.notify_day),
+                    "own_late": plan is None or plan.late_fee is not None}
+        return {"fee": team.fee, "default": tm(),
                 "default_members": [{"id": m.id, "name": m.name} for m in members if m.plan_id not in ids],
-                "plans": [{"id": p.id, "amount": p.amount, "months": p.months, "members": on(p.id)} for p in plans]}
+                "plans": [{"id": p.id, "amount": p.amount, "months": p.months, "members": on(p.id), **tm(p)}
+                          for p in plans]}
 
     def get_plan(self, team_id: int, actor: int, plan_id: int) -> dict:
         with self.d.uow() as uow:
@@ -93,6 +101,45 @@ class PlanUseCases:
             uow.commit()
             billing.ensure_bills(uow, self.d, team)
             return next(x for x in self._view(uow, team)["plans"] if x["id"] == plan.id)
+
+    def set_terms(self, team_id: int, actor: int, plan_id: int | None, schedule: tuple[int, int] | None = None,
+                  late_fee: int | None = None, inherit_schedule: bool = False, inherit_late: bool = False) -> dict:
+        """A package's deadline (announcement day, days until due) and late fee per overdue day.
+        plan_id None is the default package (the team's). A plan can go back to the default's with inherit_*."""
+        if schedule is not None and not (isinstance(schedule, tuple) and len(schedule) == 2
+                                         and 1 <= schedule[0] <= 28 and 0 <= schedule[1] <= MAX_DUE_DAYS):
+            raise invalid()
+        if late_fee is not None and not (isinstance(late_fee, int) and 0 <= late_fee <= MAX_LATE_FEE):
+            raise invalid()
+        if plan_id is None:
+            if inherit_schedule or inherit_late:
+                raise invalid()
+            kw = {}
+            if schedule:
+                kw["notify_day"], kw["due_days"] = schedule
+            if late_fee is not None:
+                kw["late_fee"] = late_fee
+            TeamUseCases(self.d).update_settings(team_id, actor, **kw)
+            return self.list_plans(team_id, actor)["default"]
+        with self.d.uow() as uow:
+            team = manager_team(uow, team_id, actor)
+            p = _plan(uow, team, plan_id)
+            before = {"notify_day": p.notify_day, "due_days": p.due_days, "late_fee": p.late_fee}
+            if inherit_schedule:
+                p.notify_day = p.due_days = None
+            elif schedule:
+                p.notify_day, p.due_days = schedule
+            if inherit_late:
+                p.late_fee = p.late_fee_since = None
+            elif late_fee is not None:
+                if late_fee and not terms(team, p).late_fee:
+                    p.late_fee_since = self.d.clock.local_now().date()
+                p.late_fee = late_fee
+            audit(uow, self.d.clock, team.id, actor, "plan.terms", target=_label(p), before=before,
+                  after={"notify_day": p.notify_day, "due_days": p.due_days, "late_fee": p.late_fee})
+            uow.commit()
+            billing.update_late_fees(uow, self.d, team)
+            return next(x for x in self._view(uow, team)["plans"] if x["id"] == p.id)
 
     def delete_plan(self, team_id: int, actor: int, plan_id: int) -> dict:
         """Members on the plan go back to the team fee (or their own monthly fee)."""

@@ -28,8 +28,7 @@ def test_languages_match():
     ph = lambda s: sorted(re.findall(r"\{\w+\}", s))  # noqa: E731
     for k in DICTS["en"]:
         assert ph(DICTS["vi"][k]) == ph(DICTS["en"][k]), k
-    assert t("vi", "setdue.done", notify=15, days=5, due="20/11") == \
-        "✅ Thông báo quỹ ngày 15 hằng tháng, hạn đóng 5 ngày sau. Tháng này hạn là 20/11."
+    assert t("vi", "plans.schedule", notify=15, days=5) == "📅 thông báo ngày 15, hạn +5 ngày"
     DICTS["en"]["test.own_args"] = "{key} {lang}"  # placeholders may be named like t()'s own arguments
     try:
         assert t("en", "test.own_args", key="abc", lang="x") == "abc x"

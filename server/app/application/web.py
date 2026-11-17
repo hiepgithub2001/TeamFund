@@ -9,7 +9,7 @@ import re
 
 from ..domain.entities import Team
 from ..domain.errors import DomainError, invalid
-from ..domain.rules import due_date, months_between, period_label
+from ..domain.rules import months_between, period_label
 from . import billing
 from .ports import Deps, UnitOfWork
 
@@ -41,8 +41,9 @@ class WebUseCases:
             period = self.d.clock.current_period()
             fund = billing.fund(uow, team)
             return {"team": team.name, "lang": team.lang, "period_label": period_label(period),
-                    "due": due_date(team, period).strftime("%d/%m"), "late_fee": team.late_fee or 0,
-                    "fee": team.fee, "fees": billing.fee_groups(uow, team),
+                    "fee": team.fee,
+                    "fees": [{k: v for k, v in g.items() if k not in ("notify", "due_on", "plan_id")}
+                             for g in billing.fee_groups(uow, self.d, team)],
                     "has_bank": team.has_bank(),
                     "bank_name": team.bank_name, "bank_account": team.pay_to(), "bank_holder": team.bank_holder,
                     "bot_username": team.bot_username, "unpaid": unpaid,

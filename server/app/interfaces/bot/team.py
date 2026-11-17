@@ -596,40 +596,6 @@ async def cmd_add(message: Message, command: CommandObject, entry, lang):
     await message.answer(t(lang, "add.prompt"), reply_markup=FORCE)
 
 
-@router.message(Command("setdue"))
-async def cmd_setdue(message: Message, command: CommandObject, entry, lang):
-    """`/setdue 15 5`: announce the fee on the 15th, due 5 days later (the 20th)."""
-    if not await allow(message, entry, lang, "manager"):
-        return
-    parts = (command.args or "").split()
-    if len(parts) != 2 or not all(p.isdigit() for p in parts) or not 1 <= int(parts[0]) <= 28 \
-            or not 0 <= int(parts[1]) <= 60:
-        s = await call(S.teams.team_info, tid(entry), message.from_user.id)
-        await message.answer(t(lang, "setdue.current", notify=s["notify_day"], days=s["due_days"]) + "\n\n"
-                             + t(lang, "usage.setdue"))
-        return
-    r = await call(S.teams.update_settings, tid(entry), message.from_user.id,
-                   notify_day=int(parts[0]), due_days=int(parts[1]))
-    await message.answer(t(lang, "setdue.done", notify=r["notify_day"], days=r["due_days"], due=r["due"]))
-
-
-@router.message(Command("latefee"))
-async def cmd_latefee(message: Message, command: CommandObject, entry, lang):
-    """`/latefee 1k`: each overdue fee bill costs 1,000đ more per day. `/latefee 0` turns it off."""
-    if not await allow(message, entry, lang, "manager"):
-        return
-    raw = (command.args or "").strip()
-    fee = 0 if raw == "0" else parse_amount(raw)
-    if fee is None:
-        s = await call(S.teams.team_info, tid(entry), message.from_user.id)
-        cur = t(lang, "latefee.on", fee=money(s["late_fee"], lang)) if s["late_fee"] else t(lang, "latefee.off")
-        await message.answer(cur + "\n\n" + t(lang, "usage.latefee"))
-        return
-    r = await call(S.teams.update_settings, tid(entry), message.from_user.id, late_fee=fee)
-    await message.answer(t(lang, "latefee.done", fee=money(r["late_fee"], lang), due=r["due"]) if r["late_fee"]
-                         else t(lang, "latefee.done_off"))
-
-
 async def charge_picker(ev, entry, lang, kind: str, amount: int, title: str) -> dict | None:
     """The member picker for a charge ("charge": each pays the amount; "split": they share it)."""
     members = [m for m in await call(S.members.list_members, tid(entry), ev.from_user.id) if m["status"] == "active"]
@@ -835,15 +801,25 @@ def parse_cycle(word: str) -> int | None:
     return next((n for n, words in CYCLE_WORDS.items() if w in words), None)
 
 
+def terms_text(lang: str, x: dict) -> str:
+    """"📅 ngày 15, hạn +5 ngày · ⏰ 1.000đ/ngày" (with "(như mặc định)" where a plan follows the default)."""
+    inherit = t(lang, "plans.inherit")
+    sched = t(lang, "plans.schedule", notify=x["notify_day"], days=x["due_days"])
+    late = t(lang, "plans.late_on", fee=money(x["late_fee"], lang)) if x["late_fee"] else t(lang, "plans.late_off")
+    return (f"{sched}{inherit if not x.get('own_schedule', True) else ''} · "
+            f"{late}{inherit if not x.get('own_late', True) else ''}")
+
+
 def plans_text(lang: str, v: dict) -> str:
     names = lambda ms: ", ".join(esc(m["name"]) for m in ms)  # noqa: E731
     lines = [t(lang, "plans.title"),
-             t(lang, "plans.default", fee=money(v["fee"], lang), n=len(v["default_members"])) if v["fee"]
-             else t(lang, "plans.default_none", n=len(v["default_members"]))]
+             (t(lang, "plans.default", fee=money(v["fee"], lang), n=len(v["default_members"])) if v["fee"]
+              else t(lang, "plans.default_none", n=len(v["default_members"])))
+             + "\n   " + terms_text(lang, v["default"])]
     for p in v["plans"]:
         fee = fee_text(lang, p["amount"], p["months"])
-        lines.append(t(lang, "plans.line", fee=fee, names=names(p["members"])) if p["members"]
-                     else t(lang, "plans.empty_line", fee=fee))
+        lines.append((t(lang, "plans.line", fee=fee, names=names(p["members"])) if p["members"]
+                      else t(lang, "plans.empty_line", fee=fee)) + "\n   " + terms_text(lang, p))
     if not v["plans"]:
         lines.append(t(lang, "plans.none"))
     return "\n".join(lines) + "\n\n" + t(lang, "plans.help")
@@ -852,10 +828,21 @@ def plans_text(lang: str, v: dict) -> str:
 def plan_view(lang: str, p: dict):
     fee = fee_text(lang, p["amount"], p["months"])
     text = t(lang, "plans.view", fee=fee, n=len(p["members"]),
-             names=", ".join(esc(m["name"]) for m in p["members"]) or "—")
+             names=", ".join(esc(m["name"]) for m in p["members"]) or "—") + "\n" + terms_text(lang, p)
     i = p["id"]
     return text, kb([(t(lang, "btn.plan_members"), f"p:m:{i}"), (t(lang, "btn.plan_amount"), f"p:a:{i}")],
+                    [(t(lang, "btn.plan_due"), f"p:ds:{i}"), (t(lang, "btn.plan_late"), f"p:dl:{i}")],
                     [(t(lang, "btn.plan_cycle"), f"p:k:{i}"), (t(lang, "btn.plan_delete"), f"p:d:{i}")],
+                    [(t(lang, "btn.back"), "p:l")])
+
+
+def default_view(lang: str, v: dict):
+    """The default package: the team fee (monthly, for everyone not on a plan) and its terms."""
+    d = v["default"]
+    fee = money(v["fee"], lang) if v["fee"] else t(lang, "settings.not_set")
+    text = t(lang, "plans.default_view", fee=fee, n=len(v["default_members"])) + "\n" + terms_text(lang, d)
+    return text, kb([(t(lang, "btn.plan_amount"), "p:fa")],
+                    [(t(lang, "btn.plan_due"), "p:ds:0"), (t(lang, "btn.plan_late"), "p:dl:0")],
                     [(t(lang, "btn.back"), "p:l")])
 
 
@@ -868,7 +855,8 @@ def cycle_keyboard(lang: str, prefix: str, back: str):
 async def plans_view(ev, entry, lang, edit_in_place: bool = False) -> None:
     v = await call(S.plans.list_plans, tid(entry), ev.from_user.id)
     rows = [[(f"✏️ {fee_text(lang, p['amount'], p['months'])}", f"p:v:{p['id']}")] for p in v["plans"]]
-    rows.append([(t(lang, "btn.plan_new"), "p:n"), (t(lang, "btn.default_fee"), "p:f")])
+    rows.insert(0, [(t(lang, "btn.default_package"), "p:f")])
+    rows.append([(t(lang, "btn.plan_new"), "p:n")])
     if edit_in_place:
         await edit(ev, plans_text(lang, v), kb(*rows))
     else:
@@ -905,7 +893,7 @@ async def cmd_plans(message: Message, command: CommandObject, entry, lang):
     await open_plan_picker(message, entry, lang, amount, months)
 
 
-@router.callback_query(F.data.regexp(r"^p:(l|n|f|c|v|m|a|k|kc|d|dy)(?::(\d+))?(?::(\d+))?$").as_("m"))
+@router.callback_query(F.data.regexp(r"^p:(l|n|f|fa|ds|dl|c|v|m|a|k|kc|d|dy)(?::(\d+))?(?::(\d+))?$").as_("m"))
 async def on_plan(cq: CallbackQuery, m: re.Match, entry, lang):
     if not await allow(cq, entry, lang, "manager"):
         return
@@ -916,9 +904,18 @@ async def on_plan(cq: CallbackQuery, m: re.Match, entry, lang):
         await plans_view(cq, entry, lang, edit_in_place=True)
     elif action == "n":
         await edit(cq, t(lang, "plans.choose_cycle"), cycle_keyboard(lang, "p:c:", "p:l"))
-    elif action == "f":  # the team's default monthly fee, for everyone not on a plan
+    elif action == "f":  # the default package: the team fee and its terms
+        await edit(cq, *default_view(lang, await call(S.plans.list_plans, team, user)))
+    elif action == "fa":
         set_state(input_key(cq.bot.id, cq.message.chat.id), {"type": "default_fee"}, 600)
         await say(cq, t(lang, "plans.ask_default"), reply_markup=FORCE)
+    elif action in ("ds", "dl") and a is not None:  # a package's deadline / late fee; 0 is the default package
+        pid = int(a) or None
+        set_state(input_key(cq.bot.id, cq.message.chat.id),
+                  {"type": "plan_schedule" if action == "ds" else "plan_late", "plan_id": pid}, 600)
+        inherit = t(lang, "plans.ask_inherit") if pid else ""
+        await say(cq, t(lang, "plans.ask_schedule" if action == "ds" else "plans.ask_late") + inherit,
+                  reply_markup=FORCE)
     elif action == "c" and a:
         set_state(input_key(cq.bot.id, cq.message.chat.id), {"type": "plan_amount", "months": int(a)}, 600)
         await say(cq, t(lang, "plans.ask_amount", cycle=t(lang, f"cycle.{a}")), reply_markup=FORCE)
@@ -950,6 +947,34 @@ async def on_plan(cq: CallbackQuery, m: re.Match, entry, lang):
         r = await call(S.plans.delete_plan, team, user, int(a))
         await edit(cq, t(lang, "plans.deleted", fee=fee_text(lang, r["amount"], r["months"]), n=len(r["members"])),
                    kb([(t(lang, "btn.back"), "p:l")]))
+
+
+async def plan_terms_reply(message: Message, entry, lang, st: dict, text: str) -> None:
+    """A package's deadline ("15 5") or late fee ("1k", "0"); "-" puts a plan back on the default's."""
+    pid, schedule = st.get("plan_id"), st["type"] == "plan_schedule"
+    kw = {}
+    if text == "-" and pid:
+        kw = {"inherit_schedule": True} if schedule else {"inherit_late": True}
+    elif schedule:
+        parts = text.split()
+        if len(parts) == 2 and all(x.isdigit() for x in parts) and 1 <= int(parts[0]) <= 28 and int(parts[1]) <= 60:
+            kw = {"schedule": (int(parts[0]), int(parts[1]))}
+    else:
+        fee = 0 if text == "0" else parse_amount(text)
+        if fee is not None:
+            kw = {"late_fee": fee}
+    if not kw:
+        set_state(input_key(message.bot.id, message.chat.id), st, 600)
+        await message.answer(t(lang, "err.invalid") + "\n\n" + t(lang, "plans.ask_schedule" if schedule else "plans.ask_late"),
+                             reply_markup=FORCE)
+        return
+    await call(S.plans.set_terms, tid(entry), message.from_user.id, pid, **kw)
+    v = await call(S.plans.list_plans, tid(entry), message.from_user.id)
+    if pid:
+        text, markup = plan_view(lang, next(p for p in v["plans"] if p["id"] == pid))
+    else:
+        text, markup = default_view(lang, v)
+    await message.answer(f"{t(lang, 'plans.saved_terms')}\n\n{text}", reply_markup=markup)
 
 
 async def plan_amount_reply(message: Message, entry, lang, st: dict, text: str) -> None:
@@ -1295,6 +1320,8 @@ async def on_text(message: Message, entry, lang):
         r = await call(S.teams.update_settings, tid(entry), message.from_user.id, fee=fee)
         await message.answer(t(lang, "setfee.done", fee=money(r["fee"], lang)))
         await plans_view(message, entry, lang)
+    elif st["type"] in ("plan_schedule", "plan_late"):
+        await plan_terms_reply(message, entry, lang, st, text)
     elif st["type"] == "plan_amount":
         await plan_amount_reply(message, entry, lang, st, text)
     elif st["type"] == "add":

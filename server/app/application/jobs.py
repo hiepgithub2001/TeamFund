@@ -3,7 +3,7 @@ import logging
 from datetime import timedelta
 
 from ..domain.entities import JobRun
-from ..domain.rules import add_months, due_date, is_last_day_of_month, notify_date, period_label, should_remind
+from ..domain.rules import add_months, is_last_day_of_month, period_label, should_remind
 from . import billing
 from .ports import Deps
 
@@ -22,53 +22,59 @@ class JobUseCases:
         uow.commit()
 
     def open_month(self) -> None:
-        """Create this month's bills, keep late fees current, and announce the month once in each team's
-        group on its announcement day."""
+        """Create this month's bills and keep late fees current. Each package's new bills are announced
+        once in the team's group on that package's announcement day (packages sharing a day share a post)."""
         period, today = self.d.clock.current_period(), self.d.clock.local_now().date()
         with self.d.uow() as uow:
             for team in uow.teams.active():
                 try:
                     billing.ensure_bills(uow, self.d, team, period)
-                    if (team.last_billed_period == period or not billing.has_fees(uow, team)
-                            or today < notify_date(team, period)):
-                        continue
-                    ok = True
-                    if team.group_chat_id:
-                        ok = self.d.notifier.deliver({
+                    if team.last_billed_period == period or not team.group_chat_id:
+                        continue  # announced the old way already this month, or nowhere to post
+                    keys, due = [], []
+                    for g in billing.opened_groups(uow, team, period):
+                        key = f"announce:{team.id}:{g['plan_id'] or 0}:{g['months']}:{g['amount']}:{period}"
+                        if today >= g["notify"] and not self._ran(uow, key):
+                            keys.append(key)
+                            due.append({k: v for k, v in g.items() if k not in ("notify", "due_on")})
+                    if due and self.d.notifier.deliver({
                             "type": "bills_created", "team_id": team.id, "period_label": period_label(period),
-                            "fee": team.fee, "fees": billing.fee_groups(uow, team),
-                            "due": due_date(team, period).strftime("%d/%m"), "late_fee": team.late_fee or 0,
-                            "group_chat_id": team.group_chat_id})
-                    if ok:
-                        team.last_billed_period = period
+                            "fee": team.fee, "fees": due, "group_chat_id": team.group_chat_id}):
+                        for key in keys:
+                            uow.job_runs.add(JobRun(key=key, created_at=self.d.clock.now()))
                         uow.commit()
                 except Exception:
                     uow.rollback()
                     log.exception("open_month failed for team %s", team.id)
 
     def remind(self) -> None:
+        """One reminder a day at most, when any package is 3 days from its due date, on it, or every 3 days
+        after it (and announced already). It lists everyone who still owes."""
         now = self.d.clock.local_now()
+        today, period = now.date(), self.d.clock.current_period()
         with self.d.uow() as uow:
             for team in uow.teams.active():
                 try:
-                    if not team.group_chat_id or not billing.has_fees(uow, team):
-                        continue
-                    # the month whose fee is open: this one once announced, else last month's
-                    today, period = now.date(), self.d.clock.current_period()
-                    if today < notify_date(team, period):
-                        period = add_months(period, -1)
-                    due = due_date(team, period)
                     key = f"remind:{team.id}:{now:%Y-%m-%d}"
-                    if not should_remind(today, notify_date(team, period), due) or self._ran(uow, key):
+                    if not team.group_chat_id or self._ran(uow, key):
                         continue
                     billing.ensure_bills(uow, self.d, team)
+                    hit = None
+                    for p in (period, add_months(period, -1)):
+                        for g in billing.opened_groups(uow, team, p):
+                            due = g["due_on"]
+                            if should_remind(today, g["notify"], due):
+                                hit = hit or (p, g, due)
+                    if not hit:
+                        continue
                     unpaid = [{"name": g["name"], "total": g["total"]} for g in billing.unpaid_by_member(uow, team)]
                     if not unpaid:
                         continue
+                    p, g, due = hit
                     if self.d.notifier.deliver({
-                            "type": "reminder", "team_id": team.id,
-                            "period_label": period_label(period), "due": due.strftime("%d/%m"),
-                            "late_fee": team.late_fee or 0, "overdue": today > due, "unpaid": unpaid, "group_chat_id": team.group_chat_id}):
+                            "type": "reminder", "team_id": team.id, "period_label": period_label(p),
+                            "due": due.strftime("%d/%m"), "late_fee": g["late_fee"], "overdue": today > due,
+                            "unpaid": unpaid, "group_chat_id": team.group_chat_id}):
                         self._mark(uow, key)
                 except Exception:
                     uow.rollback()

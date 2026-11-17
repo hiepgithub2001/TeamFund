@@ -510,7 +510,7 @@ def test_schedule_and_late_fee():
     clock.local = clock.local.replace(day=15)
     svc.jobs.open_month()
     opened = [e for e in notifier.events if e["type"] == "bills_created"]
-    assert len(opened) == 1 and opened[0]["due"] == "20/11"
+    assert len(opened) == 1 and opened[0]["fees"][0]["due"] == "20/11"
 
     clock.local = clock.local.replace(day=22)
     svc.teams.update_settings(tid, OWNER, late_fee=1000)  # turned on on the 22nd: counts from the 22nd
@@ -521,7 +521,7 @@ def test_schedule_and_late_fee():
     late = [b for b in owed["An"]["bills"] if b["kind"] == "late"][0]
     assert (late["days"], late["amount"]) == (3, 3000)
     s = svc.money.status(tid)
-    assert (s["due"], s["late_fee"]) == ("20/11", 1000)
+    assert [(f["due"], f["late_fee"], f["count"]) for f in s["fees"]] == [("20/11", 1000, 2)]
 
     # An makes a QR on the 25th and pays it on the 26th: the extra day's fine isn't asked for
     intent = svc.money.create_intent(tid, MEMBER, [an])
@@ -546,3 +546,42 @@ def test_schedule_and_late_fee():
 def sepay_key_for_fake(svc, tid):
     link_bank(svc, tid)
     return sepay_key(svc, tid)
+
+
+def test_each_package_has_its_own_terms():
+    """Default: announce 15th, due +5, 1k/day. The quarterly plan: announce the 1st, due +10, 2k/day."""
+    svc, clock, notifier = make_services(datetime(2026, 11, 1, 10, 0))
+    tid = setup_team(svc)
+    svc.teams.link_group(tid, OWNER, -1001)
+    an, cu = [m["id"] for m in svc.members.add_members(tid, OWNER, [{"name": "An"}, {"name": "Cường"}])]
+    svc.teams.update_settings(tid, OWNER, fee=200000)
+    q = svc.plans.save_plan(tid, OWNER, 600000, 3, [cu])
+    d = svc.plans.set_terms(tid, OWNER, None, schedule=(15, 5), late_fee=1000)
+    assert (d["notify_day"], d["due_days"], d["late_fee"]) == (15, 5, 1000)
+    p = svc.plans.get_plan(tid, OWNER, q["id"])
+    assert (p["notify_day"], p["late_fee"], p["own_schedule"], p["own_late"]) == (15, 1000, False, False)
+    p = svc.plans.set_terms(tid, OWNER, q["id"], schedule=(1, 10), late_fee=2000)
+    assert (p["notify_day"], p["due_days"], p["late_fee"], p["own_schedule"]) == (1, 10, 2000, True)
+    assert code(svc.plans.set_terms, tid, MEMBER, q["id"], late_fee=1) == "not_manager"
+    assert code(svc.plans.set_terms, tid, OWNER, q["id"], schedule=(30, 1)) == "invalid"
+
+    fees = {f["amount"]: f for f in svc.money.status(tid)["fees"]}
+    assert (fees[200000]["due"], fees[200000]["late_fee"]) == ("20/11", 1000)
+    assert (fees[600000]["due"], fees[600000]["late_fee"]) == ("11/11", 2000)
+
+    svc.jobs.open_month()  # the 1st: only the quarterly plan is announced
+    posts = [e for e in notifier.events if e["type"] == "bills_created"]
+    assert len(posts) == 1 and [f["amount"] for f in posts[0]["fees"]] == [600000]
+    clock.local = clock.local.replace(day=15)
+    svc.jobs.open_month()
+    svc.jobs.open_month()
+    posts = [e for e in notifier.events if e["type"] == "bills_created"]
+    assert len(posts) == 2 and [f["amount"] for f in posts[1]["fees"]] == [200000], "each package once"
+
+    clock.local = clock.local.replace(day=23)
+    owed = {g["name"]: g["total"] for g in svc.money.unpaid(tid)}
+    # Cường: due 11/11 under the plan, 2k a day for 12 days; An: due 20/11, 1k a day for 3 days
+    assert owed == {"An": 203000, "Cường": 624000}
+    # the plan goes back to the default's terms: due 20/11, 1k/day from the 1st -> 3 days
+    svc.plans.set_terms(tid, OWNER, q["id"], inherit_schedule=True, inherit_late=True)
+    assert {g["name"]: g["total"] for g in svc.money.unpaid(tid)} == {"An": 203000, "Cường": 603000}

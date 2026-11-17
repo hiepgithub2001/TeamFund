@@ -70,6 +70,8 @@ fee_plans = Table(
     "fee_plans", metadata, _id(),
     Column("team_id", ForeignKey("teams.id"), index=True, nullable=False), Column("amount", Integer, nullable=False),
     Column("months", Integer, nullable=False), Column("created_at", DateTime, nullable=False),
+    Column("notify_day", Integer), Column("due_days", Integer), Column("late_fee", Integer),
+    Column("late_fee_since", Date),
 )
 
 payments = Table(
@@ -89,7 +91,7 @@ bills = Table(
     Column("period", String(7), nullable=False), Column("amount", Integer, nullable=False),
     Column("status", String(16), nullable=False), Column("monthly_key", String(32), unique=True),
     Column("payment_id", ForeignKey("payments.id")), Column("created_at", DateTime, nullable=False),
-    Column("paid_at", DateTime), Column("months", Integer),
+    Column("paid_at", DateTime), Column("months", Integer), Column("plan_id", Integer),
 )
 
 payment_intents = Table(

@@ -4,7 +4,8 @@ from datetime import timedelta
 from ..domain.entities import Bill, IncomingTransfer, Member, Payment, PaymentIntent, Team
 from ..domain.errors import DomainError
 from ..domain.rules import (CYCLES, add_months, covers, due_date, find_payment_codes, late_days, member_fee,
-                            new_payment_code, period_label, schedule, split_share, transfer_content)
+                            new_payment_code, notify_date, period_label, split_share, terms,
+                            transfer_content)
 from .ports import Conflict, Deps, UnitOfWork
 
 INTENT_TTL = timedelta(hours=24)
@@ -12,6 +13,11 @@ INTENT_TTL = timedelta(hours=24)
 
 def plans_of(uow: UnitOfWork, team: Team) -> dict:
     return {p.id: p for p in uow.plans.of_team(team.id)}
+
+
+def terms_of(team: Team, plans: dict, plan_id: int | None):
+    """The terms a bill is under: its plan's (if the plan still exists), else the default package's."""
+    return terms(team, plans.get(plan_id) if plan_id is not None else None)
 
 
 def fee_of(team: Team, member: Member, plans: dict) -> tuple[int, int]:
@@ -39,6 +45,7 @@ def ensure_bills(uow: UnitOfWork, d: Deps, team: Team, period: str | None = None
         if amount > 0 and m.id not in covered:
             uow.bills.add(Bill(team_id=team.id, member_id=m.id, kind="monthly", title="monthly", period=period,
                                amount=amount, months=months if months > 1 else None,
+                               plan_id=m.plan_id if m.plan_id in plans else None,
                                monthly_key=f"{m.id}:{period}", created_at=d.clock.now()))
             created += 1
     if created:
@@ -56,7 +63,7 @@ def update_late_fees(uow: UnitOfWork, d: Deps, team: Team) -> None:
     Runs with ensure_bills, so amounts are current whenever someone looks or pays. A late bill stops
     growing once the fee is paid, and stays as it is for paused members; turning the fee off waives
     the late bills still unpaid."""
-    rate, today = team.late_fee or 0, d.clock.local_now().date()
+    today, plans = d.clock.local_now().date(), plans_of(uow, team)
     late = {b.monthly_key: b for b in uow.bills.late_of_team(team.id)}
     changed = False
     for b, m in uow.bills.unpaid_with_members(team.id):
@@ -66,12 +73,14 @@ def update_late_fees(uow: UnitOfWork, d: Deps, team: Team) -> None:
         lb = late.get(key)
         if lb is not None and lb.status != "unpaid":
             continue
-        days = late_days(due_date(team, b.period), today, team.late_fee_since) if rate else 0
+        tm = terms_of(team, plans, b.plan_id)
+        rate = tm.late_fee
+        days = late_days(due_date(tm, b.period), today, tm.late_since) if rate else 0
         if days > 0:
             if lb is None:
                 uow.bills.add(Bill(team_id=team.id, member_id=b.member_id, kind="late", title=f"late:{days}",
                                    period=b.period, months=b.months, amount=days * rate, monthly_key=key,
-                                   created_at=d.clock.now()))
+                                   plan_id=b.plan_id, created_at=d.clock.now()))
                 changed = True
             elif (lb.amount, lb.title) != (days * rate, f"late:{days}"):
                 lb.amount, lb.title, changed = days * rate, f"late:{days}", True
@@ -94,22 +103,47 @@ def reprice_current_month(uow: UnitOfWork, d: Deps, team: Team) -> None:
         amount, months = fee_of(team, member, plans)
         if amount > 0:
             bill.amount, bill.months = amount, months if months > 1 else None
+            bill.plan_id = member.plan_id if member.plan_id in plans else None
         else:
             bill.status = "waived"
 
 
-def fee_groups(uow: UnitOfWork, team: Team) -> list[dict]:
-    """The fees active members pay: [{amount, months, count}], monthly first. Empty when nobody pays a fee."""
-    plans, groups = plans_of(uow, team), {}
+def _group(team: Team, plans: dict, plan_id, amount: int, months: int, count: int, period: str) -> dict:
+    tm = terms_of(team, plans, plan_id)
+    return {"plan_id": plan_id, "amount": amount, "months": months, "count": count,
+            "notify": notify_date(tm, period), "due_on": due_date(tm, period),
+            "due": due_date(tm, period).strftime("%d/%m"),
+            "late_fee": tm.late_fee}
+
+
+def fee_groups(uow: UnitOfWork, d: Deps, team: Team) -> list[dict]:
+    """What active members pay, per package: [{plan_id, amount, months, count, due, late_fee}], monthly first.
+    `due` is this month's due date under that package. Empty when nobody pays a fee."""
+    plans, groups, period = plans_of(uow, team), {}, d.clock.current_period()
     for m in uow.members.of_team(team.id, active_only=True):
         amount, months = fee_of(team, m, plans)
         if amount > 0:
-            groups[(months, amount)] = groups.get((months, amount), 0) + 1
-    return [{"amount": a, "months": n, "count": c} for (n, a), c in sorted(groups.items())]
+            key = (months, amount, m.plan_id if m.plan_id in plans else None)
+            groups[key] = groups.get(key, 0) + 1
+    return [_group(team, plans, pid, a, n, c, period)
+            for (n, a, pid), c in sorted(groups.items(), key=lambda kv: (kv[0][0], kv[0][1], kv[0][2] or 0))]
+
+
+def opened_groups(uow: UnitOfWork, team: Team, period: str) -> list[dict]:
+    """Fee bills that start in `period`, per package: what to announce that month (a quarterly plan only
+    in the months its members are billed)."""
+    plans, groups = plans_of(uow, team), {}
+    for b, m in uow.bills.fee_bills_since(team.id, period):
+        if b.period == period and m.status != "left":
+            key = (b.months or 1, b.amount, b.plan_id if b.plan_id in plans else None)
+            groups[key] = groups.get(key, 0) + 1
+    return [_group(team, plans, pid, a, n, c, period) for (n, a, pid), c in sorted(
+        groups.items(), key=lambda kv: (kv[0][0], kv[0][1], kv[0][2] or 0))]
 
 
 def has_fees(uow: UnitOfWork, team: Team) -> bool:
-    return team.fee > 0 or bool(fee_groups(uow, team))
+    plans = plans_of(uow, team)
+    return team.fee > 0 or any(fee_of(team, m, plans)[0] > 0 for m in uow.members.of_team(team.id, active_only=True))
 
 
 def bill_dict(b: Bill) -> dict:
@@ -303,11 +337,9 @@ def team_status(uow: UnitOfWork, d: Deps, team: Team) -> dict:
     paid = sorted((m.name for b, m in covering(uow, team, period).values()
                    if b.status == "paid" and m.status != "left"), key=str.casefold)
     unpaid = [{"name": g["name"], "total": g["total"]} for g in unpaid_by_member(uow, team)]
-    notify, days = schedule(team)
     return {"period": period, "period_label": period_label(period), "fee": team.fee,
-            "due": due_date(team, period).strftime("%d/%m"), "notify_day": notify, "due_days": days,
-            "late_fee": team.late_fee or 0,
-            "fees": fee_groups(uow, team), "has_fees": has_fees(uow, team),
+            "fees": [{k: v for k, v in g.items() if k not in ("notify", "due_on")} for g in fee_groups(uow, d, team)],
+            "has_fees": has_fees(uow, team),
             "paid": paid, "unpaid": unpaid, "total_unpaid": sum(u["total"] for u in unpaid)}
 
 
