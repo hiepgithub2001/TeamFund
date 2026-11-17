@@ -89,16 +89,16 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
 <body>
 <div class="wrap">
 <header>
-  <span class="eyebrow">System design · v5 · one server</span>
+  <span class="eyebrow">System design · v6 · clean architecture</span>
   <h1>Team Fund Bot</h1>
-  <p class="lead">Every team gets its own Telegram bot for collecting the monthly fee. A master bot registers new teams. Members open their team's bot, tap whose fee they are paying, scan a SePay QR, and the payment confirms itself. One Python server runs the master bot, every team bot and the webhooks. Its business rules live in a domain layer that the bot and HTTP controllers share.</p>
+  <p class="lead">Every team gets its own Telegram bot for collecting the monthly fee. A master bot registers new teams. Members open their team's bot, tap whose fee they are paying, scan a SePay QR, and the payment confirms itself. One Python server runs the master bot, every team bot and the webhooks. It follows Clean Architecture: business rules in the middle, Telegram, HTTP and the database at the edges, and every dependency pointing inward.</p>
 </header>
 
 <section>
   <h2>System overview</h2>
   <figure>
     <div class="frame">
-    <svg viewBox="0 0 1040 590" role="img" aria-label="The owner creates bots in BotFather and registers a team bot with the master bot. Members and the team group use the team bots. All bots send updates through Telegram's Bot API to Caddy on the VPS, which passes them and SePay webhooks to one app process. Inside it, the api and bot controllers and the scheduled jobs call the domain layer, which holds every business rule and uses the models to reach PostgreSQL.">
+    <svg viewBox="0 0 1040 590" role="img" aria-label="The owner creates bots in BotFather and registers a team bot with the master bot. Members and the team group use the team bots. All bots send updates through Telegram's Bot API to Caddy on the VPS, which passes them and SePay webhooks to one app process. Inside it, the interface adapters (webhooks, bots, scheduler) call the use cases, which apply the domain rules and reach PostgreSQL only through ports implemented by the infrastructure adapters.">
       <defs>
         <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="head-fg"/></marker>
         <marker id="am" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="head-m"/></marker>
@@ -172,28 +172,28 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <text class="lb z" x="656" y="58">APP · ONE PYTHON PROCESS</text>
 
       <rect class="box in" x="655" y="68" width="335" height="48" rx="6"/>
-      <text class="t" x="822" y="88" text-anchor="middle">api/ · HTTP controllers</text>
+      <text class="t" x="822" y="88" text-anchor="middle">interfaces/http · webhooks</text>
       <text class="s" x="822" y="106" text-anchor="middle">/tg/master · /tg/{bot} · /sepay/{team}</text>
 
       <rect class="box tg" x="655" y="145" width="160" height="60" rx="6"/>
-      <text class="t" x="735" y="166" text-anchor="middle">bot/ · Telegram</text>
+      <text class="t" x="735" y="166" text-anchor="middle">interfaces/bot</text>
       <text class="s" x="735" y="183" text-anchor="middle">master + team bots</text>
       <text class="s" x="735" y="198" text-anchor="middle">menus, EN/VI texts</text>
 
       <rect class="box" x="830" y="145" width="160" height="60" rx="6"/>
-      <text class="t" x="910" y="166" text-anchor="middle">jobs.py · clock</text>
+      <text class="t" x="910" y="166" text-anchor="middle">interfaces/scheduler</text>
       <text class="s" x="910" y="183" text-anchor="middle">bills, reminders,</text>
       <text class="s" x="910" y="198" text-anchor="middle">month-end report</text>
 
       <rect class="box hot" x="655" y="235" width="335" height="74" rx="6"/>
-      <text class="t" x="822" y="256" text-anchor="middle">domain/ · business rules</text>
-      <text class="s" x="822" y="273" text-anchor="middle">access: owner / manager checks</text>
-      <text class="s" x="822" y="288" text-anchor="middle">teams · members · money · billing</text>
-      <text class="s" x="822" y="303" text-anchor="middle">SePay matching · audit log</text>
+      <text class="t" x="822" y="256" text-anchor="middle">application/ use cases + domain/</text>
+      <text class="s" x="822" y="273" text-anchor="middle">registration · teams · members · money · jobs</text>
+      <text class="s" x="822" y="288" text-anchor="middle">entities · rules · role checks · ports</text>
+      <text class="s" x="822" y="303" text-anchor="middle">no framework imports</text>
 
       <rect class="box" x="655" y="325" width="335" height="48" rx="6"/>
-      <text class="t" x="822" y="345" text-anchor="middle">models.py · SQLAlchemy</text>
-      <text class="s" x="822" y="362" text-anchor="middle">team registry, encrypted bot tokens</text>
+      <text class="t" x="822" y="345" text-anchor="middle">infrastructure/ · adapters</text>
+      <text class="s" x="822" y="362" text-anchor="middle">SQLAlchemy repos · Fernet · SePay QR · xlsx</text>
 
       <rect class="box" x="660" y="470" width="200" height="70" rx="8"/>
       <text class="t" x="760" y="500" text-anchor="middle">PostgreSQL</text>
@@ -238,8 +238,80 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <span><i class="sw"></i>Telegram traffic and calls inside the app</span>
       <span><i class="sw m"></i>Money path: transfer to confirmation</span>
     </div>
-    <figcaption>The master bot's token is set once in <code>.env</code>. Team bot tokens come from owners through <code>/newteam</code> and are stored encrypted. Inside the one app process, the controllers only translate input and output: <code>api/</code> for HTTP, <code>bot/</code> for Telegram, <code>jobs.py</code> for the clock. Every rule, from who may change the bank account to how a transfer is matched to bills, is in <code>domain/</code>, so the bots, the webhooks and the jobs all share one implementation. The amber arrows are the money path: a SePay webhook enters through <code>api/</code>, is matched in <code>domain/</code>, and the resulting event goes to <code>bot/</code> for the receipt and group post. The public address is <code>teamfund.103-90-225-28.sslip.io</code>; the existing nginx keeps port 80, so Caddy gets its certificate on 443.</figcaption>
+    <figcaption>The master bot's token is set once in <code>.env</code>. Team bot tokens come from owners through <code>/newteam</code> and are stored encrypted. The amber arrows are the money path: a SePay webhook enters through <code>interfaces/http</code>, which turns SePay's JSON into an <code>IncomingTransfer</code>; a use case checks the team's key, matches the transfer to bills with the domain rules and saves it through the repository ports; the resulting event goes out through the notifier port to <code>interfaces/bot</code> for the receipt and group post. The public address is <code>teamfund.103-90-225-28.sslip.io</code>; the existing nginx keeps port 80, so Caddy gets its certificate on 443.</figcaption>
   </figure>
+</section>
+
+<section>
+  <h2>Clean Architecture</h2>
+  <p>The code is arranged in rings. Code in a ring may only use code in the rings inside it, so the business rules never depend on Telegram, FastAPI or the database, and any of those can be replaced without touching them. <code>tests/test_architecture.py</code> fails if a file imports outward.</p>
+  <figure>
+    <div class="frame">
+    <svg viewBox="0 0 640 520" role="img" aria-label="Three rings. The domain (entities and rules) is in the middle and imports nothing. Around it the application ring holds the use cases and the ports they need. The outer ring holds the adapters: interfaces (Telegram bots, HTTP webhooks, scheduler) on one side and infrastructure (SQLAlchemy, Fernet, SePay QR, openpyxl, clock) on the other. Arrows show dependencies pointing inward.">
+      <defs>
+        <marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-fg"/></marker>
+      </defs>
+      <circle class="box" cx="320" cy="260" r="240"/>
+      <circle class="box in" cx="320" cy="260" r="160"/>
+      <circle class="box mo" cx="320" cy="260" r="82"/>
+      <line class="ln d" x1="320" y1="20" x2="320" y2="100"/>
+      <line class="ln d" x1="320" y1="420" x2="320" y2="500"/>
+
+      <text class="t" x="232" y="66" text-anchor="middle">interfaces/</text>
+      <text class="s" x="232" y="82" text-anchor="middle">adapters in</text>
+      <text class="t" x="408" y="66" text-anchor="middle">infrastructure/</text>
+      <text class="s" x="408" y="82" text-anchor="middle">adapters out</text>
+      <text class="s" x="120" y="232" text-anchor="middle">Telegram bots</text>
+      <text class="s" x="120" y="250" text-anchor="middle">webhooks</text>
+      <text class="s" x="120" y="268" text-anchor="middle">scheduler</text>
+      <text class="s" x="120" y="286" text-anchor="middle">presenters</text>
+      <text class="s" x="520" y="223" text-anchor="middle">SQLAlchemy</text>
+      <text class="s" x="520" y="241" text-anchor="middle">Fernet</text>
+      <text class="s" x="520" y="259" text-anchor="middle">SePay QR</text>
+      <text class="s" x="520" y="277" text-anchor="middle">openpyxl</text>
+      <text class="s" x="520" y="295" text-anchor="middle">clock</text>
+
+      <text class="t" x="320" y="128" text-anchor="middle">application/</text>
+      <text class="s" x="320" y="145" text-anchor="middle">use cases · ports</text>
+      <text class="s" x="199" y="252" text-anchor="middle">teams</text>
+      <text class="s" x="199" y="270" text-anchor="middle">members</text>
+      <text class="s" x="441" y="252" text-anchor="middle">money</text>
+      <text class="s" x="441" y="270" text-anchor="middle">jobs</text>
+      <text class="s" x="320" y="386" text-anchor="middle">registration · users</text>
+
+      <text class="t" x="320" y="252" text-anchor="middle">domain/</text>
+      <text class="s" x="320" y="269" text-anchor="middle">entities · rules</text>
+      <text class="s" x="320" y="285" text-anchor="middle">imports nothing</text>
+
+      <line class="ln" x1="160" y1="420" x2="230" y2="350" marker-end="url(#r)"/>
+      <line class="ln" x1="250" y1="330" x2="283" y2="297" marker-end="url(#r)"/>
+      <line class="ln" x1="480" y1="420" x2="410" y2="350" marker-end="url(#r)"/>
+      <line class="ln" x1="390" y1="330" x2="357" y2="297" marker-end="url(#r)"/>
+      <text class="lb" x="40" y="470">dependencies point inward</text>
+      <text class="lb" x="600" y="470" text-anchor="end">adapters implement ports</text>
+    </svg>
+    </div>
+    <figcaption>Control flows outward and back (a webhook calls a use case, the use case saves through a repository), but every source-code dependency points inward. Use cases ask for what they need through ports, small interfaces in <code>application/ports.py</code>, and the outer ring provides the implementations. <code>main.py</code> is the composition root: the only file that knows every concrete class and wires them together.</figcaption>
+  </figure>
+  <div class="tbl">
+  <table>
+    <thead><tr><th>Ring</th><th>Folder</th><th>What's in it</th><th>May import</th></tr></thead>
+    <tbody>
+      <tr><td>Domain</td><td><code>domain/</code></td><td><code>entities.py</code>: Team, Member, Bill, Payment, PaymentIntent and the rest, as plain dataclasses. <code>rules.py</code>: fees, cost splitting, payment codes, reminder days, validation. <code>errors.py</code>.</td><td>nothing</td></tr>
+      <tr><td>Use cases</td><td><code>application/</code></td><td>One class per area: registration, users, teams, members, money, jobs. <code>access.py</code> (owner and manager checks), <code>billing.py</code> (bills, intents, matching transfers), <code>ports.py</code> (repositories, unit of work, clock, cipher, QR, spreadsheet, notifier), <code>services.py</code>.</td><td>domain</td></tr>
+      <tr><td>Adapters out</td><td><code>infrastructure/</code></td><td><code>orm.py</code> maps the domain dataclasses onto tables, so the domain never imports SQLAlchemy. <code>repositories.py</code>, <code>db.py</code> (unit of work), <code>clock.py</code>, <code>crypto.py</code> (Fernet), <code>sepay.py</code> (QR URL), <code>xlsx.py</code>.</td><td>application, domain</td></tr>
+      <tr><td>Adapters in</td><td><code>interfaces/</code></td><td><code>bot/</code>: aiogram handlers, texts and message builders. <code>http/</code>: Telegram webhooks and the SePay webhook, which turns SePay's JSON into an <code>IncomingTransfer</code>. <code>scheduler.py</code>. <code>deps.py</code> gives controllers the use cases.</td><td>application, domain</td></tr>
+      <tr><td>Composition root</td><td><code>main.py</code></td><td>Builds the adapters, passes them to the use cases as <code>Deps</code>, starts FastAPI, the bots and the scheduler.</td><td>everything</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <h3 class="sub">Tests by ring</h3>
+  <ul class="rules">
+    <li><b>Domain rules:</b> pure functions, no database (<code>test_rules.py</code>).</li>
+    <li><b>Use cases:</b> the real SQLAlchemy adapters on SQLite, with a fixed clock and a recording notifier, so reminders and month-end are tested on chosen dates (<code>test_use_cases.py</code>).</li>
+    <li><b>Dependency rule:</b> <code>test_architecture.py</code> reads every import.</li>
+    <li><b>Whole server:</b> <code>tests/e2e.py</code> drives the bots against a fake Telegram API.</li>
+  </ul>
 </section>
 
 <section>
@@ -267,14 +339,14 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
   <p>No one signs in. Whoever opens the team bot sees this month's unpaid list and taps the names they are paying for, usually just their own.</p>
   <figure>
     <div class="frame">
-    <svg viewBox="0 0 940 600" role="img" aria-label="Sequence: a member starts the bot, selects names, receives a SePay QR with a unique code, transfers money, SePay sends a webhook to the server, whose domain layer matches the code and amount, marks the bills paid, and the bot sends a receipt and posts to the group.">
+    <svg viewBox="0 0 940 600" role="img" aria-label="Sequence: a member starts the bot, selects names, receives a SePay QR with a unique code, transfers money, SePay sends a webhook to the server, whose use case matches the code and amount, marks the bills paid, and the bot sends a receipt and posts to the group.">
       <defs>
         <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-fg"/></marker>
         <marker id="bm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-m"/></marker>
       </defs>
       <rect class="box" x="15" y="16" width="130" height="40" rx="8"/><text class="t" x="80" y="41" text-anchor="middle">Member</text>
       <rect class="box tg" x="205" y="16" width="130" height="40" rx="8"/><text class="t" x="270" y="41" text-anchor="middle">Team bot</text>
-      <rect class="box" x="395" y="16" width="130" height="40" rx="8"/><text class="t" x="460" y="41" text-anchor="middle">Domain layer</text>
+      <rect class="box" x="395" y="16" width="130" height="40" rx="8"/><text class="t" x="460" y="41" text-anchor="middle">Use cases</text>
       <rect class="box mo" x="585" y="16" width="130" height="40" rx="8"/><text class="t" x="650" y="41" text-anchor="middle">Bank</text>
       <rect class="box mo" x="775" y="16" width="130" height="40" rx="8"/><text class="t" x="840" y="41" text-anchor="middle">SePay</text>
       <line class="life" x1="80" y1="56" x2="80" y2="585"/>
@@ -321,7 +393,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
 
 <section>
   <h2>Roles in a team bot</h2>
-  <p>Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID comes with every message and button tap and can't be faked, so the domain layer checks it before every manager action.</p>
+  <p>Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID comes with every message and button tap and can't be faked, so the use cases check it before every manager action.</p>
   <div class="tbl">
   <table>
     <thead><tr><th>Role</th><th>Who</th><th>Can do</th></tr></thead>
@@ -336,13 +408,13 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
   <h3 class="sub">Becoming a manager: request and approve</h3>
   <figure>
     <div class="frame">
-    <svg viewBox="0 0 860 400" role="img" aria-label="Sequence: a person sends /requestmanager to the team bot, the domain layer records the request and the bot sends the owner a card with Approve and Reject buttons. When the owner taps Approve, the domain layer checks that the tapper is the owner, adds the manager role and writes the audit log, then the bot tells the person and posts to the group.">
+    <svg viewBox="0 0 860 400" role="img" aria-label="Sequence: a person sends /requestmanager to the team bot, a use case records the request and the bot sends the owner a card with Approve and Reject buttons. When the owner taps Approve, the use case checks that the tapper is the owner, adds the manager role and writes the audit log, then the bot tells the person and posts to the group.">
       <defs>
         <marker id="c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-fg"/></marker>
       </defs>
       <rect class="box" x="25" y="16" width="130" height="40" rx="8"/><text class="t" x="90" y="41" text-anchor="middle">Person</text>
       <rect class="box tg" x="235" y="16" width="130" height="40" rx="8"/><text class="t" x="300" y="41" text-anchor="middle">Team bot</text>
-      <rect class="box" x="445" y="16" width="130" height="40" rx="8"/><text class="t" x="510" y="41" text-anchor="middle">Domain layer</text>
+      <rect class="box" x="445" y="16" width="130" height="40" rx="8"/><text class="t" x="510" y="41" text-anchor="middle">Use cases</text>
       <rect class="box" x="655" y="16" width="130" height="40" rx="8"/><text class="t" x="720" y="41" text-anchor="middle">Owner</text>
       <line class="life" x1="90" y1="56" x2="90" y2="385"/>
       <line class="life" x1="300" y1="56" x2="300" y2="385"/>
@@ -380,30 +452,13 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
   </ul>
 </section>
 
-<section>
-  <h2>Layers</h2>
-  <p>One process, three kinds of controller over one domain layer. A controller never contains a business rule; it calls the domain and renders the answer.</p>
-  <div class="tbl">
-  <table>
-    <thead><tr><th>Layer</th><th>Built with</th><th>Responsible for</th></tr></thead>
-    <tbody>
-      <tr><td>api/</td><td>FastAPI</td><td>Telegram webhooks, one per bot, checked by secret token. The SePay webhook, checked by the team's API key. Turns each request into domain calls.</td></tr>
-      <tr><td>bot/</td><td>aiogram 3</td><td>The master bot and every team bot: commands, buttons, EN/VI texts, per-role command menus, QR images, receipts and group posts. Calls the domain through <code>bot/run.py</code>, which gives each call its own database session in a worker thread.</td></tr>
-      <tr><td>jobs.py</td><td>APScheduler</td><td>Monthly bills, group reminders, the month-end report, expiring old requests and payment intents. Runs inside the app, so it needs one uvicorn worker.</td></tr>
-      <tr><td>domain/</td><td>plain Python</td><td>Every business rule: who may do what (<code>access</code>), team registration, team settings and managers (<code>teams</code>), the roster (<code>members</code>), paying, cash, charges, expenses and reports (<code>money</code>), bills and SePay matching (<code>billing</code>), audit log, Excel export.</td></tr>
-      <tr><td>models.py</td><td>SQLAlchemy 2</td><td>The tables. PostgreSQL 16 in production, SQLite in tests.</td></tr>
-      <tr><td>Caddy</td><td>Caddy 2</td><td>HTTPS on port 443; passes <code>/tg/*</code>, <code>/sepay/*</code> and <code>/health</code> to the app, everything else gets 404.</td></tr>
-    </tbody>
-  </table>
-  </div>
-</section>
 
 <section>
   <h2>Deployment on the VPS</h2>
   <p>Everything runs on the one VPS with Docker Compose. Only port 443 is added to the internet. The services that were already on the server (nginx on 80, the app on 8000, the host Postgres, Tailscale) are left alone.</p>
   <figure>
     <div class="frame">
-    <svg viewBox="0 0 1200 860" role="img" aria-label="Deployment: the sslip.io hostname resolves to 103.90.225.28. Telegram, SePay and Let's Encrypt reach port 443, where Docker forwards to the Caddy container. Caddy passes /tg and /sepay to the app container over the internal Docker network. The app, which holds the bots, the webhooks, the scheduled jobs and the domain layer, uses the Postgres container, whose data lives in the db_data volume. The app calls api.telegram.org outbound. The project folder on the host holds .env, the Caddyfile, the source used for docker build, and the deploy and backup scripts, and syncs with GitHub over SSH.">
+    <svg viewBox="0 0 1200 860" role="img" aria-label="Deployment: the sslip.io hostname resolves to 103.90.225.28. Telegram, SePay and Let's Encrypt reach port 443, where Docker forwards to the Caddy container. Caddy passes /tg and /sepay to the app container over the internal Docker network. The app, which holds the bots, the webhooks, the scheduler, the use cases and the adapters, uses the Postgres container, whose data lives in the db_data volume. The app calls api.telegram.org outbound. The project folder on the host holds .env, the Caddyfile, the source used for docker build, and the deploy and backup scripts, and syncs with GitHub over SSH.">
       <defs>
         <marker id="d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="head-fg"/></marker>
         <marker id="dm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="head-m"/></marker>
@@ -499,23 +554,23 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <text class="t" x="950" y="112" text-anchor="middle">app</text>
       <text class="s" x="950" y="129" text-anchor="middle">./server · python:3.12-slim · uvicorn :8000 · 1 worker</text>
       <rect class="box in" x="776" y="144" width="348" height="46" rx="6"/>
-      <text class="t" x="950" y="163" text-anchor="middle">api/ · HTTP controllers</text>
+      <text class="t" x="950" y="163" text-anchor="middle">interfaces/http · webhooks</text>
       <text class="s" x="950" y="180" text-anchor="middle">/tg/master · /tg/{botId} · /sepay/{teamId}</text>
       <rect class="box in" x="776" y="204" width="168" height="62" rx="6"/>
-      <text class="t" x="860" y="224" text-anchor="middle">bot/</text>
+      <text class="t" x="860" y="224" text-anchor="middle">interfaces/bot</text>
       <text class="s" x="860" y="241" text-anchor="middle">aiogram: master +</text>
       <text class="s" x="860" y="256" text-anchor="middle">team bots, EN/VI</text>
       <rect class="box in" x="956" y="204" width="168" height="62" rx="6"/>
-      <text class="t" x="1040" y="224" text-anchor="middle">jobs.py</text>
+      <text class="t" x="1040" y="224" text-anchor="middle">interfaces/scheduler</text>
       <text class="s" x="1040" y="241" text-anchor="middle">APScheduler in-process</text>
       <text class="s" x="1040" y="256" text-anchor="middle">:05 bills · 09:00 · 20:00</text>
       <rect class="box hot" x="776" y="280" width="348" height="62" rx="6"/>
-      <text class="t" x="950" y="300" text-anchor="middle">domain/ · business rules</text>
-      <text class="s" x="950" y="317" text-anchor="middle">access · teams · members · money · billing</text>
-      <text class="s" x="950" y="332" text-anchor="middle">SePay matching · audit log · export</text>
+      <text class="t" x="950" y="300" text-anchor="middle">application/ + domain/</text>
+      <text class="s" x="950" y="317" text-anchor="middle">use cases and ports · entities and rules</text>
+      <text class="s" x="950" y="332" text-anchor="middle">no framework imports</text>
       <rect class="box file" x="776" y="356" width="348" height="52" rx="6"/>
-      <text class="t" x="950" y="376" text-anchor="middle">models.py · SQLAlchemy</text>
-      <text class="s" x="950" y="394" text-anchor="middle">creates tables at start · runs as user app</text>
+      <text class="t" x="950" y="376" text-anchor="middle">infrastructure/ · adapters</text>
+      <text class="s" x="950" y="394" text-anchor="middle">SQLAlchemy · Fernet · SePay QR · xlsx</text>
 
       <rect class="box" x="760" y="500" width="192" height="80" rx="8"/>
       <text class="t" x="856" y="524" text-anchor="middle">db</text>

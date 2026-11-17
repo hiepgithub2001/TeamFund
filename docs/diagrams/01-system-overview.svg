@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="590" viewBox="0 0 1040 590" role="img" aria-label="The owner creates bots in BotFather and registers a team bot with the master bot. Members and the team group use the team bots. All bots send updates through Telegram's Bot API to Caddy on the VPS, which passes them and SePay webhooks to one app process. Inside it, the api and bot controllers and the scheduled jobs call the domain layer, which holds every business rule and uses the models to reach PostgreSQL."><style>svg{
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="590" viewBox="0 0 1040 590" role="img" aria-label="The owner creates bots in BotFather and registers a team bot with the master bot. Members and the team group use the team bots. All bots send updates through Telegram's Bot API to Caddy on the VPS, which passes them and SePay webhooks to one app process. Inside it, the interface adapters (webhooks, bots, scheduler) call the use cases, which apply the domain rules and reach PostgreSQL only through ports implemented by the infrastructure adapters."><style>svg{
   --bg:#f5f7f8; --surface:#ffffff; --fg:#17212b; --muted:#5b6b78; --line:#c9d3db;
   --tg:#2b7bb9; --tg-soft:#eaf3fa; --money:#b8730f; --money-soft:#fbf1df;
   --display:"Space Grotesk",system-ui,sans-serif;
@@ -105,28 +105,28 @@
       <text class="lb z" x="656" y="58">APP · ONE PYTHON PROCESS</text>
 
       <rect class="box in" x="655" y="68" width="335" height="48" rx="6"/>
-      <text class="t" x="822" y="88" text-anchor="middle">api/ · HTTP controllers</text>
+      <text class="t" x="822" y="88" text-anchor="middle">interfaces/http · webhooks</text>
       <text class="s" x="822" y="106" text-anchor="middle">/tg/master · /tg/{bot} · /sepay/{team}</text>
 
       <rect class="box tg" x="655" y="145" width="160" height="60" rx="6"/>
-      <text class="t" x="735" y="166" text-anchor="middle">bot/ · Telegram</text>
+      <text class="t" x="735" y="166" text-anchor="middle">interfaces/bot</text>
       <text class="s" x="735" y="183" text-anchor="middle">master + team bots</text>
       <text class="s" x="735" y="198" text-anchor="middle">menus, EN/VI texts</text>
 
       <rect class="box" x="830" y="145" width="160" height="60" rx="6"/>
-      <text class="t" x="910" y="166" text-anchor="middle">jobs.py · clock</text>
+      <text class="t" x="910" y="166" text-anchor="middle">interfaces/scheduler</text>
       <text class="s" x="910" y="183" text-anchor="middle">bills, reminders,</text>
       <text class="s" x="910" y="198" text-anchor="middle">month-end report</text>
 
       <rect class="box hot" x="655" y="235" width="335" height="74" rx="6"/>
-      <text class="t" x="822" y="256" text-anchor="middle">domain/ · business rules</text>
-      <text class="s" x="822" y="273" text-anchor="middle">access: owner / manager checks</text>
-      <text class="s" x="822" y="288" text-anchor="middle">teams · members · money · billing</text>
-      <text class="s" x="822" y="303" text-anchor="middle">SePay matching · audit log</text>
+      <text class="t" x="822" y="256" text-anchor="middle">application/ use cases + domain/</text>
+      <text class="s" x="822" y="273" text-anchor="middle">registration · teams · members · money · jobs</text>
+      <text class="s" x="822" y="288" text-anchor="middle">entities · rules · role checks · ports</text>
+      <text class="s" x="822" y="303" text-anchor="middle">no framework imports</text>
 
       <rect class="box" x="655" y="325" width="335" height="48" rx="6"/>
-      <text class="t" x="822" y="345" text-anchor="middle">models.py · SQLAlchemy</text>
-      <text class="s" x="822" y="362" text-anchor="middle">team registry, encrypted bot tokens</text>
+      <text class="t" x="822" y="345" text-anchor="middle">infrastructure/ · adapters</text>
+      <text class="s" x="822" y="362" text-anchor="middle">SQLAlchemy repos · Fernet · SePay QR · xlsx</text>
 
       <rect class="box" x="660" y="470" width="200" height="70" rx="8"/>
       <text class="t" x="760" y="500" text-anchor="middle">PostgreSQL</text>

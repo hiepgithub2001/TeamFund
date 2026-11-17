@@ -10,18 +10,21 @@ Telegram bots that collect a football team's monthly fee and confirm payments au
 
 Diagrams and the full design are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (open [docs/architecture.html](docs/architecture.html) in a browser for the interactive page). Rebuild them after changing the page with `python3 scripts/build-docs.py docs/architecture.html`.
 
-One Python server, in layers:
+One Python server, organised as Clean Architecture. Every source-code dependency points inward, and `server/tests/test_architecture.py` fails if one doesn't.
 
 ```
 server/app/
-  domain/     business rules and use cases: who may do what, billing, SePay matching, members, teams
-  bot/        Telegram controllers: the master bot and every team bot (aiogram 3), EN/VI texts
-  api/        HTTP controllers: Telegram webhooks (/tg/*) and the SePay webhook (/sepay/{team})
-  jobs.py     scheduled jobs: monthly bills, reminders, month-end report
-  models.py   database tables (SQLAlchemy)
+  domain/          entities (plain dataclasses) and pure business rules      imports nothing
+  application/     use cases + ports (interfaces they need)                  imports domain
+  infrastructure/  adapters out: SQLAlchemy repos and unit of work,          implements ports
+                   Fernet, SePay QR URL, openpyxl, clock
+  interfaces/      adapters in: Telegram bots, HTTP webhooks, scheduler      calls use cases
+  main.py          composition root: builds the adapters and wires them in
 ```
 
-Controllers only translate input and output; every rule lives in `domain/`, so the bots and the webhooks share one implementation. Bot handlers call domain functions through `bot/run.py`, which runs them in a worker thread with their own database session.
+- The domain dataclasses are mapped onto tables from `infrastructure/orm.py` (SQLAlchemy imperative mapping), so the domain never imports SQLAlchemy.
+- Use cases get everything through `Deps` (unit of work, clock, cipher, QR, spreadsheet, notifier, config) and run in worker threads; bots and webhooks call them via `interfaces/deps.py`.
+- SePay's JSON is translated to an `IncomingTransfer` at the edge (`interfaces/http/sepay.py`); the use case knows nothing about SePay's format.
 
 | Container | Image | Job |
 |---|---|---|
@@ -61,11 +64,11 @@ Port 443 must be reachable from the internet; Telegram and SePay both call it. P
 
 ```bash
 pip install -r server/requirements.txt pytest
-(cd server && python -m pytest -q tests)   # domain rules + bot helpers
+(cd server && python -m pytest -q tests)   # rules, use cases, dependency rule, bot helpers
 python tests/e2e.py                         # the whole server against a fake Telegram API
 ```
 
-Bot texts live in `server/app/bot/locales/en.json` and `vi.json`; both files must have the same keys.
+Bot texts live in `server/app/interfaces/bot/locales/en.json` and `vi.json`; both files must have the same keys.
 
 ## Backups
 

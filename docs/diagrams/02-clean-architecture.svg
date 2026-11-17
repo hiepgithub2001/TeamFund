@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="520" viewBox="0 0 640 520" role="img" aria-label="Three rings. The domain (entities and rules) is in the middle and imports nothing. Around it the application ring holds the use cases and the ports they need. The outer ring holds the adapters: interfaces (Telegram bots, HTTP webhooks, scheduler) on one side and infrastructure (SQLAlchemy, Fernet, SePay QR, openpyxl, clock) on the other. Arrows show dependencies pointing inward."><style>svg{
+  --bg:#f5f7f8; --surface:#ffffff; --fg:#17212b; --muted:#5b6b78; --line:#c9d3db;
+  --tg:#2b7bb9; --tg-soft:#eaf3fa; --money:#b8730f; --money-soft:#fbf1df;
+  --display:"Space Grotesk",system-ui,sans-serif;
+  --body:"Inter",system-ui,-apple-system,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+;color:var(--fg);font-family:Inter,system-ui,sans-serif}
+.box{fill:var(--surface);stroke:var(--line);stroke-width:1.5}
+.box.tg{stroke:var(--tg)}
+.box.in{fill:var(--tg-soft);stroke:var(--tg);stroke-width:1}
+.box.mo{stroke:var(--money);fill:var(--money-soft)}
+.box.ghost{fill:none;stroke:var(--line);stroke-dasharray:4 3}
+.box.hot{fill:var(--tg-soft);stroke:var(--tg);stroke-width:2}
+.box.file{fill:var(--bg);stroke:var(--line)}
+.lane{fill:var(--bg);stroke:none}
+.lane-line{stroke:var(--line);stroke-width:1}
+.ln.tg{stroke:var(--tg)}
+.ln.out{stroke:var(--tg);stroke-dasharray:6 4}
+.head-tg{fill:var(--tg)}
+.lb.tgc{fill:var(--tg)}
+.s.ghost{fill:var(--muted);font-style:italic}
+.zone{fill:none;stroke:var(--muted);stroke-width:1.2;stroke-dasharray:6 5}
+.zone.tg{stroke:var(--tg)}
+.t{font:600 13px var(--body);fill:currentColor}
+.s{font:400 11px var(--body);fill:var(--muted)}
+.lb{font:500 11px var(--mono);fill:var(--muted)}
+.lb.m{fill:var(--money)}
+.lb.z{fill:var(--tg)}
+.ln{fill:none;stroke:currentColor;stroke-width:1.4}
+.ln.m{stroke:var(--money);stroke-width:2}
+.ln.d{stroke-dasharray:5 4}
+.life{stroke:var(--line);stroke-width:1.2;stroke-dasharray:4 4}
+.head-fg{fill:currentColor}
+.head-m{fill:var(--money)}</style><rect width="100%" height="100%" fill="#ffffff"/>
+      <defs>
+        <marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-fg"/></marker>
+      </defs>
+      <circle class="box" cx="320" cy="260" r="240"/>
+      <circle class="box in" cx="320" cy="260" r="160"/>
+      <circle class="box mo" cx="320" cy="260" r="82"/>
+      <line class="ln d" x1="320" y1="20" x2="320" y2="100"/>
+      <line class="ln d" x1="320" y1="420" x2="320" y2="500"/>
+
+      <text class="t" x="232" y="66" text-anchor="middle">interfaces/</text>
+      <text class="s" x="232" y="82" text-anchor="middle">adapters in</text>
+      <text class="t" x="408" y="66" text-anchor="middle">infrastructure/</text>
+      <text class="s" x="408" y="82" text-anchor="middle">adapters out</text>
+      <text class="s" x="120" y="232" text-anchor="middle">Telegram bots</text>
+      <text class="s" x="120" y="250" text-anchor="middle">webhooks</text>
+      <text class="s" x="120" y="268" text-anchor="middle">scheduler</text>
+      <text class="s" x="120" y="286" text-anchor="middle">presenters</text>
+      <text class="s" x="520" y="223" text-anchor="middle">SQLAlchemy</text>
+      <text class="s" x="520" y="241" text-anchor="middle">Fernet</text>
+      <text class="s" x="520" y="259" text-anchor="middle">SePay QR</text>
+      <text class="s" x="520" y="277" text-anchor="middle">openpyxl</text>
+      <text class="s" x="520" y="295" text-anchor="middle">clock</text>
+
+      <text class="t" x="320" y="128" text-anchor="middle">application/</text>
+      <text class="s" x="320" y="145" text-anchor="middle">use cases · ports</text>
+      <text class="s" x="199" y="252" text-anchor="middle">teams</text>
+      <text class="s" x="199" y="270" text-anchor="middle">members</text>
+      <text class="s" x="441" y="252" text-anchor="middle">money</text>
+      <text class="s" x="441" y="270" text-anchor="middle">jobs</text>
+      <text class="s" x="320" y="386" text-anchor="middle">registration · users</text>
+
+      <text class="t" x="320" y="252" text-anchor="middle">domain/</text>
+      <text class="s" x="320" y="269" text-anchor="middle">entities · rules</text>
+      <text class="s" x="320" y="285" text-anchor="middle">imports nothing</text>
+
+      <line class="ln" x1="160" y1="420" x2="230" y2="350" marker-end="url(#r)"/>
+      <line class="ln" x1="250" y1="330" x2="283" y2="297" marker-end="url(#r)"/>
+      <line class="ln" x1="480" y1="420" x2="410" y2="350" marker-end="url(#r)"/>
+      <line class="ln" x1="390" y1="330" x2="357" y2="297" marker-end="url(#r)"/>
+      <text class="lb" x="40" y="470">dependencies point inward</text>
+      <text class="lb" x="600" y="470" text-anchor="end">adapters implement ports</text>
+    </svg>

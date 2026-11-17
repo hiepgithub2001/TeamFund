@@ -2,9 +2,9 @@
 
 > Generated from `docs/architecture.html` by `scripts/build-docs.py`. Open the HTML file for the interactive version with dark mode.
 
-_System design · v5 · one server_
+_System design · v6 · clean architecture_
 
-Every team gets its own Telegram bot for collecting the monthly fee. A master bot registers new teams. Members open their team's bot, tap whose fee they are paying, scan a SePay QR, and the payment confirms itself. One Python server runs the master bot, every team bot and the webhooks. Its business rules live in a domain layer that the bot and HTTP controllers share.
+Every team gets its own Telegram bot for collecting the monthly fee. A master bot registers new teams. Members open their team's bot, tap whose fee they are paying, scan a SePay QR, and the payment confirms itself. One Python server runs the master bot, every team bot and the webhooks. It follows Clean Architecture: business rules in the middle, Telegram, HTTP and the database at the edges, and every dependency pointing inward.
 
 ## System overview
 
@@ -12,7 +12,30 @@ Every team gets its own Telegram bot for collecting the monthly fee. A master bo
 
 Legend: Telegram traffic and calls inside the app · Money path: transfer to confirmation
 
-_The master bot's token is set once in `.env`. Team bot tokens come from owners through `/newteam` and are stored encrypted. Inside the one app process, the controllers only translate input and output: `api/` for HTTP, `bot/` for Telegram, `jobs.py` for the clock. Every rule, from who may change the bank account to how a transfer is matched to bills, is in `domain/`, so the bots, the webhooks and the jobs all share one implementation. The amber arrows are the money path: a SePay webhook enters through `api/`, is matched in `domain/`, and the resulting event goes to `bot/` for the receipt and group post. The public address is `teamfund.103-90-225-28.sslip.io`; the existing nginx keeps port 80, so Caddy gets its certificate on 443._
+_The master bot's token is set once in `.env`. Team bot tokens come from owners through `/newteam` and are stored encrypted. The amber arrows are the money path: a SePay webhook enters through `interfaces/http`, which turns SePay's JSON into an `IncomingTransfer`; a use case checks the team's key, matches the transfer to bills with the domain rules and saves it through the repository ports; the resulting event goes out through the notifier port to `interfaces/bot` for the receipt and group post. The public address is `teamfund.103-90-225-28.sslip.io`; the existing nginx keeps port 80, so Caddy gets its certificate on 443._
+
+## Clean Architecture
+
+The code is arranged in rings. Code in a ring may only use code in the rings inside it, so the business rules never depend on Telegram, FastAPI or the database, and any of those can be replaced without touching them. `tests/test_architecture.py` fails if a file imports outward.
+
+![Three rings. The domain (entities and rules) is in the middle and imports nothing. Around it the application ring holds ](diagrams/02-clean-architecture.svg)
+
+_Control flows outward and back (a webhook calls a use case, the use case saves through a repository), but every source-code dependency points inward. Use cases ask for what they need through ports, small interfaces in `application/ports.py`, and the outer ring provides the implementations. `main.py` is the composition root: the only file that knows every concrete class and wires them together._
+
+| Ring | Folder | What's in it | May import |
+|---|---|---|---|
+| Domain | `domain/` | `entities.py`: Team, Member, Bill, Payment, PaymentIntent and the rest, as plain dataclasses. `rules.py`: fees, cost splitting, payment codes, reminder days, validation. `errors.py`. | nothing |
+| Use cases | `application/` | One class per area: registration, users, teams, members, money, jobs. `access.py` (owner and manager checks), `billing.py` (bills, intents, matching transfers), `ports.py` (repositories, unit of work, clock, cipher, QR, spreadsheet, notifier), `services.py`. | domain |
+| Adapters out | `infrastructure/` | `orm.py` maps the domain dataclasses onto tables, so the domain never imports SQLAlchemy. `repositories.py`, `db.py` (unit of work), `clock.py`, `crypto.py` (Fernet), `sepay.py` (QR URL), `xlsx.py`. | application, domain |
+| Adapters in | `interfaces/` | `bot/`: aiogram handlers, texts and message builders. `http/`: Telegram webhooks and the SePay webhook, which turns SePay's JSON into an `IncomingTransfer`. `scheduler.py`. `deps.py` gives controllers the use cases. | application, domain |
+| Composition root | `main.py` | Builds the adapters, passes them to the use cases as `Deps`, starts FastAPI, the bots and the scheduler. | everything |
+
+### Tests by ring
+
+- **Domain rules:** pure functions, no database (`test_rules.py`).
+- **Use cases:** the real SQLAlchemy adapters on SQLite, with a fixed clock and a recording notifier, so reminders and month-end are tested on chosen dates (`test_use_cases.py`).
+- **Dependency rule:** `test_architecture.py` reads every import.
+- **Whole server:** `tests/e2e.py` drives the bots against a fake Telegram API.
 
 ## Setting up
 
@@ -36,13 +59,13 @@ _The master bot's token is set once in `.env`. Team bot tokens come from owners 
 
 No one signs in. Whoever opens the team bot sees this month's unpaid list and taps the names they are paying for, usually just their own.
 
-![Sequence: a member starts the bot, selects names, receives a SePay QR with a unique code, transfers money, SePay sends a](diagrams/02-payment-flow.svg)
+![Sequence: a member starts the bot, selects names, receives a SePay QR with a unique code, transfers money, SePay sends a](diagrams/03-payment-flow.svg)
 
 _The unique code in the transfer memo is what lets the server match money to bills with no human check. Each intent expires after 24 hours. If the amount doesn't match or the code is missing, the transaction is still saved and a manager is asked to assign it. SePay's transaction id is stored, so a repeated webhook can't count the same payment twice._
 
 ## Roles in a team bot
 
-Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID comes with every message and button tap and can't be faked, so the domain layer checks it before every manager action.
+Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID comes with every message and button tap and can't be faked, so the use cases check it before every manager action.
 
 | Role | Who | Can do |
 |---|---|---|
@@ -52,7 +75,7 @@ Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID
 
 ### Becoming a manager: request and approve
 
-![Sequence: a person sends /requestmanager to the team bot, the domain layer records the request and the bot sends the own](diagrams/03-roles-in-a-team-bot.svg)
+![Sequence: a person sends /requestmanager to the team bot, a use case records the request and the bot sends the owner a c](diagrams/04-roles-in-a-team-bot.svg)
 
 _The role check in step 7 runs on the server, so a forwarded Approve button does nothing for anyone but the owner. Requests that get no answer expire after 7 days._
 
@@ -62,24 +85,11 @@ _The role check in step 7 runs on the server, so a forwarded Approve button does
 - A change to the bank account is announced in the group, so nobody can quietly redirect the fund.
 - Every manager action goes into the audit log: who, what, when, and the old and new values.
 
-## Layers
-
-One process, three kinds of controller over one domain layer. A controller never contains a business rule; it calls the domain and renders the answer.
-
-| Layer | Built with | Responsible for |
-|---|---|---|
-| api/ | FastAPI | Telegram webhooks, one per bot, checked by secret token. The SePay webhook, checked by the team's API key. Turns each request into domain calls. |
-| bot/ | aiogram 3 | The master bot and every team bot: commands, buttons, EN/VI texts, per-role command menus, QR images, receipts and group posts. Calls the domain through `bot/run.py`, which gives each call its own database session in a worker thread. |
-| jobs.py | APScheduler | Monthly bills, group reminders, the month-end report, expiring old requests and payment intents. Runs inside the app, so it needs one uvicorn worker. |
-| domain/ | plain Python | Every business rule: who may do what (`access`), team registration, team settings and managers (`teams`), the roster (`members`), paying, cash, charges, expenses and reports (`money`), bills and SePay matching (`billing`), audit log, Excel export. |
-| models.py | SQLAlchemy 2 | The tables. PostgreSQL 16 in production, SQLite in tests. |
-| Caddy | Caddy 2 | HTTPS on port 443; passes `/tg/*`, `/sepay/*` and `/health` to the app, everything else gets 404. |
-
 ## Deployment on the VPS
 
 Everything runs on the one VPS with Docker Compose. Only port 443 is added to the internet. The services that were already on the server (nginx on 80, the app on 8000, the host Postgres, Tailscale) are left alone.
 
-![Deployment: the sslip.io hostname resolves to 103.90.225.28. Telegram, SePay and Let's Encrypt reach port 443, where Doc](diagrams/04-deployment-on-the-vps.svg)
+![Deployment: the sslip.io hostname resolves to 103.90.225.28. Telegram, SePay and Let's Encrypt reach port 443, where Doc](diagrams/05-deployment-on-the-vps.svg)
 
 Legend: Telegram traffic · Money path · Other traffic, mounts, builds · Already on the server, not part of Team Fund
 
@@ -89,7 +99,7 @@ _Requests from Telegram, SePay and Let's Encrypt arrive on port 443 and Docker f
 
 The code goes to GitHub first, then the VPS pulls it and Compose rebuilds only what changed.
 
-![Deploy pipeline in four lanes: change and test the code, commit, push to GitHub over SSH, on the VPS run deploy.sh which](diagrams/05-how-a-deploy-works.svg)
+![Deploy pipeline in four lanes: change and test the code, commit, push to GitHub over SSH, on the VPS run deploy.sh which](diagrams/06-how-a-deploy-works.svg)
 
 _Pushing to GitHub doesn't deploy anything by itself; running `scripts/deploy.sh` on the VPS does. If the health check fails, the script stops and prints the log command. Database rows and certificates survive every deploy because they live in volumes, not in the containers._
 

@@ -1,0 +1,147 @@
+"""Use cases: paying, cash, charges, expenses, transfers that need checking, reports, export."""
+from ..domain.entities import Expense, IncomingTransfer
+from ..domain.errors import DomainError, invalid
+from ..domain.rules import MAX_AMOUNT, period_label
+from . import billing
+from .access import get_team, manager_team
+from .people import audit, display_name
+from .ports import Deps
+from .teams import check_api_key
+
+
+def _ids(member_ids) -> list[int]:
+    if not member_ids or len(member_ids) > 100 or not all(isinstance(i, int) for i in member_ids):
+        raise invalid()
+    return list(member_ids)
+
+
+class MoneyUseCases:
+    def __init__(self, d: Deps):
+        self.d = d
+
+    def unpaid(self, team_id: int) -> list[dict]:
+        """Everyone with something to pay. Open to anyone who opens the bot."""
+        with self.d.uow() as uow:
+            team = get_team(uow, team_id)
+            billing.ensure_bills(uow, self.d, team)
+            return billing.unpaid_by_member(uow, team)
+
+    def create_intent(self, team_id: int, actor: int | None, member_ids: list[int]) -> dict:
+        with self.d.uow() as uow:
+            return billing.create_intent(uow, self.d, get_team(uow, team_id), _ids(member_ids), actor)
+
+    def status(self, team_id: int) -> dict:
+        with self.d.uow() as uow:
+            return billing.team_status(uow, self.d, get_team(uow, team_id))
+
+    def fund(self, team_id: int) -> dict:
+        with self.d.uow() as uow:
+            return billing.fund(uow, get_team(uow, team_id))
+
+    def history(self, team_id: int, limit: int = 10) -> list[dict]:
+        with self.d.uow() as uow:
+            return billing.history(uow, self.d, get_team(uow, team_id), min(limit, 50))
+
+    def record_transfer(self, team_id: int, api_key: str, transfer: IncomingTransfer) -> str | None:
+        """A payment provider reported money arriving. Checks the key, matches the transfer to bills
+        and publishes what happened. Returns the event type, or None if nothing changed."""
+        with self.d.uow() as uow:
+            event = billing.record_transfer(uow, self.d, check_api_key(uow, team_id, api_key), transfer)
+        if event:
+            self.d.notifier.publish(event)
+        return event["type"] if event else None
+
+    def markpaid(self, team_id: int, actor: int, member_ids: list[int]) -> dict:
+        with self.d.uow() as uow:
+            team = manager_team(uow, team_id, actor)
+            result = billing.cash_payments(uow, self.d, team, _ids(member_ids), actor)
+            audit(uow, self.d.clock, team.id, actor, "payment.cash", target=", ".join(result["members"]),
+                  after={"amount": result["amount"]})
+            uow.commit()
+            return result
+
+    def charges(self, team_id: int, actor: int, title: str, amount: int, kind: str = "charge",
+                member_ids: list[int] | None = None) -> dict:
+        title = (title or "").strip()
+        with self.d.uow() as uow:
+            team = manager_team(uow, team_id, actor)
+            if kind not in ("charge", "split") or not title or len(title) > 100 or not 0 < amount <= MAX_AMOUNT:
+                raise invalid()
+            result = billing.create_charges(uow, self.d, team, title, amount,
+                                            None if member_ids is None else _ids(member_ids), kind)
+            audit(uow, self.d.clock, team.id, actor, f"bill.{kind}", target=title, after=result)
+            uow.commit()
+            return result
+
+    def waive(self, team_id: int, actor: int, bill_id: int) -> dict:
+        with self.d.uow() as uow:
+            team = manager_team(uow, team_id, actor)
+            b = uow.bills.get(bill_id)
+            if not b or b.team_id != team.id:
+                raise DomainError(404, "not_found")
+            if b.status != "unpaid":
+                raise DomainError(409, "already_resolved")
+            b.status = "waived"
+            audit(uow, self.d.clock, team.id, actor, "bill.waive", target=f"{b.title} {period_label(b.period)}",
+                  after={"bill_id": b.id, "amount": b.amount})
+            uow.commit()
+            return billing.bill_dict(b)
+
+    def add_expense(self, team_id: int, actor: int, amount: int, title: str, photo_file_id: str | None = None) -> dict:
+        title = (title or "").strip()
+        with self.d.uow() as uow:
+            team = manager_team(uow, team_id, actor)
+            if not title or len(title) > 200 or not 0 < amount <= MAX_AMOUNT:
+                raise invalid()
+            uow.expenses.add(Expense(team_id=team.id, amount=amount, title=title, photo_file_id=photo_file_id,
+                                     created_by=actor, created_at=self.d.clock.now()))
+            audit(uow, self.d.clock, team.id, actor, "expense.add", target=title, after={"amount": amount})
+            uow.commit()
+            return {"amount": amount, "title": title, "by": display_name(uow, actor),
+                    "balance": billing.fund(uow, team)["balance"]}
+
+    def unmatched(self, team_id: int, actor: int) -> list[dict]:
+        with self.d.uow() as uow:
+            team = manager_team(uow, team_id, actor)
+            return [{"payment_id": p.id, "amount": p.amount, "content": p.content, "reason": p.reason,
+                     "at": self.d.clock.fmt(p.created_at)} for p in uow.payments.unmatched(team.id)]
+
+    def assign(self, team_id: int, actor: int, payment_id: int, member_ids: list[int]) -> dict:
+        with self.d.uow() as uow:
+            team = manager_team(uow, team_id, actor)
+            result = billing.assign_payment(uow, self.d, team, payment_id, _ids(member_ids), actor)
+            audit(uow, self.d.clock, team.id, actor, "payment.assign", target=", ".join(result["members"]),
+                  after={"payment_id": payment_id})
+            uow.commit()
+            return result
+
+    def dismiss(self, team_id: int, actor: int, payment_id: int) -> dict:
+        with self.d.uow() as uow:
+            team = manager_team(uow, team_id, actor)
+            p = billing.unmatched_payment(uow, team, payment_id)
+            p.status, p.recorded_by, p.note = "resolved", actor, "other income"
+            audit(uow, self.d.clock, team.id, actor, "payment.other_income", after={"payment_id": payment_id})
+            uow.commit()
+            return {"amount": p.amount}
+
+    def export(self, team_id: int, actor: int) -> bytes:
+        """Members, bills, payments and expenses as a spreadsheet."""
+        fmt = self.d.clock.fmt
+        with self.d.uow() as uow:
+            team = manager_team(uow, team_id, actor)
+            members = sorted(uow.members.of_team(team.id, include_left=True), key=lambda m: m.name.casefold())
+            names = {m.id: m.name for m in members}
+            sheets = [
+                ("Members", ["ID", "Name", "Nickname", "Shirt", "Phone", "Note", "Custom fee", "Status"],
+                 [[m.id, m.name, m.nickname, m.shirt_number, m.phone, m.note, m.fee_override, m.status]
+                  for m in members]),
+                ("Bills", ["ID", "Member", "Type", "Title", "Month", "Amount", "Status", "Paid at"],
+                 [[b.id, names.get(b.member_id), b.kind, b.title, period_label(b.period), b.amount, b.status,
+                   fmt(b.paid_at)] for b in uow.bills.of_team(team.id)]),
+                ("Payments", ["ID", "Time", "Source", "Amount", "Status", "For", "Bank content"],
+                 [[p.id, fmt(p.created_at), p.source, p.amount, p.status, p.note, p.content]
+                  for p in uow.payments.of_team(team.id)]),
+                ("Expenses", ["ID", "Time", "Amount", "Title"],
+                 [[e.id, fmt(e.created_at), e.amount, e.title] for e in uow.expenses.of_team(team.id)]),
+            ]
+        return self.d.spreadsheet.workbook(sheets)

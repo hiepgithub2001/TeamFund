@@ -1,8 +1,8 @@
 import re
 
-from app.bot.fmt import amount_and_title, money, parse_amount
-from app.bot.i18n import DICTS, t
-from app.bot.team import parse_member_lines
+from app.interfaces.bot.fmt import amount_and_title, money, parse_amount
+from app.interfaces.bot.i18n import DICTS, t
+from app.interfaces.bot.team import parse_member_lines
 
 
 def test_parse_amount():
