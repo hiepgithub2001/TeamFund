@@ -392,6 +392,135 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
 </section>
 
 <section>
+  <h2>Webhooks in detail</h2>
+  <p>Telegram and SePay both push events to the server over HTTPS; nothing polls. Each sender proves who it is with a secret only it and the server know, and the server answers quickly so the sender doesn't retry.</p>
+  <h3 class="sub">Telegram → team bot</h3>
+  <figure>
+    <div class="frame">
+    <svg viewBox="0 0 960 610" role="img" aria-label="Telegram webhook flow. At startup the server calls setWebhook for each bot with its URL and a secret token. On every update, Telegram POSTs the update to /tg/{botId} with the secret token header; Caddy terminates TLS and proxies to the app; the webhook controller rejects a wrong secret with 401, otherwise feeds the update to aiogram, whose middleware attaches the team and language; the handler calls a use case in a worker thread, sends the reply to Telegram over outbound HTTPS, and then the controller answers Telegram with HTTP 200.">
+      <defs>
+        <marker id="w1h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-fg"/></marker>
+        <marker id="w1m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-m"/></marker>
+        <marker id="w1t" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-tg"/></marker>
+      </defs>
+      <rect class="lane" x="0" y="66" width="960" height="84"/>
+      <text class="lb" x="8" y="80">AT STARTUP</text>
+      <rect class="lane" x="0" y="160" width="960" height="440"/>
+      <text class="lb" x="8" y="174">EVERY UPDATE</text>
+      <rect class="box" x="10" y="12" width="140" height="44" rx="8"/><text class="t" x="80" y="31" text-anchor="middle">Member's app</text><text class="s" x="80" y="47" text-anchor="middle">Telegram client</text>
+      <rect class="box tg" x="170" y="12" width="140" height="44" rx="8"/><text class="t" x="240" y="31" text-anchor="middle">Telegram API</text><text class="s" x="240" y="47" text-anchor="middle">api.telegram.org</text>
+      <rect class="box" x="330" y="12" width="140" height="44" rx="8"/><text class="t" x="400" y="31" text-anchor="middle">Caddy :443</text><text class="s" x="400" y="47" text-anchor="middle">TLS, routing</text>
+      <rect class="box" x="490" y="12" width="140" height="44" rx="8"/><text class="t" x="560" y="31" text-anchor="middle">http/telegram.py</text><text class="s" x="560" y="47" text-anchor="middle">webhook controller</text>
+      <rect class="box tg" x="650" y="12" width="140" height="44" rx="8"/><text class="t" x="720" y="31" text-anchor="middle">bot handlers</text><text class="s" x="720" y="47" text-anchor="middle">aiogram + presenters</text>
+      <rect class="box hot" x="810" y="12" width="140" height="44" rx="8"/><text class="t" x="880" y="31" text-anchor="middle">use case</text><text class="s" x="880" y="47" text-anchor="middle">application/</text>
+      <line class="life" x1="80" y1="56" x2="80" y2="600"/>
+      <line class="life" x1="240" y1="56" x2="240" y2="600"/>
+      <line class="life" x1="400" y1="56" x2="400" y2="600"/>
+      <line class="life" x1="560" y1="56" x2="560" y2="600"/>
+      <line class="life" x1="720" y1="56" x2="720" y2="600"/>
+      <line class="life" x1="880" y1="56" x2="880" y2="600"/>
+      <line class="ln tg" x1="720" y1="104" x2="242" y2="104" marker-end="url(#w1t)"/>
+      <text class="lb tgc" x="480.0" y="97" text-anchor="middle">setWebhook(url=…/tg/{botId}, secret_token=…)</text>
+      <line class="ln d" x1="240" y1="134" x2="718" y2="134" marker-end="url(#w1h)"/>
+      <text class="lb" x="480.0" y="127" text-anchor="middle">ok · one URL and secret per bot</text>
+      <line class="ln tg" x1="80" y1="200" x2="238" y2="200" marker-end="url(#w1t)"/>
+      <text class="lb tgc" x="160.0" y="193" text-anchor="middle">taps ✓ An → Pay</text>
+      <line class="ln tg" x1="240" y1="240" x2="398" y2="240" marker-end="url(#w1t)"/>
+      <text class="lb tgc" x="320.0" y="222" text-anchor="middle">POST /tg/{botId}</text>
+      <text class="lb tgc" x="320.0" y="234" text-anchor="middle">+ secret-token header</text>
+      <line class="ln" x1="400" y1="276" x2="558" y2="276" marker-end="url(#w1h)"/>
+      <text class="lb" x="480.0" y="269" text-anchor="middle">proxy to app:8000</text>
+      <polyline class="ln tg" points="560,294 600,294 600,318 563,318" marker-end="url(#w1t)"/>
+      <text class="lb tgc" x="606" y="303">secret matches?</text>
+      <text class="lb tgc" x="606" y="317">no → 401, stop</text>
+      <line class="ln" x1="560" y1="346" x2="718" y2="346" marker-end="url(#w1h)"/>
+      <text class="lb" x="640.0" y="339" text-anchor="middle">feed_update(update)</text>
+      <polyline class="ln" points="720,364 760,364 760,388 723,388" marker-end="url(#w1h)"/>
+      <text class="lb" x="766" y="373">middleware:</text>
+      <text class="lb" x="766" y="387">team + language</text>
+      <line class="ln" x1="720" y1="418" x2="878" y2="418" marker-end="url(#w1h)"/>
+      <text class="lb" x="800.0" y="411" text-anchor="middle">S.money.create_intent()</text>
+      <line class="ln d" x1="880" y1="452" x2="722" y2="452" marker-end="url(#w1h)"/>
+      <text class="lb" x="800.0" y="445" text-anchor="middle">code, amount, QR URL</text>
+      <line class="ln tg" x1="720" y1="490" x2="242" y2="490" marker-end="url(#w1t)"/>
+      <text class="lb tgc" x="480.0" y="483" text-anchor="middle">sendPhoto(QR) · outbound HTTPS</text>
+      <line class="ln d" x1="560" y1="526" x2="242" y2="526" marker-end="url(#w1h)"/>
+      <text class="lb" x="470" y="519" text-anchor="middle">HTTP 200 (via Caddy)</text>
+      <line class="ln tg" x1="240" y1="562" x2="82" y2="562" marker-end="url(#w1t)"/>
+      <text class="lb tgc" x="160.0" y="555" text-anchor="middle">QR + payment details</text>
+    </svg>
+    </div>
+    <figcaption>Each bot has its own webhook URL and secret token, set when the server starts and stored per team. Telegram sends that token in the <code>X-Telegram-Bot-Api-Secret-Token</code> header, so a request without it is refused before any bot code runs. The handler runs the use case in a worker thread, so a slow database call never blocks other updates. Replies go out as separate outbound calls to <code>api.telegram.org</code>; the 200 only tells Telegram the update was received. Telegram resends an update until it gets a 2xx, so the server answers 200 even when a handler fails (the user sees the error message instead).</figcaption>
+  </figure>
+  <h3 class="sub">SePay → payment confirmed</h3>
+  <figure>
+    <div class="frame">
+    <svg viewBox="0 0 1000 640" role="img" aria-label="SePay webhook flow. Once per team the owner gets the webhook URL and a new API key from /sepay and pastes them into SePay. On every transfer, SePay sees the money arrive in the team account and POSTs the transaction to /sepay/{teamId} with an Apikey header. Caddy proxies to the app; the controller checks the header scheme and turns the JSON into an IncomingTransfer; the record_transfer use case checks the key hash, skips duplicate transactions and outgoing transfers, finds the TF code, checks the amount, marks the bills paid and commits, then publishes an event. The controller answers SePay with 200 success right away, and the notifier sends the payer a receipt and posts to the team group through Telegram in the background.">
+      <defs>
+        <marker id="w2h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-fg"/></marker>
+        <marker id="w2m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-m"/></marker>
+        <marker id="w2t" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-tg"/></marker>
+      </defs>
+      <rect class="lane" x="0" y="66" width="1000" height="76"/>
+      <text class="lb" x="8" y="80"></text>
+      <rect class="lane" x="0" y="150" width="1000" height="482"/>
+      <text class="lb" x="8" y="164">EVERY TRANSFER</text>
+      <rect class="box mo" x="15" y="12" width="120" height="44" rx="8"/><text class="t" x="75" y="31" text-anchor="middle">Bank</text><text class="s" x="75" y="47" text-anchor="middle">team account</text>
+      <rect class="box mo" x="155" y="12" width="120" height="44" rx="8"/><text class="t" x="215" y="31" text-anchor="middle">SePay</text><text class="s" x="215" y="47" text-anchor="middle">watches account</text>
+      <rect class="box" x="295" y="12" width="120" height="44" rx="8"/><text class="t" x="355" y="31" text-anchor="middle">Caddy :443</text><text class="s" x="355" y="47" text-anchor="middle">TLS, routing</text>
+      <rect class="box" x="440" y="12" width="120" height="44" rx="8"/><text class="t" x="500" y="31" text-anchor="middle">http/sepay.py</text><text class="s" x="500" y="47" text-anchor="middle">webhook controller</text>
+      <rect class="box hot" x="590" y="12" width="120" height="44" rx="8"/><text class="t" x="650" y="31" text-anchor="middle">record_transfer</text><text class="s" x="650" y="47" text-anchor="middle">use case</text>
+      <rect class="box tg" x="740" y="12" width="120" height="44" rx="8"/><text class="t" x="800" y="31" text-anchor="middle">notifier</text><text class="s" x="800" y="47" text-anchor="middle">port → team bot</text>
+      <rect class="box tg" x="865" y="12" width="120" height="44" rx="8"/><text class="t" x="925" y="31" text-anchor="middle">Telegram API</text><text class="s" x="925" y="47" text-anchor="middle">receipts, posts</text>
+      <line class="life" x1="75" y1="56" x2="75" y2="630"/>
+      <line class="life" x1="215" y1="56" x2="215" y2="630"/>
+      <line class="life" x1="355" y1="56" x2="355" y2="630"/>
+      <line class="life" x1="500" y1="56" x2="500" y2="630"/>
+      <line class="life" x1="650" y1="56" x2="650" y2="630"/>
+      <line class="life" x1="800" y1="56" x2="800" y2="630"/>
+      <line class="life" x1="925" y1="56" x2="925" y2="630"/>
+      <rect class="box file" x="20" y="72" width="960" height="64" rx="8"/>
+      <text class="t" x="36" y="93">Once per team, by the owner</text>
+      <text class="s" x="36" y="110">/sepay in the team bot → webhook URL https://teamfund…/sepay/{teamId} and a new API key (only its SHA-256 hash is stored)</text>
+      <text class="s" x="36" y="126">→ paste both into SePay → WebHooks, event “Có tiền vào” (money in), authentication: API Key</text>
+      <line class="ln m" x1="75" y1="190" x2="213" y2="190" marker-end="url(#w2m)"/>
+      <text class="lb m" x="145.0" y="183" text-anchor="middle">money in, content TFK7Q2M9</text>
+      <line class="ln m" x1="215" y1="234" x2="353" y2="234" marker-end="url(#w2m)"/>
+      <text class="lb m" x="285.0" y="216" text-anchor="middle">POST /sepay/{teamId}</text>
+      <text class="lb m" x="285.0" y="228" text-anchor="middle">Apikey header + JSON</text>
+      <line class="ln" x1="355" y1="270" x2="498" y2="270" marker-end="url(#w2h)"/>
+      <text class="lb" x="427.5" y="263" text-anchor="middle">proxy to app:8000</text>
+      <polyline class="ln" points="500,288 540,288 540,312 503,312" marker-end="url(#w2h)"/>
+      <text class="lb" x="546" y="297">Apikey scheme?</text>
+      <text class="lb" x="546" y="311">parse JSON</text>
+      <line class="ln m" x1="500" y1="342" x2="648" y2="342" marker-end="url(#w2m)"/>
+      <text class="lb m" x="575.0" y="324" text-anchor="middle">record_transfer(…)</text>
+      <text class="lb m" x="575.0" y="336" text-anchor="middle">IncomingTransfer</text>
+      <line class="ln" x1="650" y1="408" x2="660" y2="408"/>
+      <rect class="box hot" x="660" y="358" width="128" height="104" rx="6"/>
+      <text class="s" x="668" y="376">1 API key hash ok?</text>
+      <text class="s" x="668" y="391">2 transaction new?</text>
+      <text class="s" x="668" y="406">3 money coming in?</text>
+      <text class="s" x="668" y="421">4 TF code → intent</text>
+      <text class="s" x="668" y="436">5 amount ≥ bills?</text>
+      <text class="s" x="668" y="451">→ mark paid, commit</text>
+      <line class="ln m" x1="650" y1="490" x2="798" y2="490" marker-end="url(#w2m)"/>
+      <text class="lb m" x="725.0" y="483" text-anchor="middle">publish(event)</text>
+      <line class="ln d" x1="650" y1="520" x2="502" y2="520" marker-end="url(#w2h)"/>
+      <text class="lb" x="575.0" y="513" text-anchor="middle">“payment_confirmed”</text>
+      <line class="ln d" x1="500" y1="552" x2="217" y2="552" marker-end="url(#w2h)"/>
+      <text class="lb" x="428" y="545" text-anchor="middle">200 {success: true}</text>
+      <line class="ln tg" x1="800" y1="584" x2="923" y2="584" marker-end="url(#w2t)"/>
+      <text class="lb tgc" x="862.5" y="577" text-anchor="middle">receipt → payer</text>
+      <line class="ln tg" x1="800" y1="616" x2="923" y2="616" marker-end="url(#w2t)"/>
+      <text class="lb tgc" x="862.5" y="609" text-anchor="middle">post → team group</text>
+    </svg>
+    </div>
+    <figcaption>SePay watches the team's bank account and calls the webhook within seconds of money arriving. Only the use case decides what the transfer means: the key is compared by its hash, a transaction already recorded is skipped (so SePay's retries are harmless), and money with no code or too little is kept and sent to the managers to assign. The server answers <code>{"success": true}</code> as soon as the payment is saved; the receipt and the group post go out in the background through the notifier port, so a slow Telegram call can't make SePay time out and resend.</figcaption>
+  </figure>
+</section>
+
+<section>
   <h2>Roles in a team bot</h2>
   <p>Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID comes with every message and button tap and can't be faked, so the use cases check it before every manager action.</p>
   <div class="tbl">

@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="640" viewBox="0 0 1000 640" role="img" aria-label="SePay webhook flow. Once per team the owner gets the webhook URL and a new API key from /sepay and pastes them into SePay. On every transfer, SePay sees the money arrive in the team account and POSTs the transaction to /sepay/{teamId} with an Apikey header. Caddy proxies to the app; the controller checks the header scheme and turns the JSON into an IncomingTransfer; the record_transfer use case checks the key hash, skips duplicate transactions and outgoing transfers, finds the TF code, checks the amount, marks the bills paid and commits, then publishes an event. The controller answers SePay with 200 success right away, and the notifier sends the payer a receipt and posts to the team group through Telegram in the background."><style>svg{
+  --bg:#f5f7f8; --surface:#ffffff; --fg:#17212b; --muted:#5b6b78; --line:#c9d3db;
+  --tg:#2b7bb9; --tg-soft:#eaf3fa; --money:#b8730f; --money-soft:#fbf1df;
+  --display:"Space Grotesk",system-ui,sans-serif;
+  --body:"Inter",system-ui,-apple-system,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+;color:var(--fg);font-family:Inter,system-ui,sans-serif}
+.box{fill:var(--surface);stroke:var(--line);stroke-width:1.5}
+.box.tg{stroke:var(--tg)}
+.box.in{fill:var(--tg-soft);stroke:var(--tg);stroke-width:1}
+.box.mo{stroke:var(--money);fill:var(--money-soft)}
+.box.ghost{fill:none;stroke:var(--line);stroke-dasharray:4 3}
+.box.hot{fill:var(--tg-soft);stroke:var(--tg);stroke-width:2}
+.box.file{fill:var(--bg);stroke:var(--line)}
+.lane{fill:var(--bg);stroke:none}
+.lane-line{stroke:var(--line);stroke-width:1}
+.ln.tg{stroke:var(--tg)}
+.ln.out{stroke:var(--tg);stroke-dasharray:6 4}
+.head-tg{fill:var(--tg)}
+.lb.tgc{fill:var(--tg)}
+.s.ghost{fill:var(--muted);font-style:italic}
+.zone{fill:none;stroke:var(--muted);stroke-width:1.2;stroke-dasharray:6 5}
+.zone.tg{stroke:var(--tg)}
+.t{font:600 13px var(--body);fill:currentColor}
+.s{font:400 11px var(--body);fill:var(--muted)}
+.lb{font:500 11px var(--mono);fill:var(--muted)}
+.lb.m{fill:var(--money)}
+.lb.z{fill:var(--tg)}
+.ln{fill:none;stroke:currentColor;stroke-width:1.4}
+.ln.m{stroke:var(--money);stroke-width:2}
+.ln.d{stroke-dasharray:5 4}
+.life{stroke:var(--line);stroke-width:1.2;stroke-dasharray:4 4}
+.head-fg{fill:currentColor}
+.head-m{fill:var(--money)}</style><rect width="100%" height="100%" fill="#ffffff"/>
+      <defs>
+        <marker id="w2h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-fg"/></marker>
+        <marker id="w2m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-m"/></marker>
+        <marker id="w2t" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-tg"/></marker>
+      </defs>
+      <rect class="lane" x="0" y="66" width="1000" height="76"/>
+      <text class="lb" x="8" y="80"></text>
+      <rect class="lane" x="0" y="150" width="1000" height="482"/>
+      <text class="lb" x="8" y="164">EVERY TRANSFER</text>
+      <rect class="box mo" x="15" y="12" width="120" height="44" rx="8"/><text class="t" x="75" y="31" text-anchor="middle">Bank</text><text class="s" x="75" y="47" text-anchor="middle">team account</text>
+      <rect class="box mo" x="155" y="12" width="120" height="44" rx="8"/><text class="t" x="215" y="31" text-anchor="middle">SePay</text><text class="s" x="215" y="47" text-anchor="middle">watches account</text>
+      <rect class="box" x="295" y="12" width="120" height="44" rx="8"/><text class="t" x="355" y="31" text-anchor="middle">Caddy :443</text><text class="s" x="355" y="47" text-anchor="middle">TLS, routing</text>
+      <rect class="box" x="440" y="12" width="120" height="44" rx="8"/><text class="t" x="500" y="31" text-anchor="middle">http/sepay.py</text><text class="s" x="500" y="47" text-anchor="middle">webhook controller</text>
+      <rect class="box hot" x="590" y="12" width="120" height="44" rx="8"/><text class="t" x="650" y="31" text-anchor="middle">record_transfer</text><text class="s" x="650" y="47" text-anchor="middle">use case</text>
+      <rect class="box tg" x="740" y="12" width="120" height="44" rx="8"/><text class="t" x="800" y="31" text-anchor="middle">notifier</text><text class="s" x="800" y="47" text-anchor="middle">port → team bot</text>
+      <rect class="box tg" x="865" y="12" width="120" height="44" rx="8"/><text class="t" x="925" y="31" text-anchor="middle">Telegram API</text><text class="s" x="925" y="47" text-anchor="middle">receipts, posts</text>
+      <line class="life" x1="75" y1="56" x2="75" y2="630"/>
+      <line class="life" x1="215" y1="56" x2="215" y2="630"/>
+      <line class="life" x1="355" y1="56" x2="355" y2="630"/>
+      <line class="life" x1="500" y1="56" x2="500" y2="630"/>
+      <line class="life" x1="650" y1="56" x2="650" y2="630"/>
+      <line class="life" x1="800" y1="56" x2="800" y2="630"/>
+      <line class="life" x1="925" y1="56" x2="925" y2="630"/>
+      <rect class="box file" x="20" y="72" width="960" height="64" rx="8"/>
+      <text class="t" x="36" y="93">Once per team, by the owner</text>
+      <text class="s" x="36" y="110">/sepay in the team bot → webhook URL https://teamfund…/sepay/{teamId} and a new API key (only its SHA-256 hash is stored)</text>
+      <text class="s" x="36" y="126">→ paste both into SePay → WebHooks, event “Có tiền vào” (money in), authentication: API Key</text>
+      <line class="ln m" x1="75" y1="190" x2="213" y2="190" marker-end="url(#w2m)"/>
+      <text class="lb m" x="145.0" y="183" text-anchor="middle">money in, content TFK7Q2M9</text>
+      <line class="ln m" x1="215" y1="234" x2="353" y2="234" marker-end="url(#w2m)"/>
+      <text class="lb m" x="285.0" y="216" text-anchor="middle">POST /sepay/{teamId}</text>
+      <text class="lb m" x="285.0" y="228" text-anchor="middle">Apikey header + JSON</text>
+      <line class="ln" x1="355" y1="270" x2="498" y2="270" marker-end="url(#w2h)"/>
+      <text class="lb" x="427.5" y="263" text-anchor="middle">proxy to app:8000</text>
+      <polyline class="ln" points="500,288 540,288 540,312 503,312" marker-end="url(#w2h)"/>
+      <text class="lb" x="546" y="297">Apikey scheme?</text>
+      <text class="lb" x="546" y="311">parse JSON</text>
+      <line class="ln m" x1="500" y1="342" x2="648" y2="342" marker-end="url(#w2m)"/>
+      <text class="lb m" x="575.0" y="324" text-anchor="middle">record_transfer(…)</text>
+      <text class="lb m" x="575.0" y="336" text-anchor="middle">IncomingTransfer</text>
+      <line class="ln" x1="650" y1="408" x2="660" y2="408"/>
+      <rect class="box hot" x="660" y="358" width="128" height="104" rx="6"/>
+      <text class="s" x="668" y="376">1 API key hash ok?</text>
+      <text class="s" x="668" y="391">2 transaction new?</text>
+      <text class="s" x="668" y="406">3 money coming in?</text>
+      <text class="s" x="668" y="421">4 TF code → intent</text>
+      <text class="s" x="668" y="436">5 amount ≥ bills?</text>
+      <text class="s" x="668" y="451">→ mark paid, commit</text>
+      <line class="ln m" x1="650" y1="490" x2="798" y2="490" marker-end="url(#w2m)"/>
+      <text class="lb m" x="725.0" y="483" text-anchor="middle">publish(event)</text>
+      <line class="ln d" x1="650" y1="520" x2="502" y2="520" marker-end="url(#w2h)"/>
+      <text class="lb" x="575.0" y="513" text-anchor="middle">“payment_confirmed”</text>
+      <line class="ln d" x1="500" y1="552" x2="217" y2="552" marker-end="url(#w2h)"/>
+      <text class="lb" x="428" y="545" text-anchor="middle">200 {success: true}</text>
+      <line class="ln tg" x1="800" y1="584" x2="923" y2="584" marker-end="url(#w2t)"/>
+      <text class="lb tgc" x="862.5" y="577" text-anchor="middle">receipt → payer</text>
+      <line class="ln tg" x1="800" y1="616" x2="923" y2="616" marker-end="url(#w2t)"/>
+      <text class="lb tgc" x="862.5" y="609" text-anchor="middle">post → team group</text>
+    </svg>

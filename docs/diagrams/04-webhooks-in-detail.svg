@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="610" viewBox="0 0 960 610" role="img" aria-label="Telegram webhook flow. At startup the server calls setWebhook for each bot with its URL and a secret token. On every update, Telegram POSTs the update to /tg/{botId} with the secret token header; Caddy terminates TLS and proxies to the app; the webhook controller rejects a wrong secret with 401, otherwise feeds the update to aiogram, whose middleware attaches the team and language; the handler calls a use case in a worker thread, sends the reply to Telegram over outbound HTTPS, and then the controller answers Telegram with HTTP 200."><style>svg{
+  --bg:#f5f7f8; --surface:#ffffff; --fg:#17212b; --muted:#5b6b78; --line:#c9d3db;
+  --tg:#2b7bb9; --tg-soft:#eaf3fa; --money:#b8730f; --money-soft:#fbf1df;
+  --display:"Space Grotesk",system-ui,sans-serif;
+  --body:"Inter",system-ui,-apple-system,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+;color:var(--fg);font-family:Inter,system-ui,sans-serif}
+.box{fill:var(--surface);stroke:var(--line);stroke-width:1.5}
+.box.tg{stroke:var(--tg)}
+.box.in{fill:var(--tg-soft);stroke:var(--tg);stroke-width:1}
+.box.mo{stroke:var(--money);fill:var(--money-soft)}
+.box.ghost{fill:none;stroke:var(--line);stroke-dasharray:4 3}
+.box.hot{fill:var(--tg-soft);stroke:var(--tg);stroke-width:2}
+.box.file{fill:var(--bg);stroke:var(--line)}
+.lane{fill:var(--bg);stroke:none}
+.lane-line{stroke:var(--line);stroke-width:1}
+.ln.tg{stroke:var(--tg)}
+.ln.out{stroke:var(--tg);stroke-dasharray:6 4}
+.head-tg{fill:var(--tg)}
+.lb.tgc{fill:var(--tg)}
+.s.ghost{fill:var(--muted);font-style:italic}
+.zone{fill:none;stroke:var(--muted);stroke-width:1.2;stroke-dasharray:6 5}
+.zone.tg{stroke:var(--tg)}
+.t{font:600 13px var(--body);fill:currentColor}
+.s{font:400 11px var(--body);fill:var(--muted)}
+.lb{font:500 11px var(--mono);fill:var(--muted)}
+.lb.m{fill:var(--money)}
+.lb.z{fill:var(--tg)}
+.ln{fill:none;stroke:currentColor;stroke-width:1.4}
+.ln.m{stroke:var(--money);stroke-width:2}
+.ln.d{stroke-dasharray:5 4}
+.life{stroke:var(--line);stroke-width:1.2;stroke-dasharray:4 4}
+.head-fg{fill:currentColor}
+.head-m{fill:var(--money)}</style><rect width="100%" height="100%" fill="#ffffff"/>
+      <defs>
+        <marker id="w1h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-fg"/></marker>
+        <marker id="w1m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-m"/></marker>
+        <marker id="w1t" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-tg"/></marker>
+      </defs>
+      <rect class="lane" x="0" y="66" width="960" height="84"/>
+      <text class="lb" x="8" y="80">AT STARTUP</text>
+      <rect class="lane" x="0" y="160" width="960" height="440"/>
+      <text class="lb" x="8" y="174">EVERY UPDATE</text>
+      <rect class="box" x="10" y="12" width="140" height="44" rx="8"/><text class="t" x="80" y="31" text-anchor="middle">Member's app</text><text class="s" x="80" y="47" text-anchor="middle">Telegram client</text>
+      <rect class="box tg" x="170" y="12" width="140" height="44" rx="8"/><text class="t" x="240" y="31" text-anchor="middle">Telegram API</text><text class="s" x="240" y="47" text-anchor="middle">api.telegram.org</text>
+      <rect class="box" x="330" y="12" width="140" height="44" rx="8"/><text class="t" x="400" y="31" text-anchor="middle">Caddy :443</text><text class="s" x="400" y="47" text-anchor="middle">TLS, routing</text>
+      <rect class="box" x="490" y="12" width="140" height="44" rx="8"/><text class="t" x="560" y="31" text-anchor="middle">http/telegram.py</text><text class="s" x="560" y="47" text-anchor="middle">webhook controller</text>
+      <rect class="box tg" x="650" y="12" width="140" height="44" rx="8"/><text class="t" x="720" y="31" text-anchor="middle">bot handlers</text><text class="s" x="720" y="47" text-anchor="middle">aiogram + presenters</text>
+      <rect class="box hot" x="810" y="12" width="140" height="44" rx="8"/><text class="t" x="880" y="31" text-anchor="middle">use case</text><text class="s" x="880" y="47" text-anchor="middle">application/</text>
+      <line class="life" x1="80" y1="56" x2="80" y2="600"/>
+      <line class="life" x1="240" y1="56" x2="240" y2="600"/>
+      <line class="life" x1="400" y1="56" x2="400" y2="600"/>
+      <line class="life" x1="560" y1="56" x2="560" y2="600"/>
+      <line class="life" x1="720" y1="56" x2="720" y2="600"/>
+      <line class="life" x1="880" y1="56" x2="880" y2="600"/>
+      <line class="ln tg" x1="720" y1="104" x2="242" y2="104" marker-end="url(#w1t)"/>
+      <text class="lb tgc" x="480.0" y="97" text-anchor="middle">setWebhook(url=…/tg/{botId}, secret_token=…)</text>
+      <line class="ln d" x1="240" y1="134" x2="718" y2="134" marker-end="url(#w1h)"/>
+      <text class="lb" x="480.0" y="127" text-anchor="middle">ok · one URL and secret per bot</text>
+      <line class="ln tg" x1="80" y1="200" x2="238" y2="200" marker-end="url(#w1t)"/>
+      <text class="lb tgc" x="160.0" y="193" text-anchor="middle">taps ✓ An → Pay</text>
+      <line class="ln tg" x1="240" y1="240" x2="398" y2="240" marker-end="url(#w1t)"/>
+      <text class="lb tgc" x="320.0" y="222" text-anchor="middle">POST /tg/{botId}</text>
+      <text class="lb tgc" x="320.0" y="234" text-anchor="middle">+ secret-token header</text>
+      <line class="ln" x1="400" y1="276" x2="558" y2="276" marker-end="url(#w1h)"/>
+      <text class="lb" x="480.0" y="269" text-anchor="middle">proxy to app:8000</text>
+      <polyline class="ln tg" points="560,294 600,294 600,318 563,318" marker-end="url(#w1t)"/>
+      <text class="lb tgc" x="606" y="303">secret matches?</text>
+      <text class="lb tgc" x="606" y="317">no → 401, stop</text>
+      <line class="ln" x1="560" y1="346" x2="718" y2="346" marker-end="url(#w1h)"/>
+      <text class="lb" x="640.0" y="339" text-anchor="middle">feed_update(update)</text>
+      <polyline class="ln" points="720,364 760,364 760,388 723,388" marker-end="url(#w1h)"/>
+      <text class="lb" x="766" y="373">middleware:</text>
+      <text class="lb" x="766" y="387">team + language</text>
+      <line class="ln" x1="720" y1="418" x2="878" y2="418" marker-end="url(#w1h)"/>
+      <text class="lb" x="800.0" y="411" text-anchor="middle">S.money.create_intent()</text>
+      <line class="ln d" x1="880" y1="452" x2="722" y2="452" marker-end="url(#w1h)"/>
+      <text class="lb" x="800.0" y="445" text-anchor="middle">code, amount, QR URL</text>
+      <line class="ln tg" x1="720" y1="490" x2="242" y2="490" marker-end="url(#w1t)"/>
+      <text class="lb tgc" x="480.0" y="483" text-anchor="middle">sendPhoto(QR) · outbound HTTPS</text>
+      <line class="ln d" x1="560" y1="526" x2="242" y2="526" marker-end="url(#w1h)"/>
+      <text class="lb" x="470" y="519" text-anchor="middle">HTTP 200 (via Caddy)</text>
+      <line class="ln tg" x1="240" y1="562" x2="82" y2="562" marker-end="url(#w1t)"/>
+      <text class="lb tgc" x="160.0" y="555" text-anchor="middle">QR + payment details</text>
+    </svg>
