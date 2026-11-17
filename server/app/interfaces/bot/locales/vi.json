@@ -172,7 +172,7 @@
  "lang.done": "✅ Ngôn ngữ: Tiếng Việt",
  "help.everyone": "<b>Lệnh</b>\n/start Đóng quỹ\n/status Ai đã đóng tháng này\n/fund Số dư quỹ\n/history Giao dịch gần đây\n/bank Tài khoản ngân hàng của đội\n/requestmanager Xin làm quản lý\n/lang Ngôn ngữ",
  "help.manager": "\n\n<b>Quản lý</b>\n/weblink Link trang đóng quỹ cho người không dùng Telegram\n/members Xem và sửa thành viên\n/add Thêm thành viên\n/setfee Mức quỹ tháng\n/setdue Hạn đóng\n/charge Khoản thu riêng\n/split Chia tiền\n/markpaid Ghi nhận tiền mặt\n/expense Ghi khoản chi\n/remind Gửi danh sách chưa đóng vào nhóm\n/unmatched Khoản cần kiểm tra\n/export Xuất Excel\n/settings Cài đặt đội\n/teamlang Ngôn ngữ nhóm\n/linkgroup (trong nhóm) Liên kết nhóm",
- "help.owner": "\n\n<b>Chủ đội</b>\n/sepaytoken Kết nối SePay (API token)\n/setbank Chọn tài khoản ngân hàng (từ SePay)\n/requests Yêu cầu làm quản lý\n/managers Quản lý\n/transferowner Chuyển chủ đội\n/log Nhật ký thao tác",
+ "help.owner": "\n\n<b>Chủ đội</b>\n/sepaytoken Kết nối SePay (API token)\n/setbank Chọn tài khoản ngân hàng (từ SePay)\n/requests Duyệt yêu cầu làm quản lý\n/managers Quản lý\n/transferowner Chuyển chủ đội\n/log Nhật ký thao tác",
  "cmd.start": "Đóng quỹ",
  "cmd.status": "Ai đã đóng tháng này",
  "cmd.fund": "Số dư quỹ",
@@ -198,7 +198,7 @@
  "cmd.linkgroup": "Liên kết nhóm này với đội",
  "cmd.setbank": "Chọn tài khoản ngân hàng (SePay)",
  "cmd.sepaytoken": "Cài API token SePay",
- "cmd.requests": "Yêu cầu làm quản lý",
+ "cmd.requests": "Duyệt yêu cầu làm quản lý",
  "cmd.managers": "Quản lý",
  "cmd.transferowner": "Chuyển chủ đội",
  "cmd.log": "Nhật ký thao tác",
@@ -245,5 +245,7 @@
  "step.start_accounts": "Đang đọc tài khoản ngân hàng trong SePay…",
  "step.start_va": "Đang tìm tài khoản ảo (VA) của tài khoản…",
  "step.start_webhook": "Đang tạo / ghi đè webhook “{name}” → {url}…",
- "step.start_save": "Đang lưu tài khoản của đội…"
+ "step.start_save": "Đang lưu tài khoản của đội…",
+ "mr.wrong_command": "/requests là lệnh để chủ đội duyệt các yêu cầu làm quản lý.\n\nBạn muốn <b>xin làm quản lý</b>? Bấm nút bên dưới (hoặc gửi /requestmanager), chủ đội sẽ được hỏi để duyệt.",
+ "btn.ask_manager": "🙋 Gửi yêu cầu làm quản lý"
 }

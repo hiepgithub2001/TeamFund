@@ -291,8 +291,11 @@ async def main():
         await wait_sent(lambda c: c["method"] == "editMessageText" and "Assigned to Cường" in c["params"]["text"],
                         "assigned")
 
-        # 6. manager request and approval
-        await T(text_update(MEMBER, "/requestmanager"))
+        # 6. manager request and approval: a member who sends the owner's /requests by mistake gets a button
+        await T(text_update(MEMBER, "/requests"))
+        hint = await wait_sent(to(MEMBER, "review manager requests"), "requests explained to a member")
+        assert buttons(hint) == ["mr:ask"]
+        await T(cb_update(MEMBER, "mr:ask", 8))
         mr = await wait_sent(to(OWNER, "Manager request"), "manager card")
         await T(cb_update(OWNER, next(b for b in buttons(mr) if b.startswith("mr:a:")), 9))
         await wait_sent(to(MEMBER, "You are now a manager"), "manager approved")

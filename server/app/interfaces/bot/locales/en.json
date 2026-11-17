@@ -172,7 +172,7 @@
  "lang.done": "✅ Language: English",
  "help.everyone": "<b>Commands</b>\n/start Pay the team fee\n/status Who has paid this month\n/fund Fund balance\n/history Latest transactions\n/bank Team bank account\n/requestmanager Ask to become a manager\n/lang Language",
  "help.manager": "\n\n<b>Manager</b>\n/weblink Pay page link for members without Telegram\n/members View and edit members\n/add Add members\n/setfee Monthly fee\n/setdue Due day\n/charge One-off charge\n/split Share a cost\n/markpaid Record cash payments\n/expense Record an expense\n/remind Post the unpaid list in the group\n/unmatched Payments to check\n/export Excel file\n/settings Team settings\n/teamlang Group language\n/linkgroup (in the group) Link the team group",
- "help.owner": "\n\n<b>Owner</b>\n/sepaytoken Connect SePay (API token)\n/setbank Choose the bank account (from SePay)\n/requests Manager requests\n/managers Managers\n/transferowner Give the team to a manager\n/log Audit log",
+ "help.owner": "\n\n<b>Owner</b>\n/sepaytoken Connect SePay (API token)\n/setbank Choose the bank account (from SePay)\n/requests Review manager requests\n/managers Managers\n/transferowner Give the team to a manager\n/log Audit log",
  "cmd.start": "Pay the team fee",
  "cmd.status": "Who has paid this month",
  "cmd.fund": "Fund balance",
@@ -198,7 +198,7 @@
  "cmd.linkgroup": "Link this group to the team",
  "cmd.setbank": "Choose the bank account (SePay)",
  "cmd.sepaytoken": "Set the SePay API token",
- "cmd.requests": "Manager requests",
+ "cmd.requests": "Review manager requests",
  "cmd.managers": "Managers",
  "cmd.transferowner": "Transfer ownership",
  "cmd.log": "Audit log",
@@ -245,5 +245,7 @@
  "step.start_accounts": "Reading your SePay bank accounts…",
  "step.start_va": "Looking up the account's virtual accounts…",
  "step.start_webhook": "Creating / overwriting webhook “{name}” → {url}…",
- "step.start_save": "Saving the team's bank account…"
+ "step.start_save": "Saving the team's bank account…",
+ "mr.wrong_command": "/requests is for the team owner to review manager requests.\n\nWant to <b>become a manager</b> yourself? Tap below (or send /requestmanager) and the owner will be asked to approve.",
+ "btn.ask_manager": "🙋 Ask to become a manager"
 }

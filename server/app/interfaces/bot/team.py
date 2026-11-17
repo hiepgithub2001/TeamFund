@@ -329,11 +329,21 @@ async def cmd_request_manager(message: Message, entry, lang):
     if not is_private(message):
         await message.answer(t(lang, "err.private_only"))
         return
-    r = await call(S.teams.request_manager, tid(entry), message.from_user.id)
-    await message.answer(t(lang, "mr.sent"))
+    await send_manager_request(message, entry, lang, message.from_user.id)
+
+
+@router.callback_query(F.data == "mr:ask")
+async def on_request_manager(cq: CallbackQuery, entry, lang):
+    await cq.answer()
+    await send_manager_request(cq.message, entry, lang, cq.from_user.id)
+
+
+async def send_manager_request(msg: Message, entry, lang, actor: int):
+    r = await call(S.teams.request_manager, tid(entry), actor)
+    await msg.answer(t(lang, "mr.sent"))
     text, markup = request_card(await lang_for(r["owner_tg_id"], group_lang(entry)), r)
     try:
-        await message.bot.send_message(r["owner_tg_id"], text, reply_markup=markup)
+        await msg.bot.send_message(r["owner_tg_id"], text, reply_markup=markup)
     except Exception:
         pass
 
@@ -871,6 +881,10 @@ async def save_sepay_token(message: Message, entry, lang, text: str, delete: boo
 
 @router.message(Command("requests"))
 async def cmd_requests(message: Message, entry, lang):
+    if is_private(message) and await role(entry, message.from_user) != "owner":
+        # easy to mix up with /requestmanager: explain, and offer to send the request from here
+        await message.answer(t(lang, "mr.wrong_command"), reply_markup=kb([(t(lang, "btn.ask_manager"), "mr:ask")]))
+        return
     if not await allow(message, entry, lang, "owner"):
         return
     items = await call(S.teams.pending_manager_requests, tid(entry), message.from_user.id)
