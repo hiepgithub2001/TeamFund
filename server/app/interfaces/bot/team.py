@@ -12,7 +12,9 @@ from .commands import clear_admin_commands, set_admin_commands
 from .fmt import amount_and_title, esc, money, parse_amount, strip_tags
 from .i18n import t
 from .lang import lang_for, set_lang
-from .render import (bill_label, edit, is_private, kb, owes_lines, pay_keyboard, say, status_text)
+from ...domain.errors import DomainError
+from .render import (bill_label, edit, error_text, is_private, kb, owes_lines, pay_keyboard, say,
+                     status_text)
 from .run import call
 from .state import del_state, get_state, set_state
 
@@ -706,12 +708,63 @@ async def cmd_setbank(message: Message, command: CommandObject, entry, lang):
 
 @router.message(Command("sepay"))
 async def cmd_sepay(message: Message, entry, lang):
+    """Connect SePay: with the owner's SePay API token, create or update the team's one webhook."""
     if not await allow(message, entry, lang, "owner"):
         return
-    s = await call(S.teams.sepay_info, tid(entry), message.from_user.id)
-    await message.answer(t(lang, "sepay.info", url=esc(s["webhook_url"]),
-                           status=t(lang, "sepay.connected" if s["connected"] else "sepay.not_connected")),
-                         reply_markup=kb([(t(lang, "btn.gen_key"), "s:gen")]))
+    info = await call(S.teams.sepay_info, tid(entry), message.from_user.id)
+    if not info["has_bank"]:
+        await message.answer(t(lang, "err.bank_not_set"))
+    elif not info["token_set"]:
+        await ask_sepay_token(message, entry, lang)
+    else:
+        await sync_sepay(message, entry, lang, message.from_user.id)
+
+
+async def ask_sepay_token(ev, entry, lang):
+    msg = ev.message if isinstance(ev, CallbackQuery) else ev
+    set_state(input_key(msg.bot.id, msg.chat.id), {"type": "sepay_token"}, 600)
+    await msg.answer(t(lang, "sepay.ask_token"), reply_markup=FORCE, disable_web_page_preview=True)
+
+
+async def sync_sepay(msg: Message, entry, lang, actor: int):
+    """Create or overwrite the team's webhook in SePay and report the result with the follow-up buttons."""
+    buttons = kb([(t(lang, "btn.sepay_sync"), "s:sync")], [(t(lang, "btn.sepay_token"), "s:tok")],
+                 [(t(lang, "btn.sepay_manual"), "s:man")])
+    wait = await msg.answer(t(lang, "sepay.syncing"))
+    try:
+        r = await call(S.teams.sync_sepay, tid(entry), actor)
+    except DomainError as e:
+        await wait.edit_text(error_text(lang, e), reply_markup=buttons)
+        return
+    await wait.edit_text(t(lang, "sepay.synced_new" if r["created"] else "sepay.synced_updated",
+                           bank=esc(r["bank"]), account=esc(r["account"]), holder=esc(r["holder"]),
+                           url=esc(r["url"])), reply_markup=buttons)
+
+
+@router.callback_query(F.data.in_({"s:sync", "s:tok", "s:man"}))
+async def on_sepay_button(cq: CallbackQuery, entry, lang):
+    if not await allow(cq, entry, lang, "owner"):
+        return
+    await cq.answer()
+    if cq.data == "s:sync":
+        await sync_sepay(cq.message, entry, lang, cq.from_user.id)
+    elif cq.data == "s:tok":
+        await ask_sepay_token(cq, entry, lang)
+    else:
+        s = await call(S.teams.sepay_info, tid(entry), cq.from_user.id)
+        await cq.message.answer(t(lang, "sepay.info", url=esc(s["webhook_url"]),
+                                  status=t(lang, "sepay.connected" if s["connected"] else "sepay.not_connected")),
+                                reply_markup=kb([(t(lang, "btn.gen_key"), "s:gen")]))
+
+
+async def save_sepay_token(message: Message, entry, lang, text: str):
+    try:  # the token gives access to the SePay account: don't leave it in the chat
+        await message.delete()
+    except Exception:
+        pass
+    r = await call(S.teams.set_sepay_token, tid(entry), message.from_user.id, text)
+    await message.answer(t(lang, "sepay.token_saved", n=r["bank_accounts"]))
+    await sync_sepay(message, entry, lang, message.from_user.id)
 
 
 @router.callback_query(F.data == "s:gen")
@@ -780,7 +833,9 @@ async def on_text(message: Message, entry, lang):
     if not await allow(message, entry, lang, "manager"):
         return
     text = message.text.strip()
-    if st["type"] == "add":
+    if st["type"] == "sepay_token":
+        await save_sepay_token(message, entry, lang, text)
+    elif st["type"] == "add":
         await add_members(message, entry, lang, text)
     elif st["type"] == "edit":
         if st["field"] == "fee":

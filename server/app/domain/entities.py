@@ -51,6 +51,8 @@ class Team:
     bank_account: str | None = None
     bank_holder: str | None = None
     sepay_key_hash: str | None = None
+    sepay_token_enc: str | None = None     # owner's SePay API token, encrypted; lets us manage the webhook
+    sepay_webhook_id: str | None = None    # the team's one webhook in that SePay account
     last_billed_period: str | None = None
     active: bool = True
     created_at: datetime | None = None

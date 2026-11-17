@@ -1,5 +1,5 @@
 """Database engine, schema and the SQLAlchemy unit of work."""
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
@@ -13,7 +13,24 @@ def make_session_factory(database_url: str):
     args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
     engine = create_engine(database_url, pool_pre_ping=True, connect_args=args)
     metadata.create_all(engine)
+    _add_missing_columns(engine)
     return sessionmaker(bind=engine, expire_on_commit=False)
+
+
+def _add_missing_columns(engine) -> None:
+    """create_all makes new tables but never changes existing ones. New columns are always nullable,
+    so adding them in place is enough; anything bigger would need a real migration."""
+    insp = inspect(engine)
+    with engine.begin() as conn:
+        for table in metadata.sorted_tables:
+            if not insp.has_table(table.name):
+                continue
+            have = {c["name"] for c in insp.get_columns(table.name)}
+            for col in table.columns:
+                if col.name not in have:
+                    assert col.nullable, f"{table.name}.{col.name} must be nullable to add in place"
+                    conn.execute(text(f'ALTER TABLE {table.name} ADD COLUMN {col.name} '
+                                      f'{col.type.compile(engine.dialect)}'))
 
 
 class SqlUnitOfWork:

@@ -18,6 +18,8 @@ class Settings:
     telegram_mode = "polling" if os.getenv("TELEGRAM_MODE") == "polling" else "webhook"
     # Only for tests: point the bots at a fake Telegram server.
     telegram_api_root = os.getenv("TELEGRAM_API_ROOT") or None
+    # SePay's user API, used to create each team's webhook. Tests point it at a fake.
+    sepay_api_url = os.getenv("SEPAY_API_URL", "https://userapi.sepay.vn/v2")
     # Turn the background jobs off (tests).
     run_jobs = os.getenv("RUN_JOBS", "1") != "0"
 

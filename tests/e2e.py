@@ -60,6 +60,39 @@ async def fake_telegram(request: web.Request):
     return web.json_response({"ok": True, "result": result})
 
 
+# ---- fake SePay user API --------------------------------------------------------------------
+
+SEPAY_TOKEN = "S" * 40
+sepay_hooks: dict[str, dict] = {}
+
+
+async def fake_sepay(request: web.Request):
+    if request.headers.get("Authorization") != f"Bearer {SEPAY_TOKEN}":
+        return web.json_response({"status": "error", "error_code": "unauthorized"}, status=401)
+    path, method = request.match_info["path"], request.method
+    page = {"meta": {"pagination": {"current_page": 1, "last_page": 1, "has_more": False}}}
+    if method != "GET" and not request.headers.get("X-Idempotency-Key"):
+        return web.json_response({"status": "error", "error_code": "idempotency_key_required"}, status=400)
+    if path == "bank-accounts":
+        return web.json_response({"status": "success", "data": [
+            {"id": "acc-1", "account_number": "0123456789", "bank_short_name": "MBBank", "bank_code": "MB",
+             "account_holder_name": "NGUYEN VAN A", "active": "1"}], **page})
+    if path == "webhooks" and method == "GET":
+        return web.json_response({"status": "success", "data": [
+            {"id": i, "webhook_url": h["url"]} for i, h in sepay_hooks.items()], **page})
+    if path == "webhooks" and method == "POST":
+        i = f"wh-{len(sepay_hooks) + 1}"
+        sepay_hooks[i] = await request.json()
+        return web.json_response({"status": "success", "data": {"id": i}}, status=201)
+    if path.startswith("webhooks/") and method == "PUT":
+        i = path.split("/", 1)[1]
+        if i not in sepay_hooks:
+            return web.json_response({"status": "error", "error_code": "not_found"}, status=404)
+        sepay_hooks[i] = await request.json()
+        return web.json_response({"status": "success", "data": {"id": i}})
+    return web.json_response({"status": "error", "error_code": "not_found"}, status=404)
+
+
 # ---- helpers --------------------------------------------------------------------------------
 
 def user(uid):
@@ -122,6 +155,7 @@ async def main():
     global update_id
     app = web.Application()
     app.router.add_post("/bot{token}/{method}", fake_telegram)
+    app.router.add_route("*", "/sepay-api/v2/{path:.+}", fake_sepay)
     runner = web.AppRunner(app)
     await runner.setup()
     await web.TCPSite(runner, "127.0.0.1", TG_PORT).start()
@@ -134,7 +168,7 @@ async def main():
              "TOKEN_ENC_KEY": Fernet.generate_key().decode(), "PUBLIC_URL": "https://teamfund.test",
              "MASTER_ADMIN_IDS": str(SUPER), "DEFAULT_LANG": "en", "MASTER_BOT_TOKEN": MASTER_TOKEN,
              "MASTER_WEBHOOK_SECRET": "msecret", "TELEGRAM_API_ROOT": f"http://127.0.0.1:{TG_PORT}",
-             "RUN_JOBS": "0"})]
+             "RUN_JOBS": "0", "SEPAY_API_URL": f"http://127.0.0.1:{TG_PORT}/sepay-api/v2"})]
     http = ClientSession()
     try:
         await until(lambda: any(c["method"] == "setWebhook" and str(c["params"].get("url", "")).endswith("/tg/master")
@@ -254,6 +288,31 @@ async def main():
         await wait_sent(to(OWNER, "Quỹ đội"), "vietnamese")
         await T(text_update(OWNER, "/export"))
         await until(lambda: any(c["method"] == "sendDocument" for c in calls), "export sent")
+
+        # 8. /sepay with a SePay API token: the bot creates the webhook, then overwrites it
+        await T(cb_update(OWNER, "l:en", 79))
+        await T(text_update(OWNER, "/sepay"))
+        await wait_sent(to(OWNER, "API Access"), "asks for SePay token")
+        await T(text_update(OWNER, "W" * 40))
+        await wait_sent(to(OWNER, "didn't accept the API token"), "bad SePay token refused")
+        await T(text_update(OWNER, "/sepay"))
+        await T(text_update(OWNER, SEPAY_TOKEN))
+        await wait_sent(to(OWNER, "SePay connected"), "webhook created")
+        assert len(sepay_hooks) == 1, sepay_hooks
+        hook = sepay_hooks["wh-1"]
+        assert hook["url"] == "https://teamfund.test/sepay/1" and hook["bank_account_xid"] == "acc-1"
+        assert (hook["event_type"], hook["auth_type"], hook["content_type"]) == ("in", "apikey", "json")
+        assert hook["skip_if_no_code"] is False
+        new_key = hook["secret"]
+        async with http.post(f"http://127.0.0.1:{PORT}/sepay/1", headers=sepay_headers, json={
+                "id": 50, "transferType": "in", "transferAmount": 1000, "content": "x"}) as r:
+            assert r.status == 401, "the old key stops working"
+        async with http.post(f"http://127.0.0.1:{PORT}/sepay/1", headers={"Authorization": f"Apikey {new_key}"},
+                             json={"id": 51, "transferType": "in", "transferAmount": 1000, "content": "x"}) as r:
+            assert await r.json() == {"success": True}, "SePay's new key works"
+        await T(text_update(OWNER, "/sepay"))
+        await wait_sent(to(OWNER, "SePay updated"), "webhook updated")
+        assert list(sepay_hooks) == ["wh-1"] and sepay_hooks["wh-1"]["secret"] != new_key
 
         print(f"e2e passed ({len(calls)} Telegram API calls)")
     finally:

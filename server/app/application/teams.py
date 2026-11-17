@@ -1,5 +1,6 @@
 """Use cases: team settings, bank account, SePay key, group link, managers, audit log."""
 import hmac
+import re
 import secrets
 from datetime import timedelta
 
@@ -9,9 +10,23 @@ from ..domain.rules import LANGS, MAX_FEE, hash_secret, valid_bank
 from .access import get_team, is_super, manager_team, owner_team, role_of
 from .billing import reprice_current_month
 from .people import audit, display_name, user_info
-from .ports import Deps, UnitOfWork
+from .ports import Deps, SepayError, SepayWebhookSpec, UnitOfWork
 
 REQUEST_COOLDOWN = timedelta(hours=24)
+SEPAY_TOKEN_RE = re.compile(r"^[A-Za-z0-9_\-.]{20,200}$")
+
+
+def _digits(value: str | None) -> str:
+    return re.sub(r"\D", "", value or "")
+
+
+def _sepay_failed(e: SepayError) -> DomainError:
+    """SePay's answer, in the words the bot shows the owner."""
+    if e.kind == "unauthorized":
+        return DomainError(400, "sepay_token_invalid")
+    if e.kind == "invalid":
+        return DomainError(502, "sepay_rejected", message=e.message[:200] or "-")
+    return DomainError(502, "sepay_unavailable")
 
 
 def check_api_key(uow: UnitOfWork, team_id: int, key: str) -> Team:
@@ -77,7 +92,76 @@ class TeamUseCases:
     def sepay_info(self, team_id: int, actor: int) -> dict:
         with self.d.uow() as uow:
             team = manager_team(uow, team_id, actor)
-            return {"webhook_url": self._webhook_url(team), "connected": bool(team.sepay_key_hash)}
+            return {"webhook_url": self._webhook_url(team), "connected": bool(team.sepay_key_hash),
+                    "token_set": bool(team.sepay_token_enc), "webhook_id": team.sepay_webhook_id,
+                    "has_bank": team.has_bank()}
+
+    def set_sepay_token(self, team_id: int, actor: int, token: str) -> dict:
+        """Keep the owner's SePay API token (encrypted) after checking that SePay accepts it."""
+        token = token.strip()
+        with self.d.uow() as uow:
+            team = owner_team(uow, team_id, actor)
+            if not SEPAY_TOKEN_RE.match(token):
+                raise invalid()
+            try:
+                accounts = self.d.sepay.bank_accounts(token)
+            except SepayError as e:
+                raise _sepay_failed(e) from e
+            team.sepay_token_enc = self.d.cipher.encrypt(token)
+            audit(uow, self.d.clock, team.id, actor, "team.sepay_token")
+            uow.commit()
+            return {"bank_accounts": len(accounts)}
+
+    def sync_sepay(self, team_id: int, actor: int) -> dict:
+        """Make the team's one SePay webhook match the team's bank account, creating it or overwriting it.
+
+        Errors: bank_not_set, sepay_token_missing, sepay_bank_missing (the account isn't linked in SePay),
+        sepay_token_invalid, sepay_rejected, sepay_unavailable."""
+        with self.d.uow() as uow:
+            team = owner_team(uow, team_id, actor)
+            if not team.has_bank():
+                raise DomainError(400, "bank_not_set")
+            if not team.sepay_token_enc:
+                raise DomainError(400, "sepay_token_missing")
+            token = self.d.cipher.decrypt(team.sepay_token_enc)
+            api, url = self.d.sepay, self._webhook_url(team)
+            try:
+                accounts = api.bank_accounts(token)
+                account = next((a for a in accounts if a.active and _digits(a.account_number) == _digits(team.bank_account)),
+                               None)
+                if not account:
+                    raise DomainError(404, "sepay_bank_missing", bank=team.bank_name, account=team.bank_account)
+                key = secrets.token_urlsafe(24)
+                spec = SepayWebhookSpec(name=f"Team Fund · {team.name}"[:100], url=url,
+                                        bank_account_xid=account.xid, api_key=key)
+                webhook_id, created = team.sepay_webhook_id, False
+                if not webhook_id:  # adopt a webhook made by hand for this team, so there's still only one
+                    webhook_id = next((w.id for w in api.webhooks(token) if w.url.rstrip("/") == url), None)
+                if webhook_id:
+                    try:
+                        api.update_webhook(token, webhook_id, spec)
+                    except SepayError as e:
+                        if e.kind == "not_found":      # deleted in SePay: make a new one
+                            webhook_id = None
+                        elif e.kind == "invalid":      # can't be changed in place: replace it
+                            old, webhook_id = webhook_id, api.create_webhook(token, spec)
+                            created = True
+                            try:
+                                api.delete_webhook(token, old)
+                            except SepayError:
+                                pass
+                        else:
+                            raise
+                if not webhook_id:
+                    webhook_id, created = api.create_webhook(token, spec), True
+            except SepayError as e:
+                raise _sepay_failed(e) from e
+            team.sepay_webhook_id, team.sepay_key_hash = webhook_id, hash_secret(key)
+            audit(uow, self.d.clock, team.id, actor, "team.sepay_webhook",
+                  after={"webhook_id": webhook_id, "account": team.bank_account, "created": created})
+            uow.commit()
+            return {"webhook_id": webhook_id, "created": created, "url": url, "bank": account.bank_short_name,
+                    "account": account.account_number, "holder": account.holder}
 
     def new_sepay_key(self, team_id: int, actor: int) -> dict:
         with self.d.uow() as uow:

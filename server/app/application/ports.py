@@ -150,6 +150,48 @@ class PaymentQr(Protocol):
     def url(self, bank_name: str, bank_account: str, amount: int, content: str) -> str: ...
 
 
+class SepayError(Exception):
+    """A SePay API call failed. kind: unauthorized | not_found | invalid | unavailable."""
+
+    def __init__(self, kind: str, message: str = ""):
+        super().__init__(f"{kind}: {message}" if message else kind)
+        self.kind, self.message = kind, message
+
+
+@dataclass(frozen=True)
+class SepayBankAccount:
+    xid: str
+    account_number: str
+    bank_short_name: str
+    bank_code: str
+    holder: str
+    active: bool
+
+
+@dataclass(frozen=True)
+class SepayWebhook:
+    id: str
+    url: str
+
+
+@dataclass(frozen=True)
+class SepayWebhookSpec:
+    """The one webhook a team needs: incoming money on one bank account, posted to our URL with an API key."""
+    name: str
+    url: str
+    bank_account_xid: str
+    api_key: str
+
+
+class SepayApi(Protocol):
+    """The owner's SePay account, reached with an API token they created in my.sepay.vn. Raises SepayError."""
+    def bank_accounts(self, token: str) -> list[SepayBankAccount]: ...
+    def webhooks(self, token: str) -> list[SepayWebhook]: ...
+    def create_webhook(self, token: str, spec: SepayWebhookSpec) -> str: ...
+    def update_webhook(self, token: str, webhook_id: str, spec: SepayWebhookSpec) -> None: ...
+    def delete_webhook(self, token: str, webhook_id: str) -> None: ...
+
+
 class SpreadsheetWriter(Protocol):
     def workbook(self, sheets: list[tuple[str, list[str], list[list]]]) -> bytes: ...
 
@@ -177,3 +219,4 @@ class Deps:
     spreadsheet: SpreadsheetWriter
     notifier: Notifier
     config: AppConfig
+    sepay: SepayApi

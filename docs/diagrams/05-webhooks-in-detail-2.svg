@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="640" viewBox="0 0 1000 640" role="img" aria-label="SePay webhook flow. Once per team the owner gets the webhook URL and a new API key from /sepay and pastes them into SePay. On every transfer, SePay sees the money arrive in the team account and POSTs the transaction to /sepay/{teamId} with an Apikey header. Caddy proxies to the app; the controller checks the header scheme and turns the JSON into an IncomingTransfer; the record_transfer use case checks the key hash, skips duplicate transactions and outgoing transfers, finds the TF code, checks the amount, marks the bills paid and commits, then publishes an event. The controller answers SePay with 200 success right away, and the notifier sends the payer a receipt and posts to the team group through Telegram in the background."><style>svg{
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="640" viewBox="0 0 1000 640" role="img" aria-label="SePay webhook flow. Once per team the owner sends /sepay with a SePay API token and the server creates the webhook in SePay with a new API key. On every transfer, SePay sees the money arrive in the team account and POSTs the transaction to /sepay/{teamId} with an Apikey header. Caddy proxies to the app; the controller checks the header scheme and turns the JSON into an IncomingTransfer; the record_transfer use case checks the key hash, skips duplicate transactions and outgoing transfers, finds the TF code, checks the amount, marks the bills paid and commits, then publishes an event. The controller answers SePay with 200 success right away, and the notifier sends the payer a receipt and posts to the team group through Telegram in the background."><style>svg{
   --bg:#f5f7f8; --surface:#ffffff; --fg:#17212b; --muted:#5b6b78; --line:#c9d3db;
   --tg:#2b7bb9; --tg-soft:#eaf3fa; --money:#b8730f; --money-soft:#fbf1df;
   --display:"Space Grotesk",system-ui,sans-serif;
@@ -57,8 +57,8 @@
       <line class="life" x1="925" y1="56" x2="925" y2="630"/>
       <rect class="box file" x="20" y="72" width="960" height="64" rx="8"/>
       <text class="t" x="36" y="93">Once per team, by the owner</text>
-      <text class="s" x="36" y="110">/sepay in the team bot → webhook URL https://teamfund…/sepay/{teamId} and a new API key (only its SHA-256 hash is stored)</text>
-      <text class="s" x="36" y="126">→ paste both into SePay → WebHooks, event “Có tiền vào” (money in), authentication: API Key</text>
+      <text class="s" x="36" y="110">/sepay in the team bot + the owner's SePay API token → the server creates or updates the team's one webhook in SePay</text>
+      <text class="s" x="36" y="126">(URL /sepay/{teamId}, money in, authentication: API Key with a new key; only its SHA-256 hash is stored). Diagram below.</text>
       <line class="ln m" x1="75" y1="190" x2="213" y2="190" marker-end="url(#w2m)"/>
       <text class="lb m" x="145.0" y="183" text-anchor="middle">money in, content TFK7Q2M9</text>
       <line class="ln m" x1="215" y1="234" x2="353" y2="234" marker-end="url(#w2m)"/>

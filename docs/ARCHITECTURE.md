@@ -26,7 +26,7 @@ _Control flows outward and back (a webhook calls a use case, the use case saves 
 |---|---|---|---|
 | Domain | `domain/` | `entities.py`: Team, Member, Bill, Payment, PaymentIntent and the rest, as plain dataclasses. `rules.py`: fees, cost splitting, payment codes, reminder days, validation. `errors.py`. | nothing |
 | Use cases | `application/` | One class per area: registration, users, teams, members, money, jobs. `access.py` (owner and manager checks), `billing.py` (bills, intents, matching transfers), `ports.py` (repositories, unit of work, clock, cipher, QR, spreadsheet, notifier), `services.py`. | domain |
-| Adapters out | `infrastructure/` | `orm.py` maps the domain dataclasses onto tables, so the domain never imports SQLAlchemy. `repositories.py`, `db.py` (unit of work), `clock.py`, `crypto.py` (Fernet), `sepay.py` (QR URL), `xlsx.py`. | application, domain |
+| Adapters out | `infrastructure/` | `orm.py` maps the domain dataclasses onto tables, so the domain never imports SQLAlchemy. `repositories.py`, `db.py` (unit of work), `clock.py`, `crypto.py` (Fernet), `sepay.py` (QR URL, and the SePay user API that creates each team's webhook), `xlsx.py`. | application, domain |
 | Adapters in | `interfaces/` | `bot/`: aiogram handlers, texts and message builders. `http/`: Telegram webhooks and the SePay webhook, which turns SePay's JSON into an `IncomingTransfer`. `scheduler.py`. `deps.py` gives controllers the use cases. | application, domain |
 | Composition root | `main.py` | Builds the adapters, passes them to the use cases as `Deps`, starts FastAPI, the bots and the scheduler. | everything |
 
@@ -51,7 +51,7 @@ _Control flows outward and back (a webhook calls a use case, the use case saves 
 2. **Create the team bot in @BotFather** with `/newbot` and copy the token.
 3. **Register it with the master bot.** Send `/newteam` and paste the token. The server checks it, creates the team, sets the webhook to `/tg/{botId}`, and makes the sender the owner.
 4. **Set the bank account** in the team bot with `/setbank`. Only the owner can do this. Anyone can check it with `/bank`.
-5. **Connect SePay.** The bot shows a webhook URL `/sepay/{teamId}` and an API key to paste into the SePay dashboard.
+5. **Connect SePay.** Link the team's bank account in my.sepay.vn, create an API token there (Cấu hình công ty → API Access), then send `/sepay` in the team bot and paste the token. The bot creates the team's webhook in SePay itself. After changing the account with `/setbank`, send `/sepay` again and the same webhook is pointed at the new account.
 6. **Add the bot to the team group** and send `/linkgroup` there.
 7. **Add members and the fee** with `/add`, `/setfee` and `/setdue`.
 
@@ -75,9 +75,15 @@ _Each bot has its own webhook URL and secret token, set when the server starts a
 
 ### SePay → payment confirmed
 
-![SePay webhook flow. Once per team the owner gets the webhook URL and a new API key from /sepay and pastes them into SePa](diagrams/05-webhooks-in-detail-2.svg)
+![SePay webhook flow. Once per team the owner sends /sepay with a SePay API token and the server creates the webhook in Se](diagrams/05-webhooks-in-detail-2.svg)
 
 _SePay watches the team's bank account and calls the webhook within seconds of money arriving. Only the use case decides what the transfer means: the key is compared by its hash, a transaction already recorded is skipped (so SePay's retries are harmless), and money with no code or too little is kept and sent to the managers to assign. The server answers `{"success": true}` as soon as the payment is saved; the receipt and the group post go out in the background through the notifier port, so a slow Telegram call can't make SePay time out and resend._
+
+### /sepay → the team's webhook, created or updated
+
+![Sequence: the owner sends /sepay in the team bot and, the first time, pastes a SePay API token, which the bot deletes fr](diagrams/06-webhooks-in-detail-3.svg)
+
+_The owner does only what SePay can't let anyone else do: link the bank account (with the bank's OTP) and create one API token. The bot does the rest. The token is checked against SePay, then stored encrypted. Each sync makes a fresh key and hands it to SePay and the server in one step, so the old key stops working at once. There is always one webhook per team: the stored id is reused, a webhook already pointing at the team's URL is adopted, and one deleted in SePay is recreated. SePay's v2 user API isn't in its public docs yet; `infrastructure/sepay.py` follows what it answers today (updates are `PUT`, writes need an `X-Idempotency-Key`)._
 
 ## Roles in a team bot
 
@@ -91,7 +97,7 @@ Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID
 
 ### Becoming a manager: request and approve
 
-![Sequence: a person sends /requestmanager to the team bot, a use case records the request and the bot sends the owner a c](diagrams/06-roles-in-a-team-bot.svg)
+![Sequence: a person sends /requestmanager to the team bot, a use case records the request and the bot sends the owner a c](diagrams/07-roles-in-a-team-bot.svg)
 
 _The role check in step 7 runs on the server, so a forwarded Approve button does nothing for anyone but the owner. Requests that get no answer expire after 7 days._
 
@@ -105,7 +111,7 @@ _The role check in step 7 runs on the server, so a forwarded Approve button does
 
 Everything runs on the one VPS with Docker Compose. Only port 443 is added to the internet. The services that were already on the server (nginx on 80, the app on 8000, the host Postgres, Tailscale) are left alone.
 
-![Deployment: the sslip.io hostname resolves to 103.90.225.28. Telegram, SePay and Let's Encrypt reach port 443, where Doc](diagrams/07-deployment-on-the-vps.svg)
+![Deployment: the sslip.io hostname resolves to 103.90.225.28. Telegram, SePay and Let's Encrypt reach port 443, where Doc](diagrams/08-deployment-on-the-vps.svg)
 
 Legend: Telegram traffic · Money path · Other traffic, mounts, builds · Already on the server, not part of Team Fund
 
@@ -115,7 +121,7 @@ _Requests from Telegram, SePay and Let's Encrypt arrive on port 443 and Docker f
 
 The code goes to GitHub first, then the VPS pulls it and Compose rebuilds only what changed.
 
-![Deploy pipeline in four lanes: change and test the code, commit, push to GitHub over SSH, on the VPS run deploy.sh which](diagrams/08-how-a-deploy-works.svg)
+![Deploy pipeline in four lanes: change and test the code, commit, push to GitHub over SSH, on the VPS run deploy.sh which](diagrams/09-how-a-deploy-works.svg)
 
 _Pushing to GitHub doesn't deploy anything by itself; running `scripts/deploy.sh` on the VPS does. If the health check fails, the script stops and prints the log command. Database rows and certificates survive every deploy because they live in volumes, not in the containers._
 
@@ -138,7 +144,8 @@ _Pushing to GitHub doesn't deploy anything by itself; running `scripts/deploy.sh
 | TOKEN_ENC_KEY | `.env` | Fernet key that encrypts team bot tokens in the database. Losing it means re-registering every team bot. |
 | MASTER_WEBHOOK_SECRET | `.env` | Telegram sends it on every master bot update; team bots each get their own, stored in the database |
 | POSTGRES_PASSWORD | `.env` | Only used inside the Docker network |
-| SePay API keys | database (SHA-256 hash) | One per team, shown once by `/sepay` |
+| SePay webhook keys | database (SHA-256 hash) | One per team. `/sepay` makes a new one and gives it straight to SePay; the manual fallback shows it once. |
+| SePay API tokens | database (Fernet, `TOKEN_ENC_KEY`) | One per team, pasted by the owner into `/sepay`; the message is deleted. Lets the server manage only that team's webhook. Revoke it in my.sepay.vn → API Access. |
 | All team data | volume `db_data` | Backed up daily by `scripts/backup.sh` to `~/backups`, kept 14 days |
 | TLS certificate | volume `caddy_data` | Renewed automatically by Caddy |
 | GitHub SSH key | `~/.ssh/id_ed25519_github` | Lets this VPS push and pull the repo; remove it from GitHub to revoke |

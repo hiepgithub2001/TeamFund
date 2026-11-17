@@ -175,3 +175,51 @@ def test_jobs(world):
     assert report["period_label"] == "12/2026" and report["balance"] == 0
 
     svc.jobs.clean_up()
+
+
+def test_sepay_webhook_sync():
+    from .fakes import FakeSepay
+    sepay = FakeSepay()
+    svc, _, _ = make_services(datetime(2026, 11, 17, 10, 0), sepay=sepay)
+    tid = setup_team(svc)
+    teams, url = svc.teams, f"https://example.test/sepay/{tid}"
+
+    assert code(teams.sync_sepay, tid, OWNER) == "bank_not_set"
+    teams.set_bank(tid, OWNER, "VietinBank", "101003630278", "tran le hiep")
+    assert code(teams.sync_sepay, tid, OWNER) == "sepay_token_missing"
+    assert code(teams.set_sepay_token, tid, OWNER, "short") == "invalid"
+    assert code(teams.set_sepay_token, tid, OWNER, "W" * 40) == "sepay_token_invalid"
+    assert code(teams.set_sepay_token, tid, MANAGER, FakeSepay.TOKEN) in ("not_owner", "not_manager")
+    teams.set_sepay_token(tid, OWNER, FakeSepay.TOKEN)
+    assert teams.sepay_info(tid, OWNER)["token_set"]
+
+    # a webhook made by hand for this team is adopted, not duplicated
+    sepay.hooks["manual"] = {"url": url, "bank": "acc-1", "key": "old"}
+    r = teams.sync_sepay(tid, OWNER)
+    assert r["webhook_id"] == "manual" and not r["created"] and list(sepay.hooks) == ["manual"]
+    from app.domain.rules import hash_secret
+    key = sepay.hooks["manual"]["key"]
+    with svc.teams.d.uow() as uow:
+        assert uow.teams.get(tid).sepay_key_hash == hash_secret(key)  # SePay and the server share the new key
+
+    # a new bank account that isn't linked in SePay is refused, and nothing changes
+    teams.set_bank(tid, OWNER, "MBBank", "999888777", "tran le hiep")
+    assert code(teams.sync_sepay, tid, OWNER) == "sepay_bank_missing"
+    assert sepay.hooks["manual"]["key"] == key
+    # once it's linked, the same webhook is pointed at it
+    sepay.accounts.append(type(sepay.accounts[0])("acc-2", "999 888 777", "MBBank", "MB", "TRAN LE HIEP", True))
+    r = teams.sync_sepay(tid, OWNER)
+    assert r["webhook_id"] == "manual" and sepay.hooks["manual"]["bank"] == "acc-2" and len(sepay.hooks) == 1
+
+    # deleted in SePay: a new one is created
+    sepay.hooks.clear()
+    r = teams.sync_sepay(tid, OWNER)
+    assert r["created"] and list(sepay.hooks) == [r["webhook_id"]]
+    # SePay won't change it in place: replaced, still one webhook
+    sepay.fail_update = "invalid"
+    old = r["webhook_id"]
+    r = teams.sync_sepay(tid, OWNER)
+    assert r["created"] and r["webhook_id"] != old and list(sepay.hooks) == [r["webhook_id"]]
+    # SePay down: a clear error, and the stored key is untouched
+    sepay.fail_update = "unavailable"
+    assert code(teams.sync_sepay, tid, OWNER) == "sepay_unavailable"

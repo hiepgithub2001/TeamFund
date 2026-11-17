@@ -23,7 +23,7 @@ from .domain.errors import DomainError
 from .infrastructure.clock import SystemClock
 from .infrastructure.crypto import FernetCipher
 from .infrastructure.db import SqlUnitOfWork, make_session_factory
-from .infrastructure.sepay import SepayQr
+from .infrastructure.sepay import SepayQr, SepayUserApi
 from .infrastructure.xlsx import XlsxWriter
 from .interfaces import deps, scheduler
 from .interfaces.bot import registry
@@ -46,6 +46,7 @@ def create_app() -> FastAPI:
         notifier=notifier,
         config=AppConfig(public_url=settings.public_url, master_admin_ids=tuple(settings.master_admin_ids),
                          default_lang=settings.default_lang),
+        sepay=SepayUserApi(settings.sepay_api_url),
     ))
     deps.install(services)
 
