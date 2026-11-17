@@ -51,6 +51,8 @@ def strip_tags(s: str) -> str:
 
 # 15/10/2026, 15-10-2026, 15/10/26, 15-10-26, or 15/10, 15-10 (this year); one separator throughout
 _DATE_RE = re.compile(r"^(.*\S)\s+(\d{1,2})([/-])(\d{1,2})(?:\3(\d{4}|\d{2}))?$", re.S)
+# 10/2026, 10-2026: the 1st of that month (a 4-digit year, so it can't be confused with a day and month)
+_MONTH_RE = re.compile(r"^(.*\S)\s+(\d{1,2})[/-](\d{4})$", re.S)
 
 
 def split_date(text: str, today: date) -> tuple[str, date | None, bool]:
@@ -58,7 +60,13 @@ def split_date(text: str, today: date) -> tuple[str, date | None, bool]:
     The last value is False when the text ends in something date-like that isn't a real day (31/02)."""
     m = _DATE_RE.match((text or "").strip())
     if not m:
-        return (text or "").strip(), None, True
+        mm = _MONTH_RE.match((text or "").strip())
+        if not mm:
+            return (text or "").strip(), None, True
+        try:
+            return mm.group(1).strip(), date(int(mm.group(3)), int(mm.group(2)), 1), True
+        except ValueError:
+            return mm.group(1).strip(), None, False
     title, d, mo, y = m.group(1).strip(), int(m.group(2)), int(m.group(4)), m.group(5)
     year = (2000 + int(y) if len(y) == 2 else int(y)) if y else today.year
     try:

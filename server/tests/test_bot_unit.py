@@ -55,6 +55,9 @@ def test_split_date():
     assert split_date("Pitch 31-02-2026", today)[2] is False
     assert split_date("Pitch 15/10-2026", today)[1] is None, "mixed separators aren't a date"
     assert split_date("Áo số 10", today) == ("Áo số 10", None, True)
+    assert split_date("Opening 10/2026", today) == ("Opening", date(2026, 10, 1), True)  # month: its 1st day
+    assert split_date("Opening 9-2025", today) == ("Opening", date(2025, 9, 1), True)
+    assert split_date("Opening 13/2026", today)[2] is False
 
 
 def test_amount_forms():

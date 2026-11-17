@@ -452,6 +452,8 @@ async def main():
                         and "15-10-26" in c["params"]["text"], "/money explains amounts and dates")
         await T(text_update(OWNER, "/expense 1tr5 Kit 03-02-26"))
         await wait_sent(to(OWNER, "Expense recorded on 03/02/2026"), "1tr5 and dd-mm-yy")
+        await T(text_update(OWNER, "/income 300k Old balance 09/2026"))
+        await wait_sent(to(OWNER, "Income recorded on 01/09/2026"), "mm/yyyy means the 1st")
         await T(text_update(OWNER, "/income"))
         guide = await wait_sent(to(OWNER, "Reply to this message as"), "income guide")
         assert "15-10-2026" in guide["params"]["text"] and "No date = now" in guide["params"]["text"]
@@ -463,7 +465,7 @@ async def main():
         await T(text_update(OWNER, "120k Water"))
         await wait_sent(to(OWNER, r"Expense recorded\. Fund balance"), "expense from the reply, now")
         await T(text_update(OWNER, "/fund"))
-        await wait_sent(to(OWNER, "Of which other income: 2,500,000đ"), "fund shows other income")
+        await wait_sent(to(OWNER, "Of which other income: 2,800,000đ"), "fund shows other income")
         await T(text_update(OWNER, "/history"))
         await wait_sent(to(OWNER, r"Championship prize \(other income\)"), "history labels other income")
         await T(text_update(OWNER, "/expense 50k Water 03-02-2026"))
