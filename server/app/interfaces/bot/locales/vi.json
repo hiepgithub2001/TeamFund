@@ -20,7 +20,7 @@
  "err.group_only": "Vui lòng gửi lệnh này trong nhóm của đội.",
  "err.menu_expired": "Menu này đã hết hạn. Hãy gửi lại lệnh.",
  "err.sepay_token_missing": "Chưa kết nối SePay. Gửi /sepay và dán API token SePay của bạn.",
- "err.sepay_token_invalid": "SePay không chấp nhận API token. Có thể token đã bị xóa. Bấm \"Đổi token SePay\" và dán token mới.",
+ "err.sepay_token_invalid": "SePay không chấp nhận API token. Có thể token đã bị xóa. Gửi /sepaytoken kèm token mới từ my.sepay.vn → Cấu hình công ty → API Access.",
  "err.sepay_bank_missing": "❌ Tài khoản ngân hàng của đội <b>{bank} · {account}</b> chưa được liên kết trong tài khoản SePay của bạn.\n\nThêm tài khoản tại my.sepay.vn → <b>Ngân hàng</b> (liên kết và xác nhận OTP), rồi bấm \"Đồng bộ lại\".",
  "err.sepay_rejected": "SePay từ chối thay đổi: {message}",
  "err.sepay_unavailable": "Hiện không kết nối được SePay. Vui lòng thử lại sau một phút.",

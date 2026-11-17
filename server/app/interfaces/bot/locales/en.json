@@ -20,7 +20,7 @@
  "err.group_only": "Please send this command in the team group.",
  "err.menu_expired": "This menu has expired. Send the command again.",
  "err.sepay_token_missing": "SePay isn't connected yet. Send /sepay and paste your SePay API token.",
- "err.sepay_token_invalid": "SePay didn't accept the API token. It may have been deleted. Tap \"Change SePay token\" and paste a new one.",
+ "err.sepay_token_invalid": "SePay didn't accept the API token. It may have been deleted. Send /sepaytoken with a new token from my.sepay.vn → Cấu hình công ty → API Access.",
  "err.sepay_bank_missing": "❌ The team's bank account <b>{bank} · {account}</b> isn't linked in your SePay account.\n\nAdd it in my.sepay.vn → <b>Ngân hàng</b> (link the account and confirm the OTP), then tap \"Sync again\".",
  "err.sepay_rejected": "SePay refused the change: {message}",
  "err.sepay_unavailable": "Couldn't reach SePay right now. Please try again in a minute.",
