@@ -13,6 +13,7 @@ from urllib.request import Request, urlopen
 from ..application.ports import SepayBankAccount, SepayError, SepayWebhook, SepayWebhookSpec
 
 log = logging.getLogger("sepay.api")
+USER_AGENT = "TeamFund/1.0"
 
 
 class SepayQr:
@@ -81,7 +82,8 @@ class SepayUserApi:
             page += 1
 
     def _call(self, token: str, method: str, path: str, body: dict | None = None) -> dict:
-        headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+        # SePay is behind Cloudflare, which blocks Python's default "Python-urllib" agent (error 1010)
+        headers = {"Authorization": f"Bearer {token}", "Accept": "application/json", "User-Agent": USER_AGENT}
         payload = None
         if body is not None:
             payload = json.dumps(body).encode()
@@ -97,11 +99,20 @@ class SepayUserApi:
             text = e.read().decode(errors="replace")[:500]
             log.warning("%s %s -> %s %s", method, path.split("?")[0], e.code, text)
             try:
-                msg = json.loads(text).get("message") or text
+                body = json.loads(text)
             except ValueError:
-                msg = text
-            kind = {401: "unauthorized", 403: "unauthorized", 404: "not_found"}.get(e.code)
-            kind = kind or ("invalid" if e.code in (400, 409, 422) else "unavailable")
+                body = {}
+            body = body if isinstance(body, dict) else {}
+            msg = body.get("message") or body.get("detail") or text
+            sepay_said = isinstance(body.get("error_code"), str)  # SePay's own errors; Cloudflare's code is a number
+            if e.code == 401 or (e.code == 403 and sepay_said):
+                kind = "unauthorized"
+            elif e.code == 404 and sepay_said:
+                kind = "not_found"
+            elif e.code in (400, 409, 422):
+                kind = "invalid"
+            else:  # blocked by Cloudflare, rate limited, SePay down…
+                kind = "unavailable"
             raise SepayError(kind, msg) from e
         except (URLError, TimeoutError, ValueError) as e:
             log.warning("%s %s failed: %s", method, path.split("?")[0], e)
