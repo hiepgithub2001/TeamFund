@@ -51,9 +51,10 @@ Port 443 must be reachable from the internet; Telegram and SePay both call it. P
 1. Send `/requestteam` to the master bot and wait for approval.
 2. In @BotFather: `/newbot`, copy the token.
 3. Send `/newteam` to the master bot and paste the token.
-4. In the new team bot: `/setbank MBBank 0123456789 NGUYEN VAN A`, then `/sepay`, and paste the webhook URL and API key into SePay (event: incoming money).
-5. Add the bot to the team group and send `/linkgroup` there.
-6. `/add` members (one per line, `Name | shirt | phone`), `/setfee 200000`, `/setdue 5`.
+4. In my.sepay.vn: link the team's bank account (and, for VA-only banks such as BIDV personal, create a VA), then create an API token (Cấu hình công ty → API Access).
+5. In the new team bot: `/sepaytoken <token>`, then tap the team's account in the list. The bot saves it and creates the SePay webhook. The account can't be typed in; `/setbank` shows the list again to change it.
+6. Add the bot to the team group and send `/linkgroup` there.
+7. `/add` members (one per line, `Name | shirt | phone`), `/setfee 200000`, `/setdue 5`.
 
 ## Schedule (Asia/Ho_Chi_Minh)
 

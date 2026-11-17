@@ -327,8 +327,8 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
     <li><span><b>Ask the master bot.</b> Send <code>/requestteam</code> with the team name. The system admin gets Approve / Reject buttons, and the requester is told the result.</span></li>
     <li><span><b>Create the team bot in @BotFather</b> with <code>/newbot</code> and copy the token.</span></li>
     <li><span><b>Register it with the master bot.</b> Send <code>/newteam</code> and paste the token. The server checks it, creates the team, sets the webhook to <code>/tg/{botId}</code>, and makes the sender the owner.</span></li>
-    <li><span><b>Set the bank account</b> in the team bot with <code>/setbank</code>. Only the owner can do this. Anyone can check it with <code>/bank</code>.</span></li>
-    <li><span><b>Connect SePay.</b> Link the team's bank account in my.sepay.vn, create an API token there (Cấu hình công ty → API Access), then send <code>/sepaytoken &lt;token&gt;</code> in the team bot (or <code>/sepay</code> and paste it as a reply). The bot creates the team's webhook in SePay itself. After changing the account with <code>/setbank</code>, send <code>/sepay</code> again and the same webhook is pointed at the new account.</span></li>
+    <li><span><b>Link the bank account in SePay</b> (my.sepay.vn → Ngân hàng → Thêm tài khoản, with the bank's OTP), and for VA-only banks such as BIDV personal create a VA there. Then create an API token (Cấu hình công ty → API Access).</span></li>
+    <li><span><b>Connect SePay and pick the account.</b> In the team bot, send <code>/sepaytoken &lt;token&gt;</code>. The bot lists the accounts linked in that SePay (one button per VA for VA-only banks); one tap saves the team's account and creates its webhook. Only the owner can do this, and the account can't be typed in: only an account SePay watches can confirm payments. To change it later, <code>/setbank</code> shows the same list. Anyone can check it with <code>/bank</code>.</span></li>
     <li><span><b>Add the bot to the team group</b> and send <code>/linkgroup</code> there.</span></li>
     <li><span><b>Add members and the fee</b> with <code>/add</code>, <code>/setfee</code> and <code>/setdue</code>.</span></li>
   </ol>
@@ -679,7 +679,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
     </tbody>
   </table>
   </div>
-  <p>A bank missing from the table doesn't send webhooks. For an account already linked, SePay's bank-account API answers directly and overrules the table: <code>va_only: true</code> means VA only. Team Fund handles both cases. The <code>SEVQR</code> keyword comes from <code>domain/rules.py</code> <code>transfer_content</code>. For VA-only accounts, <code>/sepay</code> reads <code>va_only</code>, takes the account's active official VA from SePay (<code>GET /v2/bank-accounts/{xid}/va</code>) and stores it as the team's <code>pay_account</code>; the QR, its caption, <code>/bank</code> and the pay page then show the VA, and money sent there lands in the same account. With no VA yet, <code>/sepay</code> stops and asks the owner to create one in my.sepay.vn. <code>/setbank</code> clears the VA until the next <code>/sepay</code>.</p>
+  <p>A bank missing from the table doesn't send webhooks. For an account already linked, SePay's bank-account API answers directly and overrules the table: <code>va_only: true</code> means VA only. Team Fund handles both cases. The <code>SEVQR</code> keyword comes from <code>domain/rules.py</code> <code>transfer_content</code>. For VA-only accounts, the <code>/setbank</code> picker reads <code>va_only</code> and lists the account's active official VAs from SePay (<code>GET /v2/bank-accounts/{xid}/va</code>) as the choices; the chosen VA is stored as the team's <code>pay_account</code>, and the QR, its caption, <code>/bank</code> and the pay page show it. Money sent there lands in the same account. An account with no VA yet is listed with "needs a VA" and tapping it explains how to create one in my.sepay.vn.</p>
 </section>
 
 <section>
@@ -689,7 +689,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
   <table>
     <thead><tr><th>Role</th><th>Who</th><th>Can do</th></tr></thead>
     <tbody>
-      <tr><td>Owner</td><td>Whoever registered the bot with <code>/newteam</code></td><td>Everything a manager can, plus <code>/setbank</code>, <code>/sepay</code>, <code>/sepaytoken</code>, approve or remove managers, <code>/transferowner</code>, <code>/log</code></td></tr>
+      <tr><td>Owner</td><td>Whoever registered the bot with <code>/newteam</code></td><td>Everything a manager can, plus <code>/setbank</code> (pick from SePay), <code>/sepay</code>, <code>/sepaytoken</code>, approve or remove managers, <code>/transferowner</code>, <code>/log</code></td></tr>
       <tr><td>Manager</td><td>Approved by the owner</td><td><code>/weblink</code> (the pay page link), <code>/add</code> <code>/edit</code> <code>/remove</code> members, <code>/setfee</code> <code>/setdue</code>, <code>/markpaid</code>, <code>/expense</code>, <code>/charge</code> <code>/split</code>, <code>/remind</code>, assign unmatched payments, <code>/export</code></td></tr>
       <tr><td>Everyone</td><td>Anyone who opens the bot</td><td><code>/start</code> and pay (or the pay page in a browser, no Telegram needed), <code>/status</code>, <code>/fund</code>, <code>/history</code>, <code>/bank</code> (the team account; managers also see whether SePay is connected), <code>/lang</code>, <code>/requestmanager</code></td></tr>
     </tbody>

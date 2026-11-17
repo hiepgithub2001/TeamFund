@@ -22,6 +22,13 @@ def world():
     return make_services(datetime(2026, 11, 17, 10, 0))
 
 
+def link_bank(svc, tid, xid="acc-1", va=None) -> dict:
+    """What an owner does: /sepaytoken, then pick an account in /setbank."""
+    from .fakes import FakeSepay
+    svc.teams.set_sepay_token(tid, OWNER, FakeSepay.TOKEN)
+    return svc.teams.choose_bank(tid, OWNER, xid, va)
+
+
 def setup_team(svc) -> int:
     for uid, name in ((OWNER, "Owner"), (MANAGER, "Mgr"), (MEMBER, "Mem")):
         svc.users.upsert_user(uid, name, None, None)
@@ -60,11 +67,12 @@ def test_full_flow(world):
     assert code(teams.decide_manager_request, tid, MANAGER, mr["id"], True) == "not_owner"
     teams.decide_manager_request(tid, OWNER, mr["id"], True)
     assert teams.role(tid, MANAGER)["role"] == "manager"
-    assert code(teams.set_bank, tid, MANAGER, "MBBank", "0123", "x") == "not_owner"
+    assert code(teams.choose_bank, tid, MANAGER, "acc-1") == "not_owner"
 
-    # setup
-    teams.set_bank(tid, OWNER, "MBBank", "0123456", "nguyen van a")
-    assert code(teams.set_bank, tid, OWNER, "MBBank", "12-34", "NGUYEN") == "invalid"
+    # setup: the bank account comes from the owner's SePay, never typed
+    assert code(teams.bank_options, tid, OWNER) == "sepay_token_missing"
+    link_bank(svc, tid)
+    assert code(teams.choose_bank, tid, OWNER, "not-in-sepay") == "not_found"
     key = teams.new_sepay_key(tid, OWNER)["api_key"]
     teams.update_settings(tid, MANAGER, fee=200000, due_day=5)
     assert code(teams.update_settings, tid, MANAGER, due_day=31) == "invalid"
@@ -178,6 +186,8 @@ def test_jobs(world):
 
 
 def test_sepay_webhook_sync():
+    from app.domain.rules import hash_secret
+
     from .fakes import FakeSepay
     sepay = FakeSepay()
     svc, _, _ = make_services(datetime(2026, 11, 17, 10, 0), sepay=sepay)
@@ -185,31 +195,35 @@ def test_sepay_webhook_sync():
     teams, url = svc.teams, f"https://example.test/sepay/{tid}"
 
     assert code(teams.sync_sepay, tid, OWNER) == "bank_not_set"
-    teams.set_bank(tid, OWNER, "VietinBank", "101003630278", "tran le hiep")
-    assert code(teams.sync_sepay, tid, OWNER) == "sepay_token_missing"
+    assert code(teams.bank_options, tid, OWNER) == "sepay_token_missing"
     assert code(teams.set_sepay_token, tid, OWNER, "short") == "invalid"
     assert code(teams.set_sepay_token, tid, OWNER, "W" * 40) == "sepay_token_invalid"
     assert code(teams.set_sepay_token, tid, MANAGER, FakeSepay.TOKEN) in ("not_owner", "not_manager")
     teams.set_sepay_token(tid, OWNER, FakeSepay.TOKEN)
     assert teams.sepay_info(tid, OWNER)["token_set"]
+    assert code(teams.bank_options, tid, MANAGER) in ("not_owner", "not_manager")
+    opts = teams.bank_options(tid, OWNER)
+    assert [(o["bank"], o["account"], o["va"], o["current"]) for o in opts] == [("VietinBank", "101003630278", None, False)]
 
-    # a webhook made by hand for this team is adopted, not duplicated
+    # picking adopts a webhook made by hand for this team, not a second one
     sepay.hooks["manual"] = {"url": url, "bank": "acc-1", "key": "old"}
-    r = teams.sync_sepay(tid, OWNER)
-    assert r["webhook_id"] == "manual" and not r["created"] and list(sepay.hooks) == ["manual"]
-    from app.domain.rules import hash_secret
+    r = teams.choose_bank(tid, OWNER, "acc-1")
+    assert r["webhook_id"] == "manual" and not r["created"] and r["changed"] and list(sepay.hooks) == ["manual"]
+    info = teams.team_info(tid, OWNER)
+    assert (info["bank_name"], info["bank_account"], info["bank_holder"]) == ("VietinBank", "101003630278", "TRAN LE HIEP")
     key = sepay.hooks["manual"]["key"]
     with svc.teams.d.uow() as uow:
         assert uow.teams.get(tid).sepay_key_hash == hash_secret(key)  # SePay and the server share the new key
+    assert teams.bank_options(tid, OWNER)[0]["current"]
 
-    # a new bank account that isn't linked in SePay is refused, and nothing changes
-    teams.set_bank(tid, OWNER, "MBBank", "999888777", "tran le hiep")
-    assert code(teams.sync_sepay, tid, OWNER) == "sepay_bank_missing"
-    assert sepay.hooks["manual"]["key"] == key
-    # once it's linked, the same webhook is pointed at it
+    # another account linked later: picking it points the same webhook at it
     sepay.accounts.append(type(sepay.accounts[0])("acc-2", "999 888 777", "MBBank", "MB", "TRAN LE HIEP", True))
-    r = teams.sync_sepay(tid, OWNER)
+    r = teams.choose_bank(tid, OWNER, "acc-2")
     assert r["webhook_id"] == "manual" and sepay.hooks["manual"]["bank"] == "acc-2" and len(sepay.hooks) == 1
+    # the account was unlinked in SePay: sync says so, and nothing changes
+    sepay.accounts.pop()
+    assert code(teams.sync_sepay, tid, OWNER) == "sepay_bank_missing"
+    teams.choose_bank(tid, OWNER, "acc-1")
 
     # deleted in SePay: a new one is created
     sepay.hooks.clear()
@@ -220,7 +234,7 @@ def test_sepay_webhook_sync():
     old = r["webhook_id"]
     r = teams.sync_sepay(tid, OWNER)
     assert r["created"] and r["webhook_id"] != old and list(sepay.hooks) == [r["webhook_id"]]
-    # SePay down: a clear error, and the stored key is untouched
+    # SePay down: a clear error
     sepay.fail_update = "unavailable"
     assert code(teams.sync_sepay, tid, OWNER) == "sepay_unavailable"
 
@@ -238,7 +252,7 @@ def test_web_pay_page(world):
 
     page = web.page(token)
     assert page["team"] == "FC Test" and not page["has_bank"] and page["unpaid"] == []
-    teams.set_bank(tid, OWNER, "VietinBank", "101003630278", "tran le hiep")
+    link_bank(svc, tid)
     teams.update_settings(tid, OWNER, fee=200000)
     svc.members.add_members(tid, OWNER, [{"name": "An"}, {"name": "Bình"}])
     page = web.page(token)
@@ -279,12 +293,15 @@ def test_va_only_bank_uses_the_virtual_account():
     svc, _, _ = make_services(datetime(2026, 11, 17, 10, 0), sepay=sepay)
     tid = setup_team(svc)
     teams = svc.teams
-    teams.set_bank(tid, OWNER, "BIDV", "5101630799", "tran le hiep")
     teams.set_sepay_token(tid, OWNER, FakeSepay.TOKEN)
-    assert code(teams.sync_sepay, tid, OWNER) == "sepay_va_missing" and not sepay.hooks
+    opts = teams.bank_options(tid, OWNER)
+    assert len(opts) == 1 and opts[0]["needs_va"] and opts[0]["va"] is None  # BIDV without a VA yet
+    assert code(teams.choose_bank, tid, OWNER, "bidv-1") == "sepay_va_missing" and not sepay.hooks
 
     sepay.vas["bidv-1"] = [SepayVirtualAccount("OLD1", False, True), SepayVirtualAccount("96247TLH2203", True, True)]
-    r = teams.sync_sepay(tid, OWNER)
+    assert [o["va"] for o in teams.bank_options(tid, OWNER)] == ["96247TLH2203"]  # one choice per active VA
+    assert code(teams.choose_bank, tid, OWNER, "bidv-1", "OLD1") == "not_found"   # an inactive VA can't be picked
+    r = teams.choose_bank(tid, OWNER, "bidv-1", "96247TLH2203")
     assert r["va"] == "96247TLH2203" and r["account"] == "5101630799"
     info = teams.team_info(tid, OWNER)
     assert info["pay_account"] == "96247TLH2203" and info["bank_account"] == "5101630799"
@@ -298,6 +315,7 @@ def test_va_only_bank_uses_the_virtual_account():
     token = teams.web_link(tid, OWNER)["url"].rstrip("/").rsplit("/", 1)[1]
     assert svc.web.page(token)["bank_account"] == "96247TLH2203"
 
-    # a new bank account drops the old VA until /sepay finds the new account's
-    teams.set_bank(tid, OWNER, "VietinBank", "101003630278", "tran le hiep")
+    # moving to a bank that takes main-account transfers drops the VA
+    sepay.accounts.append(SepayBankAccount("acc-1", "101003630278", "VietinBank", "ICB", "TRAN LE HIEP", True))
+    teams.choose_bank(tid, OWNER, "acc-1")
     assert teams.team_info(tid, OWNER)["pay_account"] == "101003630278"

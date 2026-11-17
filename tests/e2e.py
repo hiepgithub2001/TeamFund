@@ -57,6 +57,7 @@ async def fake_telegram(request: web.Request):
         chat = int(params.get("chat_id") or 0)
         result = {"message_id": msg_id, "date": 1, "chat": {"id": chat, "type": "private" if chat > 0 else "supergroup"},
                   "text": params.get("text") or ""}
+        calls[-1]["message_id"] = msg_id
     return web.json_response({"ok": True, "result": result})
 
 
@@ -206,9 +207,28 @@ async def main():
         T = lambda u: send("/tg/555555", secret, u)  # noqa: E731
         await send("/tg/555555", "nope", {}, expect=401)
 
-        # 2. setup in the team bot
+        # 2. setup in the team bot: the bank account can only be picked from the owner's SePay
         await T(text_update(OWNER, "/setbank MBBank 0123456789 nguyen van a"))
-        await wait_sent(to(OWNER, "Bank account saved"), "bank saved")
+        await wait_sent(to(OWNER, "can't be typed in"), "typed bank account refused")
+        await wait_sent(to(OWNER, "/sepaytoken YOUR_TOKEN"), "setbank needs SePay first")
+        await T(text_update(OWNER, "/sepaytoken " + "W" * 40))
+        await wait_sent(to(OWNER, "didn't accept the API token"), "bad SePay token refused")
+        deletes = sum(c["method"] == "deleteMessage" for c in calls)
+        await T(text_update(OWNER, f"/sepaytoken {SEPAY_TOKEN}"))
+        await wait_sent(to(OWNER, "SePay token saved"), "token saved")
+        assert sum(c["method"] == "deleteMessage" for c in calls) == deletes + 1, "token message deleted"
+        picker = await wait_sent(lambda c: c["method"] == "editMessageText" and "Choose the team's bank account"
+                                 in c["params"]["text"], "bank picker opens after the token")
+        assert buttons(picker) == ["b:0", "b:x"], buttons(picker)
+        loading = next(c for c in calls if c["method"] == "sendMessage" and "Reading your SePay" in c["params"]["text"])
+        await T(cb_update(OWNER, "b:0", loading["message_id"]))
+        await wait_sent(lambda c: c["method"] == "editMessageText" and "Team bank account" in c["params"]["text"]
+                        and "0123456789" in c["params"]["text"], "bank picked")
+        assert len(sepay_hooks) == 1, sepay_hooks
+        hook = sepay_hooks["wh-1"]
+        assert hook["url"] == "https://teamfund.test/sepay/1" and hook["bank_account_xid"] == "acc-1"
+        assert (hook["event_type"], hook["auth_type"], hook["content_type"]) == ("in", "apikey", "json")
+        assert hook["skip_if_no_code"] is False
         await T(text_update(OWNER, "/setfee 200k"))
         await wait_sent(to(OWNER, "Monthly fee set to 200,000đ"), "fee set")
         await T(text_update(OWNER, "/add An | 10\nBình\nCường | 7 | 0901234567"))
@@ -289,33 +309,20 @@ async def main():
         await T(text_update(OWNER, "/export"))
         await until(lambda: any(c["method"] == "sendDocument" for c in calls), "export sent")
 
-        # 8. /sepay with a SePay API token: the bot creates the webhook, then overwrites it
+        # 8. /sepay re-syncs the webhook with a fresh key; the manual key stops working
         await T(cb_update(OWNER, "l:en", 79))
-        await T(text_update(OWNER, "/sepay"))
-        await wait_sent(to(OWNER, "API Access"), "asks for SePay token")
-        await T(text_update(OWNER, "W" * 40))
-        await wait_sent(to(OWNER, "didn't accept the API token"), "bad SePay token refused")
         await T(text_update(OWNER, "/sepaytoken"))
         await wait_sent(lambda c: to(OWNER, "/sepaytoken YOUR_TOKEN")(c), "sepaytoken without a token explains")
-        deletes = sum(c["method"] == "deleteMessage" for c in calls)
-        await T(text_update(OWNER, f"/sepaytoken {SEPAY_TOKEN}"))
-        await wait_sent(to(OWNER, "SePay connected"), "webhook created")
-        assert sum(c["method"] == "deleteMessage" for c in calls) == deletes + 1, "token message deleted"
-        assert len(sepay_hooks) == 1, sepay_hooks
-        hook = sepay_hooks["wh-1"]
-        assert hook["url"] == "https://teamfund.test/sepay/1" and hook["bank_account_xid"] == "acc-1"
-        assert (hook["event_type"], hook["auth_type"], hook["content_type"]) == ("in", "apikey", "json")
-        assert hook["skip_if_no_code"] is False
-        new_key = hook["secret"]
+        await T(text_update(OWNER, "/sepay"))
+        await wait_sent(to(OWNER, "SePay updated"), "webhook re-synced")
+        assert list(sepay_hooks) == ["wh-1"]
+        new_key = sepay_hooks["wh-1"]["secret"]
         async with http.post(f"http://127.0.0.1:{PORT}/sepay/1", headers=sepay_headers, json={
                 "id": 50, "transferType": "in", "transferAmount": 1000, "content": "x"}) as r:
             assert r.status == 401, "the old key stops working"
         async with http.post(f"http://127.0.0.1:{PORT}/sepay/1", headers={"Authorization": f"Apikey {new_key}"},
                              json={"id": 51, "transferType": "in", "transferAmount": 1000, "content": "x"}) as r:
             assert await r.json() == {"success": True}, "SePay's new key works"
-        await T(text_update(OWNER, "/sepay"))
-        await wait_sent(to(OWNER, "SePay updated"), "webhook updated")
-        assert list(sepay_hooks) == ["wh-1"] and sepay_hooks["wh-1"]["secret"] != new_key
 
         # 9. the pay page for people without Telegram
         await T(text_update(OWNER, "/add Dũng"))

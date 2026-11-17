@@ -50,8 +50,8 @@ _Control flows outward and back (a webhook calls a use case, the use case saves 
 1. **Ask the master bot.** Send `/requestteam` with the team name. The system admin gets Approve / Reject buttons, and the requester is told the result.
 2. **Create the team bot in @BotFather** with `/newbot` and copy the token.
 3. **Register it with the master bot.** Send `/newteam` and paste the token. The server checks it, creates the team, sets the webhook to `/tg/{botId}`, and makes the sender the owner.
-4. **Set the bank account** in the team bot with `/setbank`. Only the owner can do this. Anyone can check it with `/bank`.
-5. **Connect SePay.** Link the team's bank account in my.sepay.vn, create an API token there (Cấu hình công ty → API Access), then send `/sepaytoken <token>` in the team bot (or `/sepay` and paste it as a reply). The bot creates the team's webhook in SePay itself. After changing the account with `/setbank`, send `/sepay` again and the same webhook is pointed at the new account.
+4. **Link the bank account in SePay** (my.sepay.vn → Ngân hàng → Thêm tài khoản, with the bank's OTP), and for VA-only banks such as BIDV personal create a VA there. Then create an API token (Cấu hình công ty → API Access).
+5. **Connect SePay and pick the account.** In the team bot, send `/sepaytoken <token>`. The bot lists the accounts linked in that SePay (one button per VA for VA-only banks); one tap saves the team's account and creates its webhook. Only the owner can do this, and the account can't be typed in: only an account SePay watches can confirm payments. To change it later, `/setbank` shows the same list. Anyone can check it with `/bank`.
 6. **Add the bot to the team group** and send `/linkgroup` there.
 7. **Add members and the fee** with `/add`, `/setfee` and `/setdue`.
 
@@ -136,7 +136,7 @@ SePay only confirms money it can see, and what it can see depends on the bank an
 | TPBank | All | Yes | No | Main account |
 | Shinhan Bank | Doanh nghiệp | Yes | Yes | Main account |
 
-A bank missing from the table doesn't send webhooks. For an account already linked, SePay's bank-account API answers directly and overrules the table: `va_only: true` means VA only. Team Fund handles both cases. The `SEVQR` keyword comes from `domain/rules.py` `transfer_content`. For VA-only accounts, `/sepay` reads `va_only`, takes the account's active official VA from SePay (`GET /v2/bank-accounts/{xid}/va`) and stores it as the team's `pay_account`; the QR, its caption, `/bank` and the pay page then show the VA, and money sent there lands in the same account. With no VA yet, `/sepay` stops and asks the owner to create one in my.sepay.vn. `/setbank` clears the VA until the next `/sepay`.
+A bank missing from the table doesn't send webhooks. For an account already linked, SePay's bank-account API answers directly and overrules the table: `va_only: true` means VA only. Team Fund handles both cases. The `SEVQR` keyword comes from `domain/rules.py` `transfer_content`. For VA-only accounts, the `/setbank` picker reads `va_only` and lists the account's active official VAs from SePay (`GET /v2/bank-accounts/{xid}/va`) as the choices; the chosen VA is stored as the team's `pay_account`, and the QR, its caption, `/bank` and the pay page show it. Money sent there lands in the same account. An account with no VA yet is listed with "needs a VA" and tapping it explains how to create one in my.sepay.vn.
 
 ## Roles in a team bot
 
@@ -144,7 +144,7 @@ Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID
 
 | Role | Who | Can do |
 |---|---|---|
-| Owner | Whoever registered the bot with `/newteam` | Everything a manager can, plus `/setbank`, `/sepay`, `/sepaytoken`, approve or remove managers, `/transferowner`, `/log` |
+| Owner | Whoever registered the bot with `/newteam` | Everything a manager can, plus `/setbank` (pick from SePay), `/sepay`, `/sepaytoken`, approve or remove managers, `/transferowner`, `/log` |
 | Manager | Approved by the owner | `/weblink` (the pay page link), `/add` `/edit` `/remove` members, `/setfee` `/setdue`, `/markpaid`, `/expense`, `/charge` `/split`, `/remind`, assign unmatched payments, `/export` |
 | Everyone | Anyone who opens the bot | `/start` and pay (or the pay page in a browser, no Telegram needed), `/status`, `/fund`, `/history`, `/bank` (the team account; managers also see whether SePay is connected), `/lang`, `/requestmanager` |
 

@@ -719,17 +719,80 @@ async def cmd_linkgroup(message: Message, entry, lang):
 
 @router.message(Command("setbank"))
 async def cmd_setbank(message: Message, command: CommandObject, entry, lang):
+    """Pick the team's bank account from the owner's SePay. Typing an account number is not supported:
+    only an account SePay watches can confirm payments."""
     if not await allow(message, entry, lang, "owner"):
         return
-    m = re.match(r"^(\S+)\s+(\S+)\s+(.+)$", (command.args or "").strip())
-    if not m:
-        await message.answer(t(lang, "usage.setbank"))
+    if (command.args or "").strip():
+        await message.answer(t(lang, "setbank.no_typing"))
+    await show_bank_picker(message, entry, lang, message.from_user.id)
+
+
+async def show_bank_picker(msg: Message, entry, lang, actor: int):
+    info = await call(S.teams.sepay_info, tid(entry), actor)
+    if not info["token_set"]:
+        await msg.answer(t(lang, "setbank.need_token"))
         return
-    r = await call(S.teams.set_bank, tid(entry), message.from_user.id, m.group(1), m.group(2), m.group(3))
-    await message.answer(t(lang, "setbank.done"))
-    G = group_lang(entry)
-    await post_to_group(entry, t(G, "group.bank_changed", by=esc(r["by"]), bank=esc(r["bank_name"]),
-                                 account=esc(r["bank_account"]), holder=esc(r["bank_holder"])))
+    wait = await msg.answer(t(lang, "setbank.loading"))
+    try:
+        options = await call(S.teams.bank_options, tid(entry), actor)
+    except DomainError as e:
+        await wait.edit_text(error_text(lang, e))
+        return
+    if not options:
+        await wait.edit_text(t(lang, "setbank.none"), disable_web_page_preview=True)
+        return
+    rows = [[(bank_option_label(lang, o), f"b:{i}")] for i, o in enumerate(options[:30])]
+    rows.append([(t(lang, "btn.cancel"), "b:x")])
+    set_state(pick_key(msg.bot.id, msg.chat.id, wait.message_id), {"type": "bank", "options": options[:30]}, 600)
+    await wait.edit_text(t(lang, "setbank.pick"), reply_markup=kb(*rows), disable_web_page_preview=True)
+
+
+def bank_option_label(lang: str, o: dict) -> str:
+    last4 = "…" + o["account"][-4:]
+    if o["needs_va"]:
+        label = t(lang, "setbank.opt_needs_va", bank=o["bank"], account=last4)
+    elif o["va"]:
+        label = t(lang, "setbank.opt_va", bank=o["bank"], va=o["va"], account=last4)
+    else:
+        label = f"{o['bank']} · {last4} · {o['holder']}"
+    return ("✅ " if o["current"] else "") + label
+
+
+@router.callback_query(F.data.regexp(r"^b:(x|\d+)$").as_("m"))
+async def on_bank_pick(cq: CallbackQuery, m, entry, lang):
+    if not await allow(cq, entry, lang, "owner"):
+        return
+    key = pick_key(cq.bot.id, cq.message.chat.id, cq.message.message_id)
+    st = get_state(key)
+    if m.group(1) == "x" or not st or st.get("type") != "bank" or int(m.group(1)) >= len(st["options"]):
+        del_state(key)
+        await cq.answer(t(lang, "err.menu_expired") if m.group(1) != "x" else "")
+        await edit(cq, t(lang, "setbank.cancelled") if m.group(1) == "x" else t(lang, "err.menu_expired"))
+        return
+    o = st["options"][int(m.group(1))]
+    await cq.answer()
+    if o["needs_va"]:  # keep the picker open: the owner creates a VA in SePay, then sends /setbank again
+        await say(cq, t(lang, "err.sepay_va_missing", bank=esc(o["bank"]), account=esc(o["account"])),
+                  disable_web_page_preview=True)
+        return
+    del_state(key)
+    await edit(cq, t(lang, "setbank.saving"))
+    try:
+        r = await call(S.teams.choose_bank, tid(entry), cq.from_user.id, o["xid"], o["va"])
+    except DomainError as e:
+        await edit(cq, error_text(lang, e))
+        return
+    text = t(lang, "setbank.chosen", bank=esc(r["bank"]), account=esc(r["account"]), holder=esc(r["holder"]))
+    if r["va"]:
+        text += "\n\n" + t(lang, "sepay.va_used", va=esc(r["va"]), bank=esc(r["bank"]))
+    text += "\n\n" + t(lang, "setbank.hook_created" if r["created"] else "setbank.hook_updated", url=esc(r["url"]))
+    await edit(cq, text)
+    if r["changed"]:
+        entry.team.update(bank_name=r["bank"], bank_account=r["account"], bank_holder=r["holder"])
+        G = group_lang(entry)
+        await post_to_group(entry, t(G, "group.bank_changed", by=esc(r["by"]), bank=esc(r["bank"]),
+                                     account=esc(r["va"] or r["account"]), holder=esc(r["holder"])))
 
 
 @router.message(Command("sepay"))
@@ -738,10 +801,10 @@ async def cmd_sepay(message: Message, entry, lang):
     if not await allow(message, entry, lang, "owner"):
         return
     info = await call(S.teams.sepay_info, tid(entry), message.from_user.id)
-    if not info["has_bank"]:
-        await message.answer(t(lang, "err.bank_not_set"))
-    elif not info["token_set"]:
+    if not info["token_set"]:
         await ask_sepay_token(message, entry, lang)
+    elif not info["has_bank"]:
+        await show_bank_picker(message, entry, lang, message.from_user.id)
     else:
         await sync_sepay(message, entry, lang, message.from_user.id)
 
@@ -810,7 +873,11 @@ async def save_sepay_token(message: Message, entry, lang, text: str, delete: boo
             pass
     r = await call(S.teams.set_sepay_token, tid(entry), message.from_user.id, text)
     await message.answer(t(lang, "sepay.token_saved", n=r["bank_accounts"]))
-    await sync_sepay(message, entry, lang, message.from_user.id)
+    info = await call(S.teams.sepay_info, tid(entry), message.from_user.id)
+    if info["has_bank"]:
+        await sync_sepay(message, entry, lang, message.from_user.id)
+    else:  # first time: choose the team's account from this SePay
+        await show_bank_picker(message, entry, lang, message.from_user.id)
 
 
 @router.callback_query(F.data == "s:gen")

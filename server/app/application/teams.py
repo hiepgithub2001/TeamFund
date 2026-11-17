@@ -2,6 +2,7 @@
 import hmac
 import re
 import secrets
+import unicodedata
 from datetime import timedelta
 
 from ..domain.entities import MANAGER, OWNER, ManagerRequest, Team, TeamAdmin
@@ -18,6 +19,12 @@ SEPAY_TOKEN_RE = re.compile(r"^[A-Za-z0-9_\-.]{20,200}$")
 
 def _digits(value: str | None) -> str:
     return re.sub(r"\D", "", value or "")
+
+
+def _ascii(text: str) -> str:
+    """SePay shows non-ASCII characters in webhook names as "?": "Đội Bóng" -> "Doi Bong"."""
+    text = unicodedata.normalize("NFKD", text.replace("đ", "d").replace("Đ", "D"))
+    return "".join(c for c in text if c.isascii() and not unicodedata.combining(c)).strip() or "team"
 
 
 def _sepay_failed(e: SepayError) -> DomainError:
@@ -77,20 +84,6 @@ class TeamUseCases:
             uow.commit()
             return {"fee": team.fee, "due_day": team.due_day, "lang": team.lang}
 
-    def set_bank(self, team_id: int, actor: int, bank_name: str, bank_account: str, bank_holder: str) -> dict:
-        bank_name, bank_account, bank_holder = bank_name.strip(), bank_account.strip(), bank_holder.strip().upper()
-        with self.d.uow() as uow:
-            team = owner_team(uow, team_id, actor)
-            if not valid_bank(bank_name, bank_account, bank_holder):
-                raise invalid()
-            before = {"bank_name": team.bank_name, "bank_account": team.bank_account, "bank_holder": team.bank_holder}
-            team.bank_name, team.bank_account, team.bank_holder = bank_name, bank_account, bank_holder
-            team.pay_account = None  # a VA belongs to the old account; /sepay finds the new one
-            after = {"bank_name": bank_name, "bank_account": bank_account, "bank_holder": bank_holder}
-            audit(uow, self.d.clock, team.id, actor, "team.bank", before=before, after=after)
-            uow.commit()
-            return {**after, "by": display_name(uow, actor)}
-
     def sepay_info(self, team_id: int, actor: int) -> dict:
         with self.d.uow() as uow:
             team = manager_team(uow, team_id, actor)
@@ -114,64 +107,134 @@ class TeamUseCases:
             uow.commit()
             return {"bank_accounts": len(accounts)}
 
-    def sync_sepay(self, team_id: int, actor: int) -> dict:
-        """Make the team's one SePay webhook match the team's bank account, creating it or overwriting it.
+    # ---- bank account: only from the owner's SePay -------------------------------------------------
+    # The team's account is never typed: it is picked from the accounts linked in the owner's SePay, so
+    # SePay is sure to watch it, the right VA is used for banks that need one, and the webhook follows.
 
-        Errors: bank_not_set, sepay_token_missing, sepay_bank_missing (the account isn't linked in SePay),
-        sepay_token_invalid, sepay_rejected, sepay_unavailable."""
+    def _token(self, team: Team) -> str:
+        if not team.sepay_token_enc:
+            raise DomainError(400, "sepay_token_missing")
+        return self.d.cipher.decrypt(team.sepay_token_enc)
+
+    def bank_options(self, team_id: int, actor: int) -> list[dict]:
+        """What the owner can pick: each linked account, or each of its VAs when the bank only reports VAs."""
+        with self.d.uow() as uow:
+            team = owner_team(uow, team_id, actor)
+            token, api = self._token(team), self.d.sepay
+            try:
+                options = []
+                for a in api.bank_accounts(token):
+                    if not a.active:
+                        continue
+                    base = {"xid": a.xid, "bank": a.bank_short_name, "account": a.account_number,
+                            "holder": a.holder, "va": None, "needs_va": False,
+                            "current": _digits(a.account_number) == _digits(team.bank_account)}
+                    if not a.va_only:
+                        options.append(base)
+                        continue
+                    vas = [v.va for v in api.virtual_accounts(token, a.xid) if v.active and v.official]
+                    options += [{**base, "va": va, "current": base["current"] and va == team.pay_account}
+                                for va in vas] or [{**base, "needs_va": True}]
+                return options
+            except SepayError as e:
+                raise _sepay_failed(e) from e
+
+    def choose_bank(self, team_id: int, actor: int, account_xid: str, va: str | None = None) -> dict:
+        """Make one of the owner's SePay accounts (or one of its VAs) the team's, and point the team's
+        webhook at it. SePay is asked again, so a stale or forged choice can't slip through."""
+        with self.d.uow() as uow:
+            team = owner_team(uow, team_id, actor)
+            token, api = self._token(team), self.d.sepay
+            try:
+                account = next((a for a in api.bank_accounts(token) if a.xid == account_xid and a.active), None)
+                if not account:
+                    raise DomainError(404, "not_found")
+                pay_account = self._pick_va(api, token, account, va)
+                if not valid_bank(account.bank_short_name, re.sub(r"\s", "", account.account_number), account.holder or "-"):
+                    raise invalid()
+                before = {"bank_name": team.bank_name, "bank_account": team.bank_account,
+                          "bank_holder": team.bank_holder, "va": team.pay_account}
+                team.bank_name, team.bank_account = account.bank_short_name, re.sub(r"\s", "", account.account_number)
+                team.bank_holder, team.pay_account = (account.holder or "").upper(), pay_account
+                hook = self._point_webhook(api, token, team, account)
+            except SepayError as e:
+                raise _sepay_failed(e) from e
+            after = {"bank_name": team.bank_name, "bank_account": team.bank_account,
+                     "bank_holder": team.bank_holder, "va": pay_account}
+            audit(uow, self.d.clock, team.id, actor, "team.bank", before=before, after=after)
+            audit(uow, self.d.clock, team.id, actor, "team.sepay_webhook",
+                  after={"webhook_id": hook["webhook_id"], "account": team.bank_account, "created": hook["created"]})
+            uow.commit()
+            return {**hook, "bank": account.bank_short_name, "account": account.account_number,
+                    "holder": team.bank_holder, "va": pay_account, "changed": before != after,
+                    "by": display_name(uow, actor)}
+
+    def sync_sepay(self, team_id: int, actor: int) -> dict:
+        """Point the team's one SePay webhook at the team's account again, with a fresh key (after the
+        webhook was edited or deleted in SePay, or to replace a key that may have leaked)."""
         with self.d.uow() as uow:
             team = owner_team(uow, team_id, actor)
             if not team.has_bank():
                 raise DomainError(400, "bank_not_set")
-            if not team.sepay_token_enc:
-                raise DomainError(400, "sepay_token_missing")
-            token = self.d.cipher.decrypt(team.sepay_token_enc)
-            api, url = self.d.sepay, self._webhook_url(team)
+            token, api = self._token(team), self.d.sepay
             try:
-                accounts = api.bank_accounts(token)
-                account = next((a for a in accounts if a.active and _digits(a.account_number) == _digits(team.bank_account)),
-                               None)
+                account = next((a for a in api.bank_accounts(token)
+                                if a.active and _digits(a.account_number) == _digits(team.bank_account)), None)
                 if not account:
                     raise DomainError(404, "sepay_bank_missing", bank=team.bank_name, account=team.bank_account)
-                pay_account = None
-                if account.va_only:  # e.g. BIDV personal: SePay never sees transfers to the main number
-                    vas = [v.va for v in api.virtual_accounts(token, account.xid) if v.active and v.official]
-                    if not vas:
-                        raise DomainError(400, "sepay_va_missing", bank=account.bank_short_name,
-                                          account=account.account_number)
-                    pay_account = team.pay_account if team.pay_account in vas else vas[0]
-                key = secrets.token_urlsafe(24)
-                spec = SepayWebhookSpec(name=f"Team Fund · {team.name}"[:100], url=url,
-                                        bank_account_xid=account.xid, api_key=key)
-                webhook_id, created = team.sepay_webhook_id, False
-                if not webhook_id:  # adopt a webhook made by hand for this team, so there's still only one
-                    webhook_id = next((w.id for w in api.webhooks(token) if w.url.rstrip("/") == url), None)
-                if webhook_id:
-                    try:
-                        api.update_webhook(token, webhook_id, spec)
-                    except SepayError as e:
-                        if e.kind == "not_found":      # deleted in SePay: make a new one
-                            webhook_id = None
-                        elif e.kind == "invalid":      # can't be changed in place: replace it
-                            old, webhook_id = webhook_id, api.create_webhook(token, spec)
-                            created = True
-                            try:
-                                api.delete_webhook(token, old)
-                            except SepayError:
-                                pass
-                        else:
-                            raise
-                if not webhook_id:
-                    webhook_id, created = api.create_webhook(token, spec), True
+                pay_account = self._pick_va(api, token, account, team.pay_account, keep_if_gone=False)
+                team.pay_account = pay_account
+                hook = self._point_webhook(api, token, team, account)
             except SepayError as e:
                 raise _sepay_failed(e) from e
-            team.sepay_webhook_id, team.sepay_key_hash = webhook_id, hash_secret(key)
-            team.pay_account = pay_account
             audit(uow, self.d.clock, team.id, actor, "team.sepay_webhook",
-                  after={"webhook_id": webhook_id, "account": team.bank_account, "created": created})
+                  after={"webhook_id": hook["webhook_id"], "account": team.bank_account, "created": hook["created"]})
             uow.commit()
-            return {"webhook_id": webhook_id, "created": created, "url": url, "bank": account.bank_short_name,
-                    "account": account.account_number, "holder": account.holder, "va": pay_account}
+            return {**hook, "bank": account.bank_short_name, "account": account.account_number,
+                    "holder": account.holder, "va": pay_account}
+
+    @staticmethod
+    def _pick_va(api, token: str, account, wanted: str | None, keep_if_gone: bool = True) -> str | None:
+        """The VA payers must use, or None when the bank reports transfers to the main account."""
+        if not account.va_only:  # e.g. BIDV personal is VA-only: SePay never sees the main number
+            return None
+        vas = [v.va for v in api.virtual_accounts(token, account.xid) if v.active and v.official]
+        if not vas:
+            raise DomainError(400, "sepay_va_missing", bank=account.bank_short_name, account=account.account_number)
+        if wanted in vas:
+            return wanted
+        if wanted and keep_if_gone:  # the owner picked a VA that is gone or isn't this account's
+            raise DomainError(404, "not_found")
+        return vas[0]
+
+    def _point_webhook(self, api, token: str, team: Team, account) -> dict:
+        """Create or overwrite the team's one webhook for this account with a new key; stores the key's hash."""
+        url = self._webhook_url(team)
+        key = secrets.token_urlsafe(24)
+        spec = SepayWebhookSpec(name=f"Team Fund - {_ascii(team.name)}"[:100], url=url, bank_account_xid=account.xid,
+                                api_key=key)
+        webhook_id, created = team.sepay_webhook_id, False
+        if not webhook_id:  # adopt a webhook made by hand for this team, so there's still only one
+            webhook_id = next((w.id for w in api.webhooks(token) if w.url.rstrip("/") == url), None)
+        if webhook_id:
+            try:
+                api.update_webhook(token, webhook_id, spec)
+            except SepayError as e:
+                if e.kind == "not_found":      # deleted in SePay: make a new one
+                    webhook_id = None
+                elif e.kind == "invalid":      # can't be changed in place: replace it
+                    old, webhook_id = webhook_id, api.create_webhook(token, spec)
+                    created = True
+                    try:
+                        api.delete_webhook(token, old)
+                    except SepayError:
+                        pass
+                else:
+                    raise
+        if not webhook_id:
+            webhook_id, created = api.create_webhook(token, spec), True
+        team.sepay_webhook_id, team.sepay_key_hash = webhook_id, hash_secret(key)
+        return {"webhook_id": webhook_id, "created": created, "url": url}
 
     def new_sepay_key(self, team_id: int, actor: int) -> dict:
         with self.d.uow() as uow:
