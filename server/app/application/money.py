@@ -62,6 +62,27 @@ class MoneyUseCases:
             uow.commit()
             return result
 
+    def markpaid_amount(self, team_id: int, actor: int, member_id: int, amount: int, settle: bool) -> dict:
+        """One member paid less in cash than they owe: record what came in. settle=True lets the rest of
+        that bill go; settle=False keeps the rest as a new unpaid bill."""
+        if not isinstance(member_id, int) or not isinstance(amount, int) or isinstance(amount, bool):
+            raise invalid()
+        with self.d.uow() as uow:
+            team = manager_team(uow, team_id, actor)
+            r = billing.partial_cash(uow, self.d, team, member_id, amount, settle, actor)
+            audit(uow, self.d.clock, team.id, actor, "payment.cash", target=r["members"][0],
+                  after={"amount": amount, "owed": r["owed"], "let_go": r["let_go"], "still_owed": r["still_owed"]})
+            uow.commit()
+            return r
+
+    def owed_by(self, team_id: int, actor: int, member_id: int) -> dict:
+        with self.d.uow() as uow:
+            team = manager_team(uow, team_id, actor)
+            g = billing.unpaid_by_member(uow, team, [member_id])
+            if not g:
+                raise DomainError(400, "nothing_to_pay")
+            return {"member_id": member_id, "name": g[0]["name"], "total": g[0]["total"]}
+
     def charges(self, team_id: int, actor: int, title: str, amount: int, kind: str = "charge",
                 member_ids: list[int] | None = None) -> dict:
         title = (title or "").strip()

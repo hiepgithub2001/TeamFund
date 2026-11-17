@@ -150,6 +150,15 @@ async def on_picker_confirm(cq: CallbackQuery, entry, lang, st, key) -> None:
         await edit(cq, t(lang, "charge.done", count=r["count"], title=esc(r["title"]), each=money(r["each"], lang)))
         await post_to_group(entry, t(G, "group.charge", title=esc(r["title"]), each=money(r["each"], G),
                                      count=r["count"]), reply_markup=pay_keyboard(G, entry.username))
+    elif st["kind"] == "markpaid" and len(ids) == 1:
+        # one person: ask whether the full amount came in, or something else
+        o = await call(S.money.owed_by, tid(entry), cq.from_user.id, ids[0])
+        del_state(key)
+        await cq.answer()
+        set_state(key, {"type": "cash", "member_id": o["member_id"], "name": o["name"], "owed": o["total"]}, 600)
+        await edit(cq, t(lang, "cash.how_much", name=esc(o["name"]), owed=money(o["total"], lang)), kb(
+            [(t(lang, "btn.cash_full", amount=money(o["total"], lang)), "mp:full")],
+            [(t(lang, "btn.cash_other"), "mp:other")], [(t(lang, "btn.cancel"), "mp:x")]))
     elif st["kind"] == "markpaid":
         r = await call(S.money.markpaid, tid(entry), cq.from_user.id, ids)
         del_state(key)
@@ -654,6 +663,64 @@ async def cmd_split(message: Message, command: CommandObject, entry, lang):
     pick = await charge_picker(message, entry, lang, "split", amount, title)
     if pick:
         await open_picker(message, lang, pick)
+
+
+async def record_cash(ev, entry, lang, member_id: int, amount: int | None, settle: bool = True) -> str:
+    """Record one member's cash (all they owe when amount is None), post it in the group, return the reply."""
+    if amount is None:
+        r = await call(S.money.markpaid, tid(entry), ev.from_user.id, [member_id])
+        text = t(lang, "markpaid.done", members=esc(r["members"][0]), amount=money(r["amount"], lang))
+    else:
+        r = await call(S.money.markpaid_amount, tid(entry), ev.from_user.id, member_id, amount, settle)
+        text = t(lang, "cash.done_part", name=esc(r["members"][0]), amount=money(r["amount"], lang))
+        if r["let_go"]:
+            text += "\n" + t(lang, "cash.let_go", amount=money(r["let_go"], lang))
+        if r["still_owed"]:
+            text += "\n" + t(lang, "cash.still_owed", amount=money(r["still_owed"], lang))
+    G = group_lang(entry)
+    await post_to_group(entry, t(G, "group.paid", members=esc(", ".join(r["members"])), amount=money(r["amount"], G)))
+    return text
+
+
+@router.callback_query(F.data.regexp(r"^mp:(full|other|x|settle|owe)$").as_("m"))
+async def on_cash(cq: CallbackQuery, m: re.Match, entry, lang):
+    if not await allow(cq, entry, lang, "manager"):
+        return
+    key = pick_key(cq.bot.id, cq.message.chat.id, cq.message.message_id)
+    st, action = get_state(key), m.group(1)
+    await cq.answer()
+    if not st or st.get("type") != "cash" or action == "x":
+        del_state(key)
+        await edit(cq, t(lang, "cancelled" if st else "err.menu_expired"))
+        return
+    if action == "full":
+        del_state(key)
+        await edit(cq, await record_cash(cq, entry, lang, st["member_id"], None))
+    elif action == "other":
+        set_state(input_key(cq.bot.id, cq.message.chat.id), {**st, "type": "cash_amount", "menu": key}, 600)
+        await say(cq, t(lang, "cash.ask_amount", name=esc(st["name"]), owed=money(st["owed"], lang)), reply_markup=FORCE)
+    elif action in ("settle", "owe") and st.get("amount"):
+        del_state(key)
+        await edit(cq, await record_cash(cq, entry, lang, st["member_id"], st["amount"], settle=action == "settle"))
+
+
+async def cash_amount_reply(message: Message, entry, lang, st: dict, text: str) -> None:
+    """The manager typed how much came in. Equal to what's owed: done. Less: ask what happens to the rest."""
+    amount = parse_amount(text)
+    if not amount or amount > st["owed"]:
+        set_state(input_key(message.bot.id, message.chat.id), st, 600)
+        await message.answer(t(lang, "cash.bad_amount", owed=money(st["owed"], lang)), reply_markup=FORCE)
+        return
+    if amount == st["owed"]:
+        await message.answer(await record_cash(message, entry, lang, st["member_id"], None))
+        return
+    rest = money(st["owed"] - amount, lang)
+    msg = await message.answer(
+        t(lang, "cash.rest", name=esc(st["name"]), amount=money(amount, lang), owed=money(st["owed"], lang), rest=rest),
+        reply_markup=kb([(t(lang, "btn.cash_settle", rest=rest), "mp:settle")],
+                        [(t(lang, "btn.cash_owe", rest=rest), "mp:owe")], [(t(lang, "btn.cancel"), "mp:x")]))
+    set_state(pick_key(msg.bot.id, msg.chat.id, msg.message_id),
+              {"type": "cash", "member_id": st["member_id"], "name": st["name"], "owed": st["owed"], "amount": amount}, 600)
 
 
 @router.message(Command("markpaid"))
@@ -1194,6 +1261,8 @@ async def on_text(message: Message, entry, lang):
         await save_sepay_token(message, entry, lang, text)
     elif st["type"] in ("expense", "income"):
         await record_money(message, entry, lang, st["type"], text)
+    elif st["type"] == "cash_amount":
+        await cash_amount_reply(message, entry, lang, st, text)
     elif st["type"] == "default_fee":
         fee = 0 if text == "0" else parse_amount(text)
         if fee is None:

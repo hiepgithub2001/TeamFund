@@ -132,7 +132,7 @@
  "teamlang.done": "✅ Group messages will be in English.",
  "pick.charge": "Who pays <b>{title}</b> ({amount} each)?",
  "pick.split": "Who shares <b>{title}</b> ({amount} in total)?",
- "pick.markpaid": "Who paid in cash? All their unpaid bills will be marked paid.",
+ "pick.markpaid": "Who paid in cash?\nPick <b>one person</b> to enter the amount actually received (if it differs). Several people: each is recorded as paid in full.",
  "pick.markpaid_none": "Nobody has unpaid bills.",
  "pick.assign": "Which members is this {amount} payment for?",
  "btn.all": "☑️ All",
@@ -310,5 +310,17 @@
  "btn.charge_split": "➗ Split {amount}",
  "btn.add_members": "➕ Add members",
  "btn.default_fee": "💰 Default fee",
- "plans.ask_default": "Send the default monthly fee, e.g. <code>200k</code>. Send <code>0</code> for none. It applies to everyone not on a plan."
+ "plans.ask_default": "Send the default monthly fee, e.g. <code>200k</code>. Send <code>0</code> for none. It applies to everyone not on a plan.",
+ "cash.how_much": "<b>{name}</b> owes {owed}. How much was received?",
+ "btn.cash_full": "✅ All of it, {amount}",
+ "btn.cash_other": "✏️ Another amount",
+ "cash.ask_amount": "Send the amount received from {name} (at most {owed}), e.g. <code>300k</code>.",
+ "cash.bad_amount": "⚠️ The amount must be above 0 and at most {owed}. Send it again, e.g. <code>300k</code>.\n(More than owed: record the extra with /income.)",
+ "cash.rest": "<b>{name}</b> paid {amount} of {owed}. What about the remaining {rest}?",
+ "btn.cash_settle": "✔️ Done, let {rest} go",
+ "btn.cash_owe": "⏳ Still owes {rest}",
+ "cash.done_part": "✅ Cash recorded: {name} ({amount}). The fund grows by {amount}.",
+ "cash.let_go": "The remaining {amount} is let go: this bill is settled.",
+ "cash.still_owed": "{amount} is still owed.",
+ "err.more_than_owed": "That's more than they owe ({owed})."
 }

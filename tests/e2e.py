@@ -506,6 +506,27 @@ async def main():
         await T(text_update(OWNER, "Giang"))
         await wait_sent(to(OWNER, "Added 1"), "member added from the button")
 
+        # 13. cash that differs from what's owed: Giang owes 250k (the default fee) and pays 100k
+        await T(text_update(OWNER, "/markpaid"))
+        mp = await wait_sent(to(OWNER, "Who paid in cash"), "markpaid picker")
+        labels = [b["text"] for row in mp["params"]["reply_markup"]["inline_keyboard"] for b in row]
+        idx = next(i for i, x in enumerate(labels) if "Giang" in x)
+        await T(cb_update(OWNER, f"k:t:{idx}", mp["message_id"]))
+        await T(cb_update(OWNER, "k:ok", mp["message_id"]))
+        await wait_sent(lambda c: c["method"] == "editMessageText" and "<b>Giang</b> owes 250,000đ" in c["params"]["text"],
+                        "how much was received")
+        await T(cb_update(OWNER, "mp:other", mp["message_id"]))
+        await wait_sent(to(OWNER, "Send the amount received from Giang"), "amount asked")
+        await T(text_update(OWNER, "400k"))
+        await wait_sent(to(OWNER, "at most 250,000đ"), "more than owed refused")
+        await T(text_update(OWNER, "100k"))
+        rest = await wait_sent(to(OWNER, "paid 100,000đ of 250,000đ"), "what about the rest")
+        assert buttons(rest) == ["mp:settle", "mp:owe", "mp:x"]
+        await T(cb_update(OWNER, "mp:settle", rest["message_id"]))
+        await wait_sent(lambda c: c["method"] == "editMessageText" and "Cash recorded: Giang (100,000đ)" in c["params"]["text"]
+                        and "150,000đ is let go" in c["params"]["text"], "settled at 100k")
+        await wait_sent(to(GROUP, r"Giang</b> paid 100,000đ"), "group sees the real amount")
+
         print(f"e2e passed ({len(calls)} Telegram API calls)")
     finally:
         await http.close()

@@ -465,3 +465,29 @@ def test_admin_makes_a_bot_by_name():
     assert svc.registration.create_team(SUPER, made["token"], 801, made["username"], made["team_name"])["name"] \
         == "Đội Bóng Hà Nội"
     assert code(svc.registration.make_bot, OWNER, "Any") == "not_approved", "others need an approved request"
+
+
+def test_cash_less_than_owed():
+    """Joined mid-quarter: owes 600k, pays 300k. Settle closes the bill at 300k; or the rest stays owed."""
+    svc, clock, _ = make_services(datetime(2026, 11, 3, 10, 0))
+    tid = setup_team(svc)
+    an, binh, cuong = [m["id"] for m in svc.members.add_members(tid, OWNER, [{"name": n} for n in ("An", "Bình", "Cường")])]
+    svc.plans.save_plan(tid, OWNER, 600000, 3, [an, binh, cuong])
+    svc.money.unpaid(tid)
+    assert svc.money.owed_by(tid, OWNER, an)["total"] == 600000
+    r = svc.money.markpaid_amount(tid, OWNER, an, 300000, settle=True)
+    assert (r["amount"], r["let_go"], r["still_owed"]) == (300000, 300000, 0)
+    r = svc.money.markpaid_amount(tid, OWNER, binh, 200000, settle=False)
+    assert (r["amount"], r["let_go"], r["still_owed"]) == (200000, 0, 400000)
+    assert code(svc.money.markpaid_amount, tid, OWNER, cuong, 700000, True) == "more_than_owed"
+    assert code(svc.money.markpaid_amount, tid, MEMBER, cuong, 1000, True) == "not_manager"
+    owed = {g["name"]: g["total"] for g in svc.money.unpaid(tid)}
+    assert owed == {"Bình": 400000, "Cường": 600000}
+    assert svc.money.fund(tid)["income"] == 500000, "the fund grows by what came in only"
+    s = svc.money.status(tid)
+    assert s["paid"] == ["An"], "settled counts as paid; Bình still owes part of the quarter"
+    # December: An's settled quarter still covers him; Bình's remainder is the only thing he owes
+    clock.local = clock.local.replace(month=12)
+    assert {g["name"]: g["total"] for g in svc.money.unpaid(tid)} == {"Bình": 400000, "Cường": 600000}
+    svc.money.markpaid(tid, OWNER, [binh])
+    assert svc.money.fund(tid)["income"] == 900000

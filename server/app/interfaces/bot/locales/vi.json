@@ -132,7 +132,7 @@
  "teamlang.done": "✅ Tin nhắn trong nhóm sẽ dùng tiếng Việt.",
  "pick.charge": "Ai đóng <b>{title}</b> ({amount} mỗi người)?",
  "pick.split": "Ai cùng chia <b>{title}</b> (tổng {amount})?",
- "pick.markpaid": "Ai đã đóng tiền mặt? Tất cả khoản chưa đóng của họ sẽ được đánh dấu đã đóng.",
+ "pick.markpaid": "Ai đã đóng tiền mặt?\nChọn <b>một người</b> để nhập số tiền thực nhận (nếu khác số nợ). Chọn nhiều người: mỗi người được ghi là đóng đủ.",
  "pick.markpaid_none": "Không ai có khoản chưa đóng.",
  "pick.assign": "Khoản {amount} này là của những ai?",
  "btn.all": "☑️ Tất cả",
@@ -310,5 +310,17 @@
  "btn.charge_split": "➗ Chia đều {amount}",
  "btn.add_members": "➕ Thêm thành viên",
  "btn.default_fee": "💰 Mức mặc định",
- "plans.ask_default": "Gửi mức quỹ tháng mặc định, ví dụ <code>200k</code>. Gửi <code>0</code> để bỏ. Áp dụng cho ai không ở gói nào."
+ "plans.ask_default": "Gửi mức quỹ tháng mặc định, ví dụ <code>200k</code>. Gửi <code>0</code> để bỏ. Áp dụng cho ai không ở gói nào.",
+ "cash.how_much": "<b>{name}</b> đang nợ {owed}. Đã nhận bao nhiêu?",
+ "btn.cash_full": "✅ Đủ {amount}",
+ "btn.cash_other": "✏️ Số khác",
+ "cash.ask_amount": "Gửi số tiền đã nhận từ {name} (tối đa {owed}), ví dụ <code>300k</code>.",
+ "cash.bad_amount": "⚠️ Số tiền phải lớn hơn 0 và không quá {owed}. Gửi lại, ví dụ <code>300k</code>.\n(Tiền nhiều hơn số nợ: ghi phần dư bằng /income.)",
+ "cash.rest": "<b>{name}</b> đóng {amount} trên {owed}. Phần còn lại {rest} thì sao?",
+ "btn.cash_settle": "✔️ Xong, miễn {rest}",
+ "btn.cash_owe": "⏳ Còn nợ {rest}",
+ "cash.done_part": "✅ Đã ghi nhận tiền mặt: {name} ({amount}). Quỹ cộng {amount}.",
+ "cash.let_go": "Phần còn lại {amount} được miễn: khoản này đã xong.",
+ "cash.still_owed": "{amount} vẫn còn nợ.",
+ "err.more_than_owed": "Số tiền nhiều hơn số đang nợ ({owed})."
 }

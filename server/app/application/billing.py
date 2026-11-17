@@ -183,6 +183,40 @@ def cash_payments(uow: UnitOfWork, d: Deps, team: Team, member_ids: list[int], a
     return {"members": [g["name"] for g in groups], "amount": total}
 
 
+def partial_cash(uow: UnitOfWork, d: Deps, team: Team, member_id: int, amount: int, settle: bool,
+                 actor: int) -> dict:
+    """A member paid `amount` in cash, less than they owe. The money goes to their oldest bills first.
+    The bill where it runs out is either settled at what was paid (settle=True: the rest is let go, e.g.
+    someone who joined mid-quarter) or split into a paid part and a new unpaid bill for the rest.
+    Bills the money doesn't reach stay unpaid. The fund grows by `amount` only."""
+    groups = unpaid_by_member(uow, team, [member_id])
+    if not groups:
+        raise DomainError(400, "nothing_to_pay")
+    g = groups[0]
+    if not 0 < amount <= g["total"]:
+        raise DomainError(400, "more_than_owed", owed=g["total"])
+    p = Payment(team_id=team.id, source="cash", amount=amount, status="matched", recorded_by=actor,
+                note=g["name"], created_at=d.clock.now())
+    uow.payments.add(p)
+    uow.flush()
+    left, now, let_go = amount, d.clock.now(), 0
+    for b in uow.bills.get_many([x["id"] for x in g["bills"]]):
+        if left <= 0:
+            break
+        if b.amount > left:
+            rest = b.amount - left
+            if settle:
+                let_go = rest
+            else:
+                uow.bills.add(Bill(team_id=team.id, member_id=b.member_id, kind=b.kind, title=b.title,
+                                   period=b.period, amount=rest, months=b.months, created_at=now))
+            b.amount = left
+        left -= b.amount
+        b.mark_paid(p.id, now)
+    return {"members": [g["name"]], "amount": amount, "owed": g["total"], "let_go": let_go,
+            "still_owed": g["total"] - amount - let_go}  # the split-off rest plus bills the money didn't reach
+
+
 def unmatched_payment(uow: UnitOfWork, team: Team, payment_id: int) -> Payment:
     p = uow.payments.get(payment_id)
     if not p or p.team_id != team.id:
