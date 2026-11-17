@@ -292,5 +292,16 @@
  "cmd.income": "Ghi khoản thu khác",
  "usage.history": "Cách dùng: <code>/history</code> (giao dịch gần đây) hoặc <code>/history 10/2026</code> (mọi giao dịch của tháng đó).",
  "history.month_title": "🧾 <b>Giao dịch tháng {period}</b> ({n})\nThu: {income} · Chi: {expense}",
- "history.month_empty": "Tháng {period} không có giao dịch nào."
+ "history.month_empty": "Tháng {period} không có giao dịch nào.",
+ "btn.make_bot": "🤖 Tạo bot giúp tôi",
+ "m.approved_user_auto": "✅ Yêu cầu cho <b>{team}</b> đã được duyệt.\nBấm nút dưới đây để tạo bot của đội ngay, không cần vào @BotFather. (Hoặc tự tạo trong @BotFather rồi gửi /newteam và dán token.)",
+ "m.newteam_choice": "Tạo bot cho <b>{team}</b>:\n• Bấm <b>🤖 Tạo bot giúp tôi</b> để hệ thống tạo luôn, hoặc\n• tự tạo trong @BotFather bằng /newbot rồi dán token vào đây (dạng <code>123456789:AAH...</code>).",
+ "m.making_bot": "⏳ Đang tạo bot với @BotFather… (khoảng 10–20 giây)",
+ "m.make_bot_fallback": "Bạn vẫn có thể tự tạo bot trong @BotFather bằng /newbot, rồi gửi /newteam ở đây và dán token.",
+ "err.botfather_not_configured": "❌ Hệ thống chưa được kết nối với tài khoản Telegram để tạo bot.",
+ "err.botfather_limit": "❌ Tài khoản tạo bot đã có đủ 20 bot (giới hạn của @BotFather). Hãy báo quản trị hệ thống.",
+ "err.botfather_taken": "❌ Các tên bot gợi ý cho đội này đều đã có người dùng.",
+ "err.botfather_flood": "❌ @BotFather đang giới hạn số lần tạo. Thử lại sau ít phút.",
+ "err.botfather_unavailable": "❌ Không liên lạc được với @BotFather lúc này. Thử lại sau.",
+ "err.botfather_busy": "⏳ Bot của bạn đang được tạo, đợi chút nhé."
 }

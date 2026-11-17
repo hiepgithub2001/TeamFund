@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 
 from cryptography.fernet import Fernet
 
-from app.application.ports import (AppConfig, Deps, SepayBankAccount, SepayError, SepayVirtualAccount,
+from app.application.ports import (AppConfig, BotFactoryError, CreatedBot, Deps, SepayBankAccount, SepayError, SepayVirtualAccount,
                                    SepayWebhook)
 from app.application.services import build_services
 from app.infrastructure.clock import SystemClock
@@ -44,6 +44,28 @@ class RecordingNotifier:
     def deliver(self, event: dict) -> bool:
         self.events.append(event)
         return True
+
+
+class FakeBotFactory:
+    """@BotFather: `taken` usernames are refused; `fail` makes every call raise that kind."""
+
+    def __init__(self, ready: bool = True):
+        self.ready, self.taken, self.fail, self.calls = ready, set(), None, []
+
+    def available(self) -> bool:
+        return self.ready
+
+    def create_bot(self, name: str, usernames: list[str]) -> CreatedBot:
+        self.calls.append((name, usernames))
+        if not self.ready:
+            raise BotFactoryError("not_configured")
+        if self.fail:
+            raise BotFactoryError(self.fail)
+        for u in usernames:
+            if u not in self.taken:
+                self.taken.add(u)
+                return CreatedBot(token=f"{700000 + len(self.calls)}:{'A' * 35}", username=u)
+        raise BotFactoryError("taken")
 
 
 class FakeSepay:
@@ -93,7 +115,7 @@ class FakeSepay:
         self.hooks.pop(webhook_id, None)
 
 
-def make_services(local_time: datetime, admin_ids=(1,), sepay=None):
+def make_services(local_time: datetime, admin_ids=(1,), sepay=None, bot_factory=None):
     db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
     factory = make_session_factory(f"sqlite:///{db.name}")
     clock, notifier = FixedClock(local_time), RecordingNotifier()
@@ -102,5 +124,6 @@ def make_services(local_time: datetime, admin_ids=(1,), sepay=None):
         qr=SepayQr(), spreadsheet=XlsxWriter(), notifier=notifier,
         config=AppConfig(public_url="https://example.test", master_admin_ids=tuple(admin_ids)),
         sepay=sepay or FakeSepay(),
+        bot_factory=bot_factory or FakeBotFactory(),
     ))
     return services, clock, notifier

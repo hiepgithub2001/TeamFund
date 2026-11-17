@@ -31,6 +31,11 @@ TEAM_TIMEZONE=Asia/Ho_Chi_Minh
 # webhook (needs HTTPS) or polling (for testing without HTTPS)
 TELEGRAM_MODE=webhook
 
+# Optional: your Telegram app from my.telegram.org, so the master bot can create team bots in @BotFather
+# for you. Then log in once: docker compose exec app python -m app.telegram_login phone +84...
+TELEGRAM_API_ID=
+TELEGRAM_API_HASH=
+
 # Generated secrets. Keep TOKEN_ENC_KEY safe: it decrypts the stored team bot tokens.
 POSTGRES_PASSWORD=$(rand 24)
 MASTER_WEBHOOK_SECRET=$(rand 32)

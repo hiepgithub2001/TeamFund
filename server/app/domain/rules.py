@@ -4,6 +4,7 @@ import hashlib
 import math
 import re
 import secrets
+import unicodedata
 
 from .entities import MANAGER, OWNER, FeePlan, Member, Team
 
@@ -64,6 +65,20 @@ def period_label(period: str, months: int | None = 1) -> str:
     if (months or 1) <= 1:
         return f"{month}/{year}"
     return f"{month}/{year}–{period_label(add_months(period, months - 1))}"
+
+
+# ---- bot usernames ----------------------------------------------------------------------------
+
+def bot_usernames(team_name: str) -> list[str]:
+    """Usernames to try for a team's bot, best first: "FC 37 IT" -> fc_37_it_fund_bot, fc_37_it_tf_bot, ...
+    Telegram's rules: 5-32 characters, a-z 0-9 _, starts with a letter, ends in "bot"."""
+    text = unicodedata.normalize("NFKD", (team_name or "").replace("đ", "d").replace("Đ", "D"))
+    text = "".join(c for c in text if c.isascii() and not unicodedata.combining(c)).lower()
+    slug = re.sub(r"_+", "_", re.sub(r"[^a-z0-9]+", "_", text)).strip("_")
+    if not slug or not slug[0].isalpha():
+        slug = ("team_" + slug).strip("_")
+    slug = slug[:20].rstrip("_")
+    return [f"{slug}_fund_bot", f"{slug}_tf_bot"] + [f"{slug}_fund{n}_bot" for n in range(2, 6)]
 
 
 # ---- payment codes ----------------------------------------------------------------------------

@@ -1,11 +1,18 @@
 """Use cases: registering teams through the master bot (request, approval, creation)."""
+import logging
 import secrets
+import threading
 
 from ..domain.entities import OWNER, Team, TeamAdmin, TeamRequest
 from ..domain.errors import DomainError, invalid
+from ..domain.rules import bot_usernames
 from .access import is_super, require_super
 from .people import audit, display_name, user_info
-from .ports import Deps, UnitOfWork
+from .ports import BotFactoryError, Deps, UnitOfWork
+
+log = logging.getLogger("registration")
+_making: set[int] = set()  # people whose bot is being created right now: a double tap makes one bot
+_making_lock = threading.Lock()
 
 
 class RegistrationUseCases:
@@ -57,6 +64,35 @@ class RegistrationUseCases:
         with self.d.uow() as uow:
             r = uow.team_requests.latest_approved(actor)
             return {"request": self._request_dict(uow, r) if r else None, "is_super": is_super(self.d.config, actor)}
+
+    def can_make_bot(self) -> bool:
+        """Is the master bot able to create team bots itself (the admin's Telegram login is set up)?"""
+        return self.d.bot_factory.available()
+
+    def make_bot(self, actor: int) -> dict:
+        """Create the bot for the actor's approved team request through @BotFather. Returns its token and
+        username; registering it is then the same as a pasted token (create_team)."""
+        with self.d.uow() as uow:
+            req = uow.team_requests.latest_approved(actor)
+            if not req:
+                raise DomainError(403, "not_approved")
+            name = req.team_name
+        with _making_lock:
+            if actor in _making:
+                raise DomainError(409, "botfather_busy")
+            _making.add(actor)
+        try:
+            bot = self.d.bot_factory.create_bot(f"{name} · Team Fund"[:64], bot_usernames(name))
+        except BotFactoryError as e:
+            log.warning("bot factory failed for %s: %s", actor, e)
+            raise DomainError(400 if e.kind != "unavailable" else 503, f"botfather_{e.kind}") from e
+        finally:
+            with _making_lock:
+                _making.discard(actor)
+        with self.d.uow() as uow:
+            audit(uow, self.d.clock, None, actor, "bot.create", target=bot.username)
+            uow.commit()
+        return {"token": bot.token, "username": bot.username}
 
     def create_team(self, actor: int, token: str, bot_id: int, bot_username: str, name: str | None) -> dict:
         with self.d.uow() as uow:

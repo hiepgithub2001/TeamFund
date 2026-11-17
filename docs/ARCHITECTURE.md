@@ -44,12 +44,13 @@ _Control flows outward and back (a webhook calls a use case, the use case saves 
 1. **Create it in @BotFather** with `/newbot`, e.g. `@TeamFundSetupBot`. Turn off `/setjoingroups` so it only works in private chats.
 2. **Put the token in `.env`** as `MASTER_BOT_TOKEN`, with your Telegram ID in `MASTER_ADMIN_IDS`.
 3. **Start the server.** The app sets the master bot's webhook to `/tg/master`.
+4. **Optional: let the master bot create team bots.** Put your Telegram app's `TELEGRAM_API_ID` and `TELEGRAM_API_HASH` (my.telegram.org) in `.env`, then log in once: `docker compose exec app python -m app.telegram_login phone +84…`, then `… code <code from Telegram>` (and `… password` if the account has 2FA). `… status` shows who is logged in; `… logout` revokes it.
 
 ### Per team, by its owner
 
 1. **Ask the master bot.** Send `/requestteam` with the team name. The system admin gets Approve / Reject buttons, and the requester is told the result.
-2. **Create the team bot in @BotFather** with `/newbot` and copy the token.
-3. **Register it with the master bot.** Send `/newteam` and paste the token. The server checks it, creates the team, sets the webhook to `/tg/{botId}`, and makes the sender the owner.
+2. **Get the team bot.** With the login above, the approval message has **🤖 Create the bot for me** (also offered by `/newteam`): the server chats with @BotFather from the admin's account (`/newbot`, the name "<team> · Team Fund", then usernames like `fc_37_it_fund_bot`, `…_tf_bot`, `…_fund2_bot` until one is free) and reads the token. Without it, the owner creates the bot in @BotFather with `/newbot`, sends `/newteam` and pastes the token. Bots made for you belong to the admin's Telegram account, which can hold 20.
+3. **Registration** is the same either way: the server checks the token, creates the team, sets the webhook to `/tg/{botId}`, and makes the requester the owner.
 4. **Link the bank account in SePay** (my.sepay.vn → Ngân hàng → Thêm tài khoản, with the bank's OTP), and for VA-only banks such as BIDV personal create a VA there. Then create an API token (Cấu hình công ty → API Access).
 5. **Connect SePay and pick the account.** In the team bot, send `/sepaytoken <token>`. The bot lists the accounts linked in that SePay (one button per VA for VA-only banks); one tap saves the team's account and creates its webhook. Only the owner can do this, and the account can't be typed in: only an account SePay watches can confirm payments. To change it later, `/setbank` shows the same list. Anyone can check it with `/bank`.
 6. **Add the bot to the team group** and send `/linkgroup` there.
@@ -223,6 +224,8 @@ _Pushing to GitHub doesn't deploy anything by itself; running `scripts/deploy.sh
 | Pay page links | database (`teams.public_token`) | One per team, from `/weblink`. Anyone with it can see who owes and pay; a manager replaces it with **🔄 Make a new link**. |
 | SePay webhook keys | database (SHA-256 hash) | One per team. Each pick in `/setbank` makes a new one and hands it straight to SePay; nobody sees it. |
 | SePay API tokens | database (Fernet, `TOKEN_ENC_KEY`) | One per team, sent by the owner with `/sepaytoken <token>` (or as a reply to its prompt); the message is deleted. Lets the server manage only that team's webhook. Revoke it in my.sepay.vn → API Access. |
+| TELEGRAM_API_ID / _HASH | `.env` | The admin's Telegram app from my.telegram.org. Useless without a login. |
+| Telegram login (session) | database (`app_secrets`, Fernet, `TOKEN_ENC_KEY`) | A full login to the admin's account, used only to talk to @BotFather. Made by `python -m app.telegram_login`. It also appears in Telegram → Settings → Devices, where it can be ended; `… logout` does the same. |
 | All team data | volume `db_data` | Backed up daily by `scripts/backup.sh` to `~/backups`, kept 14 days |
 | TLS certificate | volume `caddy_data` | Renewed automatically by Caddy |
 | GitHub SSH key | `~/.ssh/id_ed25519_github` | Lets this VPS push and pull the repo; remove it from GitHub to revoke |

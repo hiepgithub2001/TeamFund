@@ -217,6 +217,26 @@ class SepayApi(Protocol):
     def delete_webhook(self, token: str, webhook_id: str) -> None: ...
 
 
+class BotFactoryError(Exception):
+    """Creating a bot failed. kind: not_configured | limit | taken | flood | unavailable."""
+
+    def __init__(self, kind: str, message: str = ""):
+        super().__init__(f"{kind}: {message}" if message else kind)
+        self.kind, self.message = kind, message
+
+
+@dataclass(frozen=True)
+class CreatedBot:
+    token: str
+    username: str
+
+
+class BotFactory(Protocol):
+    """Creates Telegram bots (through @BotFather, from the system admin's account). Raises BotFactoryError."""
+    def available(self) -> bool: ...
+    def create_bot(self, name: str, usernames: list[str]) -> CreatedBot: ...
+
+
 class SpreadsheetWriter(Protocol):
     def workbook(self, sheets: list[tuple[str, list[str], list[list]]]) -> bytes: ...
 
@@ -245,3 +265,4 @@ class Deps:
     notifier: Notifier
     config: AppConfig
     sepay: SepayApi
+    bot_factory: BotFactory

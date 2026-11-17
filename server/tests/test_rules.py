@@ -51,3 +51,15 @@ def test_reminder_schedule():
 def test_bank_validation():
     assert valid_bank("MBBank", "0123456789", "NGUYEN VAN A")
     assert not valid_bank("MBBank", "0123-456", "NGUYEN VAN A")
+
+
+def test_bot_usernames():
+    from app.domain.rules import bot_usernames
+    names = bot_usernames("FC 37 IT")
+    assert names[:2] == ["fc_37_it_fund_bot", "fc_37_it_tf_bot"] and names[2] == "fc_37_it_fund2_bot"
+    assert bot_usernames("Đội Bóng Hà Nội")[0] == "doi_bong_ha_noi_fund_bot"
+    assert bot_usernames("37 Stars")[0] == "team_37_stars_fund_bot"
+    assert bot_usernames("⚽⚽")[0] == "team_fund_bot"
+    import re
+    for n in bot_usernames("A very very long team name that goes on and on"):
+        assert 5 <= len(n) <= 32 and re.fullmatch(r"[a-z][a-z0-9_]*bot", n), n

@@ -432,3 +432,25 @@ def test_other_income_and_backdating(world):
     assert code(svc.web.month, "nope", "2026-09") == "not_found"
     months = [x["period"] for x in svc.web.page(token)["months"]]
     assert months == ["2026-11", "2026-10", "2026-09"], "back to the backdated opening balance"
+
+
+def test_make_bot_through_botfather():
+    from .fakes import FakeBotFactory
+    factory = FakeBotFactory()
+    svc, _, _ = make_services(datetime(2026, 11, 17, 10, 0), bot_factory=factory)
+    svc.users.upsert_user(OWNER, "Owner", None, None)
+    assert svc.registration.can_make_bot() is True
+    assert code(svc.registration.make_bot, OWNER) == "not_approved"
+    req = svc.registration.request_team(OWNER, "FC 37 IT")
+    svc.registration.decide_team_request(SUPER, req["id"], True)
+    factory.taken.add("fc_37_it_fund_bot")
+    made = svc.registration.make_bot(OWNER)
+    assert made["username"] == "fc_37_it_tf_bot" and factory.calls[0][0] == "FC 37 IT · Team Fund"
+    team = svc.registration.create_team(OWNER, made["token"], 701, made["username"], None)
+    assert team["name"] == "FC 37 IT"
+    assert code(svc.registration.make_bot, OWNER) == "not_approved", "the request is used up"
+    factory.fail = "limit"
+    req = svc.registration.request_team(OWNER, "Second")
+    svc.registration.decide_team_request(SUPER, req["id"], True)
+    assert code(svc.registration.make_bot, OWNER) == "botfather_limit"
+    assert make_services(datetime(2026, 11, 17), bot_factory=FakeBotFactory(ready=False))[0].registration.can_make_bot() is False

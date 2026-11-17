@@ -20,9 +20,11 @@ from .application.ports import AppConfig, Deps
 from .application.services import build_services
 from .config import settings
 from .domain.errors import DomainError
+from .infrastructure.botfather import SESSION, TelethonBotFactory
 from .infrastructure.clock import SystemClock
 from .infrastructure.crypto import FernetCipher
 from .infrastructure.db import SqlUnitOfWork, make_session_factory
+from .infrastructure.secret_store import SecretStore
 from .infrastructure.sepay import SepayQr, SepayUserApi
 from .infrastructure.xlsx import XlsxWriter
 from .interfaces import deps, scheduler
@@ -37,16 +39,20 @@ logging.getLogger("aiogram.event").setLevel(logging.WARNING)
 def create_app() -> FastAPI:
     session_factory = make_session_factory(settings.database_url)
     notifier = TelegramNotifier()
+    cipher = FernetCipher(settings.token_enc_key)
+    secret_store = SecretStore(session_factory, cipher)
     services = build_services(Deps(
         uow=lambda: SqlUnitOfWork(session_factory),
         clock=SystemClock(settings.timezone),
-        cipher=FernetCipher(settings.token_enc_key),
+        cipher=cipher,
         qr=SepayQr(),
         spreadsheet=XlsxWriter(),
         notifier=notifier,
         config=AppConfig(public_url=settings.public_url, master_admin_ids=tuple(settings.master_admin_ids),
                          default_lang=settings.default_lang),
         sepay=SepayUserApi(settings.sepay_api_url),
+        bot_factory=TelethonBotFactory(settings.telegram_api_id, settings.telegram_api_hash,
+                                       lambda: secret_store.get(SESSION)),
     ))
     deps.install(services)
 

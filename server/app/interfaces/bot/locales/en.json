@@ -292,5 +292,16 @@
  "cmd.income": "Record other income",
  "usage.history": "Usage: <code>/history</code> (recent transactions) or <code>/history 10/2026</code> (every transaction of that month).",
  "history.month_title": "🧾 <b>Transactions in {period}</b> ({n})\nIn: {income} · Out: {expense}",
- "history.month_empty": "No transactions in {period}."
+ "history.month_empty": "No transactions in {period}.",
+ "btn.make_bot": "🤖 Create the bot for me",
+ "m.approved_user_auto": "✅ Your request for <b>{team}</b> was approved.\nTap the button below to create the team's bot now, no @BotFather needed. (Or create one in @BotFather yourself, then send /newteam and paste its token.)",
+ "m.newteam_choice": "Create the bot for <b>{team}</b>:\n• Tap <b>🤖 Create the bot for me</b> and it's done for you, or\n• create one in @BotFather with /newbot and paste its token here (like <code>123456789:AAH...</code>).",
+ "m.making_bot": "⏳ Creating the bot with @BotFather… (about 10–20 seconds)",
+ "m.make_bot_fallback": "You can still create the bot yourself in @BotFather with /newbot, then send /newteam here and paste its token.",
+ "err.botfather_not_configured": "❌ The system isn't connected to a Telegram account for creating bots.",
+ "err.botfather_limit": "❌ The account that creates bots already has 20 (@BotFather's limit). Tell the system admin.",
+ "err.botfather_taken": "❌ All the suggested bot usernames for this team are taken.",
+ "err.botfather_flood": "❌ @BotFather is limiting new bots right now. Try again in a few minutes.",
+ "err.botfather_unavailable": "❌ Couldn't reach @BotFather right now. Try again later.",
+ "err.botfather_busy": "⏳ Your bot is being created, one moment."
 }

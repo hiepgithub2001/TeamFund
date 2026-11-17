@@ -20,6 +20,10 @@ class Settings:
     telegram_api_root = os.getenv("TELEGRAM_API_ROOT") or None
     # SePay's user API, used to create each team's webhook. Tests point it at a fake.
     sepay_api_url = os.getenv("SEPAY_API_URL", "https://userapi.sepay.vn/v2")
+    # The admin's Telegram app (my.telegram.org): lets the master bot create team bots through @BotFather.
+    # The login itself is stored encrypted in the database (python -m app.telegram_login).
+    telegram_api_id = int(os.getenv("TELEGRAM_API_ID") or 0)
+    telegram_api_hash = os.getenv("TELEGRAM_API_HASH", "")
     # Turn the background jobs off (tests).
     run_jobs = os.getenv("RUN_JOBS", "1") != "0"
 

@@ -111,6 +111,14 @@ audit_log = Table(
     Column("target", String(200)), Column("before", JSON), Column("after", JSON), Column("created_at", DateTime),
 )
 
+# Infrastructure-only secrets (e.g. the admin's Telegram login for @BotFather), encrypted. Not a domain thing,
+# so not mapped onto an entity.
+app_secrets = Table(
+    "app_secrets", metadata,
+    Column("name", String(64), primary_key=True), Column("value_enc", Text, nullable=False),
+    Column("updated_at", DateTime),
+)
+
 job_runs = Table(
     "job_log", metadata,
     Column("key", String(100), primary_key=True), Column("created_at", DateTime),

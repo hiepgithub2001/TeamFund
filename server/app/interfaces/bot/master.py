@@ -14,7 +14,8 @@ from .run import call
 from .fmt import esc
 from .i18n import t
 from .lang import lang_for, lang_of, set_lang
-from .render import edit, kb, report_error
+from ...domain.errors import DomainError
+from .render import edit, error_text, kb, report_error
 from .state import del_state, get_state, set_state
 
 log = logging.getLogger("master")
@@ -64,6 +65,10 @@ async def cmd_requestteam(message: Message, lang):
     await message.answer(t(lang, "m.ask_team_name"))
 
 
+def make_bot_button(lang):
+    return kb([(t(lang, "btn.make_bot"), "nb:make")])
+
+
 @router.message(Command("newteam"))
 async def cmd_newteam(message: Message, lang):
     r = await call(S.registration.approved_request, message.from_user.id)
@@ -71,7 +76,29 @@ async def cmd_newteam(message: Message, lang):
         await message.answer(t(lang, "err.not_approved"))
         return
     set_state(input_key(message.chat.id), {"type": "token"}, 600)
-    await message.answer(t(lang, "m.ask_token"))
+    if r["request"] and await call(S.registration.can_make_bot):
+        await message.answer(t(lang, "m.newteam_choice", team=esc(r["request"]["team_name"])),
+                             reply_markup=make_bot_button(lang))
+    else:
+        await message.answer(t(lang, "m.ask_token"))
+
+
+@router.callback_query(F.data == "nb:make")
+async def on_make_bot(cq: CallbackQuery, lang):
+    """Create the team's bot through @BotFather (from the admin's account) and register it, in one tap."""
+    await cq.answer()
+    del_state(input_key(cq.message.chat.id))
+    await edit(cq, t(lang, "m.making_bot"))
+    try:
+        made = await call(S.registration.make_bot, cq.from_user.id)
+    except DomainError as e:
+        await edit(cq, error_text(lang, e) + "\n\n" + t(lang, "m.make_bot_fallback"))
+        return
+    try:
+        text = await register_token(cq.bot, cq.from_user.id, lang, made["token"])
+    except DomainError as e:
+        text = error_text(lang, e)
+    await edit(cq, text)
 
 
 @router.callback_query(F.data.regexp(r"^tr:(a|r):(\d+)$").as_("m"))
@@ -83,8 +110,11 @@ async def on_decide(cq: CallbackQuery, m: re.Match, lang):
                      team=esc(r["team_name"]), name=esc(r["name"])))
     user_lang = await lang_for(r["tg_id"], settings.default_lang)
     try:
-        await cq.bot.send_message(r["tg_id"], t(user_lang, "m.approved_user" if approved else "m.rejected_user",
-                                                team=esc(r["team_name"])))
+        auto = approved and await call(S.registration.can_make_bot)
+        await cq.bot.send_message(r["tg_id"], t(user_lang, "m.approved_user_auto" if auto else
+                                                "m.approved_user" if approved else "m.rejected_user",
+                                                team=esc(r["team_name"])),
+                                  reply_markup=make_bot_button(user_lang) if auto else None)
     except Exception as e:
         log.warning("requester notify failed: %s", e)
 
@@ -165,17 +195,21 @@ async def on_text(message: Message, lang):
     if not TOKEN_RE.match(text):
         await message.answer(t(lang, "m.bad_token"))
         return
-    probe = make_bot(text)
+    await message.answer(await register_token(message.bot, message.from_user.id, lang, text))
+
+
+async def register_token(bot, actor: int, lang: str, token: str) -> str:
+    """Check a bot token with Telegram, register the team and start its bot. Returns the message to show."""
+    probe = make_bot(token)
     try:
         me = await probe.get_me()
     except Exception:
-        await message.answer(t(lang, "m.token_rejected"))
-        return
+        return t(lang, "m.token_rejected")
     finally:
         await probe.session.close()
-    created = await call(S.registration.create_team, message.from_user.id, text, me.id, me.username, me.first_name)
+    created = await call(S.registration.create_team, actor, token, me.id, me.username, me.first_name)
     await registry.register_team(created)
-    await message.answer(t(lang, "m.team_created", team=esc(created["name"]), bot=created["bot_username"]))
+    return t(lang, "m.team_created", team=esc(created["name"]), bot=created["bot_username"])
 
 
 @router.callback_query()
