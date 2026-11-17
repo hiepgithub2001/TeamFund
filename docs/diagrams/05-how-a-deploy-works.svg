@@ -50,7 +50,7 @@
 
       <rect class="box" x="170" y="32" width="150" height="56" rx="8"/>
       <text class="t" x="245" y="55" text-anchor="middle">1 · change + test</text>
-      <text class="s" x="245" y="73" text-anchor="middle">pytest, npm test, e2e</text>
+      <text class="s" x="245" y="73" text-anchor="middle">pytest + tests/e2e.py</text>
       <rect class="box" x="340" y="32" width="150" height="56" rx="8"/>
       <text class="t" x="415" y="55" text-anchor="middle">2 · git commit</text>
       <text class="s" x="415" y="73" text-anchor="middle">on branch main</text>

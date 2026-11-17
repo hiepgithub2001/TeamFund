@@ -2,9 +2,9 @@
 
 > Generated from `docs/architecture.html` by `scripts/build-docs.py`. Open the HTML file for the interactive version with dark mode.
 
-_System design · v3 · as built_
+_System design · v4 · all Python_
 
-Every team gets its own Telegram bot for collecting the monthly fee. A master bot registers new teams. Members open their team's bot, tap whose fee they are paying, scan a SePay QR, and the payment confirms itself. One server runs the master bot and every team bot.
+Every team gets its own Telegram bot for collecting the monthly fee. A master bot registers new teams. Members open their team's bot, tap whose fee they are paying, scan a SePay QR, and the payment confirms itself. One server runs the master bot and every team bot. Every service is written in Python.
 
 ## System overview
 
@@ -66,7 +66,7 @@ _The role check in step 7 runs on the server, so a forwarded Approve button does
 
 | Service | Language | Responsible for |
 |---|---|---|
-| Bot Gateway | Node.js, grammY | One process for the master bot and every team bot. Menus, buttons, EN/VI text, per-role command menus, QR images and receipts |
+| Bot Gateway | Python, aiogram 3, aiohttp | One process for the master bot and every team bot. Menus, buttons, EN/VI text, per-role command menus, QR images and receipts |
 | Core API | Python, FastAPI, SQLAlchemy | Team registry and encrypted bot tokens, roles and manager requests, members, fees, bills, payment intents, SePay webhook and matching, audit log, Excel export |
 | Scheduler | Python, APScheduler | Creates bills on the 1st, posts reminders to each group, sends month-end reports, expires old requests and intents |
 | PostgreSQL | 16 | The only data store, written only by the Core API |

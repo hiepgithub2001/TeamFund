@@ -1,9 +1,10 @@
-FROM node:22-alpine
-ENV NODE_ENV=production
+FROM python:3.12-slim
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
-COPY src ./src
-USER node
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY app ./app
+RUN useradd --system --uid 10001 app
+USER app
 EXPOSE 3000
-CMD ["node", "src/index.js"]
+CMD ["python", "-m", "app.main"]

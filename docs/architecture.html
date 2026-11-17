@@ -89,16 +89,16 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
 <body>
 <div class="wrap">
 <header>
-  <span class="eyebrow">System design · v3 · as built</span>
+  <span class="eyebrow">System design · v4 · all Python</span>
   <h1>Team Fund Bot</h1>
-  <p class="lead">Every team gets its own Telegram bot for collecting the monthly fee. A master bot registers new teams. Members open their team's bot, tap whose fee they are paying, scan a SePay QR, and the payment confirms itself. One server runs the master bot and every team bot.</p>
+  <p class="lead">Every team gets its own Telegram bot for collecting the monthly fee. A master bot registers new teams. Members open their team's bot, tap whose fee they are paying, scan a SePay QR, and the payment confirms itself. One server runs the master bot and every team bot. Every service is written in Python.</p>
 </header>
 
 <section>
   <h2>System overview</h2>
   <figure>
     <div class="frame">
-    <svg viewBox="0 0 1040 590" role="img" aria-label="The owner creates bots in BotFather and registers a team bot with the master bot. Members and the team group use the team bots. All bots send updates through Telegram's Bot API to Caddy on the VPS, which routes master and team bot updates to separate handlers in the Node.js gateway and SePay webhooks to the Python core API. The core API owns PostgreSQL, the team registry and the role checks.">
+    <svg viewBox="0 0 1040 590" role="img" aria-label="The owner creates bots in BotFather and registers a team bot with the master bot. Members and the team group use the team bots. All bots send updates through Telegram's Bot API to Caddy on the VPS, which routes master and team bot updates to separate handlers in the Python gateway and SePay webhooks to the Python core API. The core API owns PostgreSQL, the team registry and the role checks.">
       <defs>
         <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="head-fg"/></marker>
         <marker id="am" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="head-m"/></marker>
@@ -169,7 +169,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <text class="s" x="520" y="229" text-anchor="middle">routes by path</text>
 
       <rect class="box tg" x="660" y="40" width="200" height="150" rx="8"/>
-      <text class="t" x="760" y="62" text-anchor="middle">Bot Gateway · Node.js</text>
+      <text class="t" x="760" y="62" text-anchor="middle">Bot Gateway · Python</text>
       <rect class="box in" x="675" y="76" width="170" height="44" rx="6"/>
       <text class="t" x="760" y="95" text-anchor="middle">Master handler</text>
       <text class="s" x="760" y="111" text-anchor="middle">/newteam, /myteams</text>
@@ -383,7 +383,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
   <table>
     <thead><tr><th>Service</th><th>Language</th><th>Responsible for</th></tr></thead>
     <tbody>
-      <tr><td>Bot Gateway</td><td>Node.js, grammY</td><td>One process for the master bot and every team bot. Menus, buttons, EN/VI text, per-role command menus, QR images and receipts</td></tr>
+      <tr><td>Bot Gateway</td><td>Python, aiogram 3, aiohttp</td><td>One process for the master bot and every team bot. Menus, buttons, EN/VI text, per-role command menus, QR images and receipts</td></tr>
       <tr><td>Core API</td><td>Python, FastAPI, SQLAlchemy</td><td>Team registry and encrypted bot tokens, roles and manager requests, members, fees, bills, payment intents, SePay webhook and matching, audit log, Excel export</td></tr>
       <tr><td>Scheduler</td><td>Python, APScheduler</td><td>Creates bills on the 1st, posts reminders to each group, sends month-end reports, expires old requests and intents</td></tr>
       <tr><td>PostgreSQL</td><td>16</td><td>The only data store, written only by the Core API</td></tr>
@@ -492,11 +492,11 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
 
       <rect class="box tg" x="760" y="90" width="192" height="122" rx="8"/>
       <text class="t" x="856" y="112" text-anchor="middle">gateway</text>
-      <text class="s" x="856" y="129" text-anchor="middle">node:22-alpine · :3000</text>
-      <text class="s" x="856" y="145" text-anchor="middle">grammY: master + team bots</text>
+      <text class="s" x="856" y="129" text-anchor="middle">python:3.12-slim · :3000</text>
+      <text class="s" x="856" y="145" text-anchor="middle">aiogram: master + team bots</text>
       <text class="s" x="856" y="161" text-anchor="middle">/tg/master, /tg/{botId}</text>
       <text class="s" x="856" y="177" text-anchor="middle">/internal/events (key)</text>
-      <text class="s" x="856" y="193" text-anchor="middle">runs as user node</text>
+      <text class="s" x="856" y="193" text-anchor="middle">aiohttp, runs as user app</text>
 
       <rect class="box" x="760" y="300" width="192" height="122" rx="8"/>
       <text class="t" x="856" y="322" text-anchor="middle">core</text>
@@ -629,7 +629,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
 
       <rect class="box" x="170" y="32" width="150" height="56" rx="8"/>
       <text class="t" x="245" y="55" text-anchor="middle">1 · change + test</text>
-      <text class="s" x="245" y="73" text-anchor="middle">pytest, npm test, e2e</text>
+      <text class="s" x="245" y="73" text-anchor="middle">pytest + tests/e2e.py</text>
       <rect class="box" x="340" y="32" width="150" height="56" rx="8"/>
       <text class="t" x="415" y="55" text-anchor="middle">2 · git commit</text>
       <text class="s" x="415" y="73" text-anchor="middle">on branch main</text>

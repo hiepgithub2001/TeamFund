@@ -125,11 +125,11 @@
 
       <rect class="box tg" x="760" y="90" width="192" height="122" rx="8"/>
       <text class="t" x="856" y="112" text-anchor="middle">gateway</text>
-      <text class="s" x="856" y="129" text-anchor="middle">node:22-alpine · :3000</text>
-      <text class="s" x="856" y="145" text-anchor="middle">grammY: master + team bots</text>
+      <text class="s" x="856" y="129" text-anchor="middle">python:3.12-slim · :3000</text>
+      <text class="s" x="856" y="145" text-anchor="middle">aiogram: master + team bots</text>
       <text class="s" x="856" y="161" text-anchor="middle">/tg/master, /tg/{botId}</text>
       <text class="s" x="856" y="177" text-anchor="middle">/internal/events (key)</text>
-      <text class="s" x="856" y="193" text-anchor="middle">runs as user node</text>
+      <text class="s" x="856" y="193" text-anchor="middle">aiohttp, runs as user app</text>
 
       <rect class="box" x="760" y="300" width="192" height="122" rx="8"/>
       <text class="t" x="856" y="322" text-anchor="middle">core</text>

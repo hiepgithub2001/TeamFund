@@ -14,7 +14,7 @@ Diagrams and the full design are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 | Service | Stack | Job |
 |---|---|---|
-| `gateway` | Node.js, grammY | Every Telegram bot (master + teams), menus, EN/VI text |
+| `gateway` | Python, aiogram 3, aiohttp | Every Telegram bot (master + teams), menus, EN/VI text |
 | `core` | Python, FastAPI | Data, roles, billing, SePay webhook, Excel export |
 | `scheduler` | Python, APScheduler | Monthly bills, group reminders, month-end report |
 | `db` | PostgreSQL 16 | Storage (only `core` writes to it) |
@@ -50,11 +50,16 @@ Port 443 must be reachable from the internet; Telegram and SePay both call it. P
 
 ## Tests
 
+Everything is Python. Install both services' requirements in one virtualenv:
+
 ```bash
-cd core && pip install -r requirements.txt pytest && python -m pytest -q tests
-cd gateway && npm ci
-PYTHON=python3 node tests/e2e.mjs     # core + gateway against a fake Telegram API
+pip install -r core/requirements.txt -r gateway/requirements.txt pytest
+(cd core && python -m pytest -q tests)
+(cd gateway && python -m pytest -q tests)
+python tests/e2e.py                   # core + gateway against a fake Telegram API
 ```
+
+Bot texts live in `gateway/app/locales/en.json` and `vi.json`; both files must have the same keys.
 
 ## Backups
 
