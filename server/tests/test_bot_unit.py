@@ -48,11 +48,21 @@ def test_split_date():
     from datetime import date
     from app.interfaces.bot.fmt import split_date
     today = date(2026, 11, 18)
-    assert split_date("Pitch 15-10-2026", today) == ("Pitch", date(2026, 10, 15), True)
-    assert split_date("Pitch 15/10/2026", today) == ("Pitch", date(2026, 10, 15), True)
-    assert split_date("Pitch 15.10.26", today) == ("Pitch", date(2026, 10, 15), True)
-    assert split_date("Pitch 15/10", today) == ("Pitch", date(2026, 10, 15), True)
-    assert split_date("Pitch 20-12", today) == ("Pitch", date(2025, 12, 20), True)  # no year: not in the future
+    for text in ("Pitch 15-10-2026", "Pitch 15/10/2026", "Pitch 15/10/26", "Pitch 15-10-26", "Pitch 15/10", "Pitch 15-10"):
+        assert split_date(text, today) == ("Pitch", date(2026, 10, 15), True), text
+    assert split_date("Pitch 20-12", today) == ("Pitch", date(2026, 12, 20), True)  # this year; the use case refuses the future
     assert split_date("Pitch", today) == ("Pitch", None, True)
     assert split_date("Pitch 31-02-2026", today)[2] is False
+    assert split_date("Pitch 15/10-2026", today)[1] is None, "mixed separators aren't a date"
     assert split_date("Áo số 10", today) == ("Áo số 10", None, True)
+
+
+def test_amount_forms():
+    """Every form /money shows."""
+    from app.interfaces.bot.fmt import parse_amount
+    cases = {"450000": 450000, "450.000": 450000, "450,000đ": 450000, "450k": 450000, "450K": 450000,
+             "450 nghìn": 450000, "1tr": 1000000, "1m": 1000000, "1M": 1000000, "1 triệu": 1000000,
+             "1.5tr": 1500000, "1,5tr": 1500000, "1tr5": 1500000, "1.5M": 1500000, "5M": 5000000,
+             "2tr250": 2250000, "200.000 đồng": 200000, "0": None, "abc": None, "1kk": None}
+    for raw, want in cases.items():
+        assert parse_amount(raw) == want, raw

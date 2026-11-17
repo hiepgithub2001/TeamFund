@@ -447,6 +447,11 @@ async def main():
         await T(text_update(OWNER, "/income 5k Bad day 31/02"))
         await wait_sent(to(OWNER, "That date isn't valid"), "impossible date refused")
         # a bare command explains the format and takes the answer as a reply
+        await T(text_update(OWNER, "/money"))
+        await wait_sent(lambda c: to(OWNER, "Writing amounts")(c) and "1tr5" in c["params"]["text"]
+                        and "15-10-26" in c["params"]["text"], "/money explains amounts and dates")
+        await T(text_update(OWNER, "/expense 1tr5 Kit 03-02-26"))
+        await wait_sent(to(OWNER, "Expense recorded on 03/02/2026"), "1tr5 and dd-mm-yy")
         await T(text_update(OWNER, "/income"))
         guide = await wait_sent(to(OWNER, "Reply to this message as"), "income guide")
         assert "15-10-2026" in guide["params"]["text"] and "No date = now" in guide["params"]["text"]
@@ -464,7 +469,7 @@ async def main():
         await T(text_update(OWNER, "/expense 50k Water 03-02-2026"))
         await wait_sent(to(OWNER, "Expense recorded on 03/02/2026"), "dd-mm-yyyy date")
         await T(text_update(OWNER, "/history 02/2026"))
-        await wait_sent(lambda c: to(OWNER, "Transactions in 02/2026</b> \\(1\\)")(c) and "Water" in c["params"]["text"],
+        await wait_sent(lambda c: to(OWNER, "Transactions in 02/2026</b> \\(2\\)")(c) and "Water" in c["params"]["text"],
                         "history of one month")
         await T(text_update(OWNER, "/history 13/2026"))
         await wait_sent(to(OWNER, "every transaction of that month"), "bad month explained")

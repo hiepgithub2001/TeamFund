@@ -691,6 +691,12 @@ async def record_money(message: Message, entry, lang: str, kind: str, text: str 
                                  balance=money(r["balance"], G)), photo=photo)
 
 
+@router.message(Command("money"))
+async def cmd_money(message: Message, lang):
+    """How to write amounts and dates in /expense, /income, /charge, /split, /setfee and /plans."""
+    await message.answer(t(lang, "money.help"))
+
+
 @router.message(Command("expense"))  # also matches a receipt photo with the command as its caption
 async def cmd_expense(message: Message, command: CommandObject, entry, lang):
     if await allow(message, entry, lang, "manager"):
