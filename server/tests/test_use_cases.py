@@ -223,3 +223,47 @@ def test_sepay_webhook_sync():
     # SePay down: a clear error, and the stored key is untouched
     sepay.fail_update = "unavailable"
     assert code(teams.sync_sepay, tid, OWNER) == "sepay_unavailable"
+
+
+def test_web_pay_page(world):
+    svc, clock, notifier = world
+    tid = setup_team(svc)
+    teams, web = svc.teams, svc.web
+    assert code(web.page, "nope") == "not_found"
+    assert code(teams.web_link, tid, MEMBER) in ("not_manager", "not_owner")
+    url = teams.web_link(tid, OWNER)["url"]
+    token = url.rstrip("/").rsplit("/", 1)[1]
+    assert url == f"https://example.test/p/{token}/" and len(token) >= 16
+    assert teams.web_link(tid, OWNER)["url"] == url  # stable until reset
+
+    page = web.page(token)
+    assert page["team"] == "FC Test" and not page["has_bank"] and page["unpaid"] == []
+    teams.set_bank(tid, OWNER, "VietinBank", "101003630278", "tran le hiep")
+    teams.update_settings(tid, OWNER, fee=200000)
+    svc.members.add_members(tid, OWNER, [{"name": "An"}, {"name": "Bình"}])
+    page = web.page(token)
+    assert [u["name"] for u in page["unpaid"]] == ["An", "Bình"] and page["total_unpaid"] == 400000
+    assert "phone" not in page["unpaid"][0] and "id" not in page["unpaid"][0]["bills"][0]  # names and amounts only
+
+    an = page["unpaid"][0]["member_id"]
+    for bad in ([], "1", [True], ["1"], list(range(51))):
+        assert code(web.create_intent, token, bad) == "invalid"
+    intent = web.create_intent(token, [an, an])
+    assert intent["amount"] == 200000 and intent["members"] == ["An"] and intent["content"].startswith("SEVQR TF")
+    assert web.intent_status(token, intent["code"])["status"] == "pending"
+    assert code(web.intent_status, token, "TFNOTREAL1") == "not_found"
+
+    key = teams.new_sepay_key(tid, OWNER)["api_key"]
+    svc.money.record_transfer(tid, key, IncomingTransfer("tx-web", 200000, f"x {intent['content']} y"))
+    st = web.intent_status(token, intent["code"])
+    assert st["status"] == "paid" and st["members"] == ["An"]
+    ev = notifier.events[-1]
+    assert ev["type"] == "payment_confirmed" and ev["payer_tg_id"] is None  # no Telegram payer: group post only
+    assert [u["name"] for u in web.page(token)["unpaid"]] == ["Bình"]
+
+    other = web.create_intent(token, [page["unpaid"][1]["member_id"]])
+    clock.advance(hours=25)
+    assert web.intent_status(token, other["code"])["status"] == "expired"
+
+    new_url = teams.web_link(tid, OWNER, reset=True)["url"]
+    assert new_url != url and code(web.page, token) == "not_found"

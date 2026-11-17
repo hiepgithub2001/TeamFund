@@ -47,6 +47,9 @@ class SqlTeams(_Repo):
     def active(self) -> list[Team]:
         return list(self.s.scalars(select(Team).where(Team.active.is_(True)).order_by(Team.id)))
 
+    def by_public_token(self, token: str) -> Team | None:
+        return self.s.scalar(select(Team).where(Team.public_token == token, Team.active.is_(True)))
+
     def for_admin(self, tg_id: int) -> list[tuple[Team, str]]:
         rows = self.s.execute(select(Team, TeamAdmin.role).join(TeamAdmin, TeamAdmin.team_id == Team.id)
                               .where(TeamAdmin.tg_id == tg_id, Team.active.is_(True)).order_by(Team.name))

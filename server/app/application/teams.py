@@ -6,7 +6,7 @@ from datetime import timedelta
 
 from ..domain.entities import MANAGER, OWNER, ManagerRequest, Team, TeamAdmin
 from ..domain.errors import DomainError, invalid
-from ..domain.rules import LANGS, MAX_FEE, hash_secret, valid_bank
+from ..domain.rules import LANGS, MAX_FEE, hash_secret, new_public_token, valid_bank
 from .access import get_team, is_super, manager_team, owner_team, role_of
 from .billing import reprice_current_month
 from .people import audit, display_name, user_info
@@ -171,6 +171,17 @@ class TeamUseCases:
             audit(uow, self.d.clock, team.id, actor, "team.sepay_key")
             uow.commit()
             return {"api_key": key, "webhook_url": self._webhook_url(team)}
+
+    def web_link(self, team_id: int, actor: int, reset: bool = False) -> dict:
+        """The team's pay page link for people without Telegram. Made on first use; reset makes a new one
+        and the old link stops working."""
+        with self.d.uow() as uow:
+            team = manager_team(uow, team_id, actor)
+            if reset or not team.public_token:
+                team.public_token = new_public_token()
+                audit(uow, self.d.clock, team.id, actor, "team.web_link", after={"reset": reset})
+                uow.commit()
+            return {"url": f"{self.d.config.public_url}/p/{team.public_token}/"}
 
     def link_group(self, team_id: int, actor: int, chat_id: int) -> dict:
         with self.d.uow() as uow:

@@ -85,6 +85,25 @@ _SePay watches the team's bank account and calls the webhook within seconds of m
 
 _The owner does only what SePay can't let anyone else do: link the bank account (with the bank's OTP) and create one API token. The bot does the rest. The token is checked against SePay, then stored encrypted. Each sync makes a fresh key and hands it to SePay and the server in one step, so the old key stops working at once. There is always one webhook per team: the stored id is reused, a webhook already pointing at the team's URL is adopted, and one deleted in SePay is recreated. SePay's v2 user API isn't in its public docs yet; `infrastructure/sepay.py` follows what it answers today (updates are `PUT`, writes need an `X-Idempotency-Key`)._
 
+## Pay page for members without Telegram
+
+Some members won't install Telegram. Each team has a **pay page**, a small web app (PWA) at a secret link, that does exactly what `/start` does in the bot: list who still owes, tick names, get the VietQR, and see it confirmed. It reads and writes the same database through the same use cases, so a payment on the page shows up in the bot, `/status`, the reports and the group, and the other way round. Managing stays in Telegram: the page can't add members, change fees or see phone numbers.
+
+![Sequence: a member opens the team's secret link in a browser. The page calls GET api/state through Caddy and http/web.py](diagrams/07-pay-page-for-members-without-telegram.svg)
+
+_The page is one HTML shell with plain JavaScript (no build step) in `interfaces/web/`, served by `interfaces/http/web.py`; `application/web.py` holds the only three things it may do. A payer on the page has no Telegram account, so there is no private receipt: the page itself shows ✅, and the group still gets the "paid" post. Everything else, from matching the TF code to expiry after 24 hours, is the same code path as the bot._
+
+| Concern | How it's handled |
+|---|---|
+| Getting the link | A manager sends `/weblink` in the team bot and shares the link (Zalo, Messenger, a printed QR). **🔄 Make a new link** replaces it; the old one stops working at once. |
+| Who can open it | Anyone with the link, with no login, like the bot's `/start`. The token is 16 random characters, so team pages can't be guessed or listed. |
+| What it shows | Team name, bank account, and unpaid members with their bills. No phone numbers, notes, history or fund balance. |
+| What it can do | Create a QR for chosen members, and poll that QR's status. Nothing else. |
+| Abuse | Per-IP limits: 10 QR codes and 120 reads a minute. Unpaid QR codes simply expire. |
+| Keeping the link private | `Referrer-Policy: no-referrer` (the QR image comes from qr.sepay.vn and must not see the link), `noindex`, and a strict Content-Security-Policy: only our own scripts run, and names are inserted as text, never HTML. |
+| Installing | A web app manifest and a service worker scoped to that team's path: "Add to home screen" on Android and iPhone. The app shell works offline; amounts always come live from the server. |
+| Language | The team's language by default, with a Tiếng Việt / English switch remembered on the device. |
+
 ## Banks and SePay
 
 SePay only confirms money it can see, and what it can see depends on the bank and on the account type chosen when the account was linked. Two things vary: whether a transfer to the **main account number** is reported at all, and whether the transfer content needs a keyword. Check this table before setting up a team on a new bank. Source: developer.sepay.vn › Ngân hàng hỗ trợ, read 17/11/2026; SePay changes it, so re-check there.
@@ -126,12 +145,12 @@ Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID
 | Role | Who | Can do |
 |---|---|---|
 | Owner | Whoever registered the bot with `/newteam` | Everything a manager can, plus `/setbank`, `/sepay`, `/sepaytoken`, approve or remove managers, `/transferowner`, `/log` |
-| Manager | Approved by the owner | `/add` `/edit` `/remove` members, `/setfee` `/setdue`, `/markpaid`, `/expense`, `/charge` `/split`, `/remind`, assign unmatched payments, `/export` |
-| Everyone | Anyone who opens the bot | `/start` and pay, `/status`, `/fund`, `/history`, `/bank` (the team account; managers also see whether SePay is connected), `/lang`, `/requestmanager` |
+| Manager | Approved by the owner | `/weblink` (the pay page link), `/add` `/edit` `/remove` members, `/setfee` `/setdue`, `/markpaid`, `/expense`, `/charge` `/split`, `/remind`, assign unmatched payments, `/export` |
+| Everyone | Anyone who opens the bot | `/start` and pay (or the pay page in a browser, no Telegram needed), `/status`, `/fund`, `/history`, `/bank` (the team account; managers also see whether SePay is connected), `/lang`, `/requestmanager` |
 
 ### Becoming a manager: request and approve
 
-![Sequence: a person sends /requestmanager to the team bot, a use case records the request and the bot sends the owner a c](diagrams/07-roles-in-a-team-bot.svg)
+![Sequence: a person sends /requestmanager to the team bot, a use case records the request and the bot sends the owner a c](diagrams/08-roles-in-a-team-bot.svg)
 
 _The role check in step 7 runs on the server, so a forwarded Approve button does nothing for anyone but the owner. Requests that get no answer expire after 7 days._
 
@@ -145,17 +164,17 @@ _The role check in step 7 runs on the server, so a forwarded Approve button does
 
 Everything runs on the one VPS with Docker Compose. Only port 443 is added to the internet. The services that were already on the server (nginx on 80, the app on 8000, the host Postgres, Tailscale) are left alone.
 
-![Deployment: the sslip.io hostname resolves to 103.90.225.28. Telegram, SePay and Let's Encrypt reach port 443, where Doc](diagrams/08-deployment-on-the-vps.svg)
+![Deployment: the sslip.io hostname resolves to 103.90.225.28. Telegram, SePay and Let's Encrypt reach port 443, where Doc](diagrams/09-deployment-on-the-vps.svg)
 
 Legend: Telegram traffic · Money path · Other traffic, mounts, builds · Already on the server, not part of Team Fund
 
-_Requests from Telegram, SePay and Let's Encrypt arrive on port 443 and Docker forwards them to Caddy. Caddy holds the certificate and passes `/tg/*`, `/sepay/*` and `/health` to the app over the private Docker network; nothing else is public. A plain visit (GET) to `/` or `/sepay/*` gets a 200 text reply from Caddy itself, because SePay opens a URL to check that it exists before accepting it; the real webhook calls are POSTs and still need the team's API key. The app is the only code container: three containers in total. All state lives in three named volumes, so rebuilding or recreating containers loses nothing. Caddy runs with `--watch` and mounts the `caddy/` folder rather than the single file, so an edit to `caddy/Caddyfile`, by hand or through `scripts/deploy.sh`, takes effect within seconds without a restart. New teams need no Caddy change: `/tg/*` and `/sepay/*` already cover every bot and team._
+_Requests from Telegram, SePay and Let's Encrypt arrive on port 443 and Docker forwards them to Caddy. Caddy holds the certificate and passes `/tg/*`, `/sepay/*`, `/p/*` (the teams' pay pages) and `/health` to the app over the private Docker network; nothing else is public. A plain visit (GET) to `/` or `/sepay/*` gets a 200 text reply from Caddy itself, because SePay opens a URL to check that it exists before accepting it; the real webhook calls are POSTs and still need the team's API key. The app is the only code container: three containers in total. All state lives in three named volumes, so rebuilding or recreating containers loses nothing. Caddy runs with `--watch` and mounts the `caddy/` folder rather than the single file, so an edit to `caddy/Caddyfile`, by hand or through `scripts/deploy.sh`, takes effect within seconds without a restart. New teams need no Caddy change: `/tg/*` and `/sepay/*` already cover every bot and team._
 
 ## How a deploy works
 
 The code goes to GitHub first, then the VPS pulls it and Compose rebuilds only what changed.
 
-![Deploy pipeline in four lanes: change and test the code, commit, push to GitHub over SSH, on the VPS run deploy.sh which](diagrams/09-how-a-deploy-works.svg)
+![Deploy pipeline in four lanes: change and test the code, commit, push to GitHub over SSH, on the VPS run deploy.sh which](diagrams/10-how-a-deploy-works.svg)
 
 _Pushing to GitHub doesn't deploy anything by itself; running `scripts/deploy.sh` on the VPS does. If the health check fails, the script stops and prints the log command. Database rows and certificates survive every deploy because they live in volumes, not in the containers._
 
@@ -178,6 +197,7 @@ _Pushing to GitHub doesn't deploy anything by itself; running `scripts/deploy.sh
 | TOKEN_ENC_KEY | `.env` | Fernet key that encrypts team bot tokens in the database. Losing it means re-registering every team bot. |
 | MASTER_WEBHOOK_SECRET | `.env` | Telegram sends it on every master bot update; team bots each get their own, stored in the database |
 | POSTGRES_PASSWORD | `.env` | Only used inside the Docker network |
+| Pay page links | database (`teams.public_token`) | One per team, from `/weblink`. Anyone with it can see who owes and pay; a manager replaces it with **🔄 Make a new link**. |
 | SePay webhook keys | database (SHA-256 hash) | One per team. `/sepay` makes a new one and gives it straight to SePay; the manual fallback shows it once. |
 | SePay API tokens | database (Fernet, `TOKEN_ENC_KEY`) | One per team, sent by the owner with `/sepaytoken <token>` (or as a reply to `/sepay`); the message is deleted. Lets the server manage only that team's webhook. Revoke it in my.sepay.vn → API Access. |
 | All team data | volume `db_data` | Backed up daily by `scripts/backup.sh` to `~/backups`, kept 14 days |

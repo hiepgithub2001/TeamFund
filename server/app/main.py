@@ -28,7 +28,7 @@ from .infrastructure.xlsx import XlsxWriter
 from .interfaces import deps, scheduler
 from .interfaces.bot import registry
 from .interfaces.bot.notifier import TelegramNotifier
-from .interfaces.http import sepay, telegram
+from .interfaces.http import sepay, telegram, web
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logging.getLogger("aiogram.event").setLevel(logging.WARNING)
@@ -72,6 +72,7 @@ def create_app() -> FastAPI:
 
     app.include_router(telegram.router)
     app.include_router(sepay.router)
+    app.include_router(web.router)
     return app
 
 

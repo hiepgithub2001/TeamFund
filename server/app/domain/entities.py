@@ -53,6 +53,7 @@ class Team:
     sepay_key_hash: str | None = None
     sepay_token_enc: str | None = None     # owner's SePay API token, encrypted; lets us manage the webhook
     sepay_webhook_id: str | None = None    # the team's one webhook in that SePay account
+    public_token: str | None = None        # secret part of the team's pay page URL (/p/<token>/)
     last_billed_period: str | None = None
     active: bool = True
     created_at: datetime | None = None

@@ -566,6 +566,84 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
 </section>
 
 <section>
+  <h2>Pay page for members without Telegram</h2>
+  <p>Some members won't install Telegram. Each team has a <b>pay page</b>, a small web app (PWA) at a secret link, that does exactly what <code>/start</code> does in the bot: list who still owes, tick names, get the VietQR, and see it confirmed. It reads and writes the same database through the same use cases, so a payment on the page shows up in the bot, <code>/status</code>, the reports and the group, and the other way round. Managing stays in Telegram: the page can't add members, change fees or see phone numbers.</p>
+  <figure>
+    <div class="frame">
+    <svg viewBox="0 0 1000 540" role="img" aria-label="Sequence: a member opens the team's secret link in a browser. The page calls GET api/state through Caddy and http/web.py; WebUseCases.page looks the team up by its token and reads the unpaid bills from PostgreSQL, and the page lists names and amounts. The member ticks names and the page calls POST api/pay; create_intent saves an intent with a TF code and returns the VietQR, bank and amount. The member pays in their banking app. SePay calls POST /sepay/{team}; record_transfer marks the bills and the intent paid and the bot posts in the team group. Meanwhile the page polls GET api/pay/{code} every 4 seconds and shows paid when the status changes.">
+      <defs>
+        <marker id="wpH" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-fg"/></marker>
+        <marker id="wpM" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-m"/></marker>
+        <marker id="wpT" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-tg"/></marker>
+      </defs>
+      <rect class="box mo" x="10" y="12" width="140" height="44" rx="8"/><text class="t" x="80" y="31" text-anchor="middle">Member's browser</text><text class="s" x="80" y="47" text-anchor="middle">/p/{token}/ · PWA</text>
+      <rect class="box" x="225" y="12" width="150" height="44" rx="8"/><text class="t" x="300" y="31" text-anchor="middle">Caddy → web.py</text><text class="s" x="300" y="47" text-anchor="middle">interfaces/http</text>
+      <rect class="box hot" x="445" y="12" width="150" height="44" rx="8"/><text class="t" x="520" y="31" text-anchor="middle">use cases</text><text class="s" x="520" y="47" text-anchor="middle">WebUseCases · Money</text>
+      <rect class="box" x="650" y="12" width="140" height="44" rx="8"/><text class="t" x="720" y="31" text-anchor="middle">PostgreSQL</text><text class="s" x="720" y="47" text-anchor="middle">same data as the bots</text>
+      <rect class="box mo" x="840" y="12" width="140" height="44" rx="8"/><text class="t" x="910" y="31" text-anchor="middle">SePay</text><text class="s" x="910" y="47" text-anchor="middle">bank → webhook</text>
+      <line class="life" x1="80" y1="56" x2="80" y2="530"/>
+      <line class="life" x1="300" y1="56" x2="300" y2="530"/>
+      <line class="life" x1="520" y1="56" x2="520" y2="530"/>
+      <line class="life" x1="720" y1="56" x2="720" y2="530"/>
+      <line class="life" x1="910" y1="56" x2="910" y2="530"/>
+
+      <line class="ln" x1="80" y1="100" x2="298" y2="100" marker-end="url(#wpH)"/>
+      <text class="lb" x="190" y="93" text-anchor="middle">GET api/state</text>
+      <line class="ln" x1="300" y1="100" x2="518" y2="100" marker-end="url(#wpH)"/>
+      <text class="lb" x="410" y="93" text-anchor="middle">page(token)</text>
+      <line class="ln" x1="520" y1="100" x2="718" y2="100" marker-end="url(#wpH)"/>
+      <text class="lb" x="620" y="93" text-anchor="middle">team by token, unpaid</text>
+      <line class="ln d" x1="300" y1="138" x2="82" y2="138" marker-end="url(#wpH)"/>
+      <text class="lb" x="190" y="131" text-anchor="middle">names + amounts</text>
+
+      <line class="ln m" x1="80" y1="190" x2="298" y2="190" marker-end="url(#wpM)"/>
+      <text class="lb m" x="190" y="183" text-anchor="middle">POST api/pay {member_ids}</text>
+      <line class="ln m" x1="300" y1="190" x2="518" y2="190" marker-end="url(#wpM)"/>
+      <text class="lb m" x="410" y="183" text-anchor="middle">create_intent</text>
+      <line class="ln m" x1="520" y1="190" x2="718" y2="190" marker-end="url(#wpM)"/>
+      <text class="lb m" x="620" y="183" text-anchor="middle">intent + TF code</text>
+      <line class="ln d" x1="300" y1="228" x2="82" y2="228" marker-end="url(#wpH)"/>
+      <text class="lb" x="190" y="221" text-anchor="middle">VietQR, SEVQR TF…, bank</text>
+
+      <rect class="box file" x="12" y="250" width="136" height="40" rx="6"/>
+      <text class="s" x="80" y="268" text-anchor="middle">pays in their</text>
+      <text class="s" x="80" y="283" text-anchor="middle">banking app</text>
+
+      <line class="ln m" x1="910" y1="330" x2="522" y2="330" marker-end="url(#wpM)"/>
+      <text class="lb m" x="715" y="323" text-anchor="middle">POST /sepay/{team} → record_transfer</text>
+      <line class="ln m" x1="520" y1="366" x2="718" y2="366" marker-end="url(#wpM)"/>
+      <text class="lb m" x="620" y="359" text-anchor="middle">bills + intent paid</text>
+      <line class="ln tg" x1="520" y1="400" x2="598" y2="400" marker-end="url(#wpT)"/>
+      <text class="lb tgc" x="604" y="404">→ post in the team group</text>
+
+      <line class="ln" x1="80" y1="450" x2="298" y2="450" marker-end="url(#wpH)"/>
+      <text class="lb" x="190" y="443" text-anchor="middle">GET api/pay/{code}, every 4 s</text>
+      <line class="ln" x1="300" y1="450" x2="518" y2="450" marker-end="url(#wpH)"/>
+      <text class="lb" x="410" y="443" text-anchor="middle">intent_status</text>
+      <line class="ln d" x1="300" y1="492" x2="82" y2="492" marker-end="url(#wpH)"/>
+      <text class="lb" x="190" y="485" text-anchor="middle">paid → ✅ screen</text>
+    </svg>
+    </div>
+    <figcaption>The page is one HTML shell with plain JavaScript (no build step) in <code>interfaces/web/</code>, served by <code>interfaces/http/web.py</code>; <code>application/web.py</code> holds the only three things it may do. A payer on the page has no Telegram account, so there is no private receipt: the page itself shows ✅, and the group still gets the "paid" post. Everything else, from matching the TF code to expiry after 24 hours, is the same code path as the bot.</figcaption>
+  </figure>
+  <div class="tbl">
+  <table>
+    <thead><tr><th>Concern</th><th>How it's handled</th></tr></thead>
+    <tbody>
+      <tr><td>Getting the link</td><td>A manager sends <code>/weblink</code> in the team bot and shares the link (Zalo, Messenger, a printed QR). <b>🔄 Make a new link</b> replaces it; the old one stops working at once.</td></tr>
+      <tr><td>Who can open it</td><td>Anyone with the link, with no login, like the bot's <code>/start</code>. The token is 16 random characters, so team pages can't be guessed or listed.</td></tr>
+      <tr><td>What it shows</td><td>Team name, bank account, and unpaid members with their bills. No phone numbers, notes, history or fund balance.</td></tr>
+      <tr><td>What it can do</td><td>Create a QR for chosen members, and poll that QR's status. Nothing else.</td></tr>
+      <tr><td>Abuse</td><td>Per-IP limits: 10 QR codes and 120 reads a minute. Unpaid QR codes simply expire.</td></tr>
+      <tr><td>Keeping the link private</td><td><code>Referrer-Policy: no-referrer</code> (the QR image comes from qr.sepay.vn and must not see the link), <code>noindex</code>, and a strict Content-Security-Policy: only our own scripts run, and names are inserted as text, never HTML.</td></tr>
+      <tr><td>Installing</td><td>A web app manifest and a service worker scoped to that team's path: "Add to home screen" on Android and iPhone. The app shell works offline; amounts always come live from the server.</td></tr>
+      <tr><td>Language</td><td>The team's language by default, with a Tiếng Việt / English switch remembered on the device.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
   <h2>Banks and SePay</h2>
   <p>SePay only confirms money it can see, and what it can see depends on the bank and on the account type chosen when the account was linked. Two things vary: whether a transfer to the <b>main account number</b> is reported at all, and whether the transfer content needs a keyword. Check this table before setting up a team on a new bank. Source: <a href="https://developer.sepay.vn/vi/sepay-webhooks/tai-khoan-ngan-hang#ngan-hang-ho-tro">developer.sepay.vn › Ngân hàng hỗ trợ</a>, read 17/11/2026; SePay changes it, so re-check there.</p>
 
@@ -612,8 +690,8 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
     <thead><tr><th>Role</th><th>Who</th><th>Can do</th></tr></thead>
     <tbody>
       <tr><td>Owner</td><td>Whoever registered the bot with <code>/newteam</code></td><td>Everything a manager can, plus <code>/setbank</code>, <code>/sepay</code>, <code>/sepaytoken</code>, approve or remove managers, <code>/transferowner</code>, <code>/log</code></td></tr>
-      <tr><td>Manager</td><td>Approved by the owner</td><td><code>/add</code> <code>/edit</code> <code>/remove</code> members, <code>/setfee</code> <code>/setdue</code>, <code>/markpaid</code>, <code>/expense</code>, <code>/charge</code> <code>/split</code>, <code>/remind</code>, assign unmatched payments, <code>/export</code></td></tr>
-      <tr><td>Everyone</td><td>Anyone who opens the bot</td><td><code>/start</code> and pay, <code>/status</code>, <code>/fund</code>, <code>/history</code>, <code>/bank</code> (the team account; managers also see whether SePay is connected), <code>/lang</code>, <code>/requestmanager</code></td></tr>
+      <tr><td>Manager</td><td>Approved by the owner</td><td><code>/weblink</code> (the pay page link), <code>/add</code> <code>/edit</code> <code>/remove</code> members, <code>/setfee</code> <code>/setdue</code>, <code>/markpaid</code>, <code>/expense</code>, <code>/charge</code> <code>/split</code>, <code>/remind</code>, assign unmatched payments, <code>/export</code></td></tr>
+      <tr><td>Everyone</td><td>Anyone who opens the bot</td><td><code>/start</code> and pay (or the pay page in a browser, no Telegram needed), <code>/status</code>, <code>/fund</code>, <code>/history</code>, <code>/bank</code> (the team account; managers also see whether SePay is connected), <code>/lang</code>, <code>/requestmanager</code></td></tr>
     </tbody>
   </table>
   </div>
@@ -759,7 +837,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <text class="t" x="605" y="292" text-anchor="middle">caddy</text>
       <text class="s" x="605" y="309" text-anchor="middle">caddy:2.8.4</text>
       <text class="s" x="605" y="325" text-anchor="middle">TLS termination, HTTP/2</text>
-      <text class="s" x="605" y="341" text-anchor="middle">/tg/* /sepay/* /health → app</text>
+      <text class="s" x="605" y="341" text-anchor="middle">/tg /sepay /p /health → app</text>
       <text class="s" x="605" y="357" text-anchor="middle">GET / or /sepay/* → 200 text</text>
       <text class="s" x="605" y="373" text-anchor="middle">anything else → 404</text>
 
@@ -867,7 +945,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <span><i class="sw"></i>Other traffic, mounts, builds</span>
       <span><i class="sw" style="border-top:2px dashed var(--line)"></i>Already on the server, not part of Team Fund</span>
     </div>
-    <figcaption>Requests from Telegram, SePay and Let's Encrypt arrive on port 443 and Docker forwards them to Caddy. Caddy holds the certificate and passes <code>/tg/*</code>, <code>/sepay/*</code> and <code>/health</code> to the app over the private Docker network; nothing else is public. A plain visit (GET) to <code>/</code> or <code>/sepay/*</code> gets a 200 text reply from Caddy itself, because SePay opens a URL to check that it exists before accepting it; the real webhook calls are POSTs and still need the team's API key. The app is the only code container: three containers in total. All state lives in three named volumes, so rebuilding or recreating containers loses nothing. Caddy runs with <code>--watch</code> and mounts the <code>caddy/</code> folder rather than the single file, so an edit to <code>caddy/Caddyfile</code>, by hand or through <code>scripts/deploy.sh</code>, takes effect within seconds without a restart. New teams need no Caddy change: <code>/tg/*</code> and <code>/sepay/*</code> already cover every bot and team.</figcaption>
+    <figcaption>Requests from Telegram, SePay and Let's Encrypt arrive on port 443 and Docker forwards them to Caddy. Caddy holds the certificate and passes <code>/tg/*</code>, <code>/sepay/*</code>, <code>/p/*</code> (the teams' pay pages) and <code>/health</code> to the app over the private Docker network; nothing else is public. A plain visit (GET) to <code>/</code> or <code>/sepay/*</code> gets a 200 text reply from Caddy itself, because SePay opens a URL to check that it exists before accepting it; the real webhook calls are POSTs and still need the team's API key. The app is the only code container: three containers in total. All state lives in three named volumes, so rebuilding or recreating containers loses nothing. Caddy runs with <code>--watch</code> and mounts the <code>caddy/</code> folder rather than the single file, so an edit to <code>caddy/Caddyfile</code>, by hand or through <code>scripts/deploy.sh</code>, takes effect within seconds without a restart. New teams need no Caddy change: <code>/tg/*</code> and <code>/sepay/*</code> already cover every bot and team.</figcaption>
   </figure>
 </section>
 
@@ -977,6 +1055,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <tr><td>TOKEN_ENC_KEY</td><td><code>.env</code></td><td>Fernet key that encrypts team bot tokens in the database. Losing it means re-registering every team bot.</td></tr>
       <tr><td>MASTER_WEBHOOK_SECRET</td><td><code>.env</code></td><td>Telegram sends it on every master bot update; team bots each get their own, stored in the database</td></tr>
       <tr><td>POSTGRES_PASSWORD</td><td><code>.env</code></td><td>Only used inside the Docker network</td></tr>
+      <tr><td>Pay page links</td><td>database (<code>teams.public_token</code>)</td><td>One per team, from <code>/weblink</code>. Anyone with it can see who owes and pay; a manager replaces it with <b>🔄 Make a new link</b>.</td></tr>
       <tr><td>SePay webhook keys</td><td>database (SHA-256 hash)</td><td>One per team. <code>/sepay</code> makes a new one and gives it straight to SePay; the manual fallback shows it once.</td></tr>
       <tr><td>SePay API tokens</td><td>database (Fernet, <code>TOKEN_ENC_KEY</code>)</td><td>One per team, sent by the owner with <code>/sepaytoken &lt;token&gt;</code> (or as a reply to <code>/sepay</code>); the message is deleted. Lets the server manage only that team's webhook. Revoke it in my.sepay.vn → API Access.</td></tr>
       <tr><td>All team data</td><td>volume <code>db_data</code></td><td>Backed up daily by <code>scripts/backup.sh</code> to <code>~/backups</code>, kept 14 days</td></tr>

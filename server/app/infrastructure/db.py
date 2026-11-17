@@ -31,6 +31,9 @@ def _add_missing_columns(engine) -> None:
                     assert col.nullable, f"{table.name}.{col.name} must be nullable to add in place"
                     conn.execute(text(f'ALTER TABLE {table.name} ADD COLUMN {col.name} '
                                       f'{col.type.compile(engine.dialect)}'))
+                    if col.unique:  # ADD COLUMN can't carry the constraint; a unique index does the same job
+                        conn.execute(text(f'CREATE UNIQUE INDEX IF NOT EXISTS uq_{table.name}_{col.name} '
+                                          f'ON {table.name} ({col.name})'))
 
 
 class SqlUnitOfWork:

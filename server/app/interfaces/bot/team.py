@@ -677,6 +677,28 @@ async def cmd_teamlang(message: Message, command: CommandObject, entry, lang):
     await message.answer(t(new, "teamlang.done"))
 
 
+@router.message(Command("weblink"))
+async def cmd_weblink(message: Message, entry, lang):
+    """The pay page link for members without Telegram. Managers share it (Zalo, Messenger, a printed QR…)."""
+    if not await allow(message, entry, lang, "manager"):
+        return
+    r = await call(S.teams.web_link, tid(entry), message.from_user.id)
+    await message.answer(t(lang, "weblink.text", url=esc(r["url"])), disable_web_page_preview=True,
+                         reply_markup=kb([(t(lang, "btn.weblink_reset"), "w:reset")]))
+
+
+@router.callback_query(F.data.in_({"w:reset", "w:reset!"}))
+async def on_weblink_reset(cq: CallbackQuery, entry, lang):
+    if not await allow(cq, entry, lang, "manager"):
+        return
+    await cq.answer()
+    if cq.data == "w:reset":  # ask first: everyone with the old link loses it
+        await say(cq, t(lang, "weblink.confirm"), reply_markup=kb([(t(lang, "btn.weblink_reset_yes"), "w:reset!")]))
+        return
+    r = await call(S.teams.web_link, tid(entry), cq.from_user.id, True)
+    await say(cq, t(lang, "weblink.reset_done", url=esc(r["url"])))
+
+
 @router.message(Command("linkgroup"))
 async def cmd_linkgroup(message: Message, entry, lang):
     if is_private(message):

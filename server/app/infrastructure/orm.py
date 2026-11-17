@@ -38,6 +38,7 @@ teams = Table(
     Column("lang", String(2), nullable=False), Column("bank_name", String(64)), Column("bank_account", String(32)),
     Column("bank_holder", String(128)), Column("sepay_key_hash", String(64)), Column("last_billed_period", String(7)),
     Column("sepay_token_enc", Text), Column("sepay_webhook_id", String(64)),
+    Column("public_token", String(32), unique=True),
     Column("active", Boolean, nullable=False), Column("created_at", DateTime, nullable=False),
 )
 

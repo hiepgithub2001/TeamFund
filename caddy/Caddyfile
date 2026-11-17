@@ -28,7 +28,8 @@
 		respond "Team Fund is running." 200
 	}
 
-	@public path /tg/* /sepay/* /health
+	# /p/*: the teams' pay pages for members without Telegram (secret link per team)
+	@public path /tg/* /sepay/* /health /p/*
 	handle @public {
 		reverse_proxy app:8000
 	}

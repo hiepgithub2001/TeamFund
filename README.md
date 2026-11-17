@@ -4,6 +4,7 @@ Telegram bots that collect a football team's monthly fee and confirm payments au
 
 - A **master bot** registers teams. Anyone can ask with `/requestteam`; a system admin approves.
 - Each team gets its **own bot**. Members open it, tap the names they're paying for, and get a SePay QR code with a unique transfer code. SePay's webhook confirms the payment, the payer gets a receipt and the team group gets a post.
+- Members **without Telegram** use the team's **pay page** (a small web app at a secret link a manager gets with `/weblink`): same list, same QR, same confirmation.
 - The **owner** sets the bank account and SePay key and approves managers. **Managers** handle members, fees, charges, cash payments, expenses and reports.
 
 ## Architecture
@@ -30,7 +31,7 @@ server/app/
 |---|---|---|
 | `app` | `./server` (Python 3.12, FastAPI, aiogram) | Everything above. Runs with one worker, because the bots and jobs live in this process. |
 | `db` | `postgres:16-alpine` | Storage |
-| `caddy` | `caddy:2.8.4` | HTTPS on 443; `/tg/*`, `/sepay/*`, `/health` → app. Config in `caddy/Caddyfile`; Caddy reloads it by itself when it changes. |
+| `caddy` | `caddy:2.8.4` | HTTPS on 443; `/tg/*`, `/sepay/*`, `/p/*` (pay pages), `/health` → app. Config in `caddy/Caddyfile`; Caddy reloads it by itself when it changes. |
 
 ## Run
 

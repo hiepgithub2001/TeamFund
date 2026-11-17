@@ -67,6 +67,11 @@ def transfer_content(bank_name: str | None, code: str) -> str:
     return f"{SEPAY_KEYWORD} {code}" if bank in _KEYWORD_BANKS else code
 
 
+def new_public_token() -> str:
+    """The secret in a team's pay page URL: unguessable, URL-safe, short enough to share."""
+    return secrets.token_urlsafe(12)
+
+
 def hash_secret(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
 

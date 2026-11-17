@@ -317,6 +317,47 @@ async def main():
         await wait_sent(to(OWNER, "SePay updated"), "webhook updated")
         assert list(sepay_hooks) == ["wh-1"] and sepay_hooks["wh-1"]["secret"] != new_key
 
+        # 9. the pay page for people without Telegram
+        await T(text_update(OWNER, "/add Dũng"))
+        await wait_sent(to(OWNER, "Added 1"), "member for the web test")
+        await T(text_update(OWNER, "/weblink"))
+        link_msg = await wait_sent(to(OWNER, "Pay page"), "web link")
+        page = re.search(r"https://teamfund\.test(/p/[\w-]+/)", link_msg["params"]["text"]).group(1)
+        base = f"http://127.0.0.1:{PORT}{page}"
+        async with http.get(base) as r:
+            assert r.status == 200 and "app.js" in await r.text()
+            assert r.headers["Referrer-Policy"] == "no-referrer" and "script-src 'self'" in r.headers["Content-Security-Policy"]
+        for asset in ("app.js", "app.css", "sw.js", "icon-192.png", "icon.svg"):
+            async with http.get(base + asset) as r:
+                assert r.status == 200, asset
+        async with http.get(base + "manifest.webmanifest") as r:
+            man = json.loads(await r.text())
+            assert man["start_url"] == "./" and man["display"] == "standalone" and "FC Test" in man["name"]
+        async with http.get(base + "api/state") as r:
+            st = await r.json()
+            assert [u["name"] for u in st["unpaid"]] == ["Dũng"] and st["bank_account"] == "0123456789"
+        async with http.post(base + "api/pay", json={"member_ids": [st["unpaid"][0]["member_id"]]}) as r:
+            intent = await r.json()
+            assert r.status == 200 and intent["amount"] == 200000, intent
+        async with http.get(base + f"api/pay/{intent['code']}") as r:
+            assert (await r.json())["status"] == "pending"
+        async with http.post(f"http://127.0.0.1:{PORT}/sepay/1",
+                             headers={"Authorization": f"Apikey {sepay_hooks['wh-1']['secret']}"},
+                             json={"id": 90, "transferType": "in", "transferAmount": 200000,
+                                   "content": f"{intent['content']} chuyen tien"}) as r:
+            assert await r.json() == {"success": True}
+        async with http.get(base + f"api/pay/{intent['code']}") as r:
+            assert (await r.json())["status"] == "paid", "web payment confirmed"
+        await wait_sent(to(GROUP, r"Dũng</b> paid 200,000đ"), "group post for a web payment")
+        async with http.get(base + "api/state") as r:
+            assert (await r.json())["unpaid"] == []
+        # a new link: the old one stops working
+        await T(cb_update(OWNER, "w:reset", 90))
+        await T(cb_update(OWNER, "w:reset!", 91))
+        await wait_sent(to(OWNER, "New pay page link"), "link reset")
+        async with http.get(base + "api/state") as r:
+            assert r.status == 404
+
         print(f"e2e passed ({len(calls)} Telegram API calls)")
     finally:
         await http.close()
