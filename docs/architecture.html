@@ -327,7 +327,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
     <li><span><b>Ask the master bot.</b> Send <code>/requestteam</code> with the team name. The system admin gets Approve / Reject buttons, and the requester is told the result.</span></li>
     <li><span><b>Create the team bot in @BotFather</b> with <code>/newbot</code> and copy the token.</span></li>
     <li><span><b>Register it with the master bot.</b> Send <code>/newteam</code> and paste the token. The server checks it, creates the team, sets the webhook to <code>/tg/{botId}</code>, and makes the sender the owner.</span></li>
-    <li><span><b>Set the bank account</b> in the team bot with <code>/setbank</code>. Only the owner can do this.</span></li>
+    <li><span><b>Set the bank account</b> in the team bot with <code>/setbank</code>. Only the owner can do this. Anyone can check it with <code>/bank</code>.</span></li>
     <li><span><b>Connect SePay.</b> The bot shows a webhook URL <code>/sepay/{teamId}</code> and an API key to paste into the SePay dashboard.</span></li>
     <li><span><b>Add the bot to the team group</b> and send <code>/linkgroup</code> there.</span></li>
     <li><span><b>Add members and the fee</b> with <code>/add</code>, <code>/setfee</code> and <code>/setdue</code>.</span></li>
@@ -529,7 +529,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
     <tbody>
       <tr><td>Owner</td><td>Whoever registered the bot with <code>/newteam</code></td><td>Everything a manager can, plus <code>/setbank</code>, approve or remove managers, <code>/transferowner</code>, <code>/log</code></td></tr>
       <tr><td>Manager</td><td>Approved by the owner</td><td><code>/add</code> <code>/edit</code> <code>/remove</code> members, <code>/setfee</code> <code>/setdue</code>, <code>/markpaid</code>, <code>/expense</code>, <code>/charge</code> <code>/split</code>, <code>/remind</code>, assign unmatched payments, <code>/export</code></td></tr>
-      <tr><td>Everyone</td><td>Anyone who opens the bot</td><td><code>/start</code> and pay, <code>/status</code>, <code>/fund</code>, <code>/history</code>, <code>/lang</code>, <code>/requestmanager</code></td></tr>
+      <tr><td>Everyone</td><td>Anyone who opens the bot</td><td><code>/start</code> and pay, <code>/status</code>, <code>/fund</code>, <code>/history</code>, <code>/bank</code> (the team account; managers also see whether SePay is connected), <code>/lang</code>, <code>/requestmanager</code></td></tr>
     </tbody>
   </table>
   </div>

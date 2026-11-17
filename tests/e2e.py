@@ -181,8 +181,12 @@ async def main():
         await wait_sent(to(OWNER, "Added 3"), "members added")
         await T(text_update(OWNER, "/linkgroup", GROUP))
         await wait_sent(to(GROUP, "linked"), "group linked")
+        await T(text_update(OWNER, "/bank"))
+        await wait_sent(to(OWNER, "Account: <code>0123456789</code>"), "bank shown")
         await T(text_update(OWNER, "/sepay"))
         await T(cb_update(OWNER, "s:gen", 1))
+        await T(text_update(OWNER, "/bank"))
+        await wait_sent(to(OWNER, "SePay: ✅ connected"), "bank shows sepay status")
         key_msg = await wait_sent(to(OWNER, "New SePay API key"), "sepay key")
         api_key = re.search(r"<code>([^<]+)</code>", key_msg["params"]["text"]).group(1)
 

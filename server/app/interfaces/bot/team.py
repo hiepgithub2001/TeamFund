@@ -463,6 +463,20 @@ async def cmd_fund(message: Message, entry, lang):
     await message.answer(text)
 
 
+@router.message(Command("bank"))
+async def cmd_bank(message: Message, entry, lang):
+    """The account members pay into. Public: it is printed on every QR code anyway."""
+    s = await call(S.teams.team_info, tid(entry), message.from_user.id if message.from_user else None)
+    if not s["bank_account"]:
+        await message.answer(t(lang, "bank.not_set"))
+        return
+    text = t(lang, "bank.text", bank=esc(s["bank_name"]), account=esc(s["bank_account"]),
+             holder=esc(s["bank_holder"]))
+    if is_private(message) and s["role"] in ("owner", "manager"):
+        text += "\n" + t(lang, "bank.sepay_on" if s["sepay_connected"] else "bank.sepay_off")
+    await message.answer(text)
+
+
 @router.message(Command("history"))
 async def cmd_history(message: Message, entry, lang):
     items = await call(S.money.history, tid(entry))

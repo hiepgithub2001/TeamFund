@@ -50,7 +50,7 @@ _Control flows outward and back (a webhook calls a use case, the use case saves 
 1. **Ask the master bot.** Send `/requestteam` with the team name. The system admin gets Approve / Reject buttons, and the requester is told the result.
 2. **Create the team bot in @BotFather** with `/newbot` and copy the token.
 3. **Register it with the master bot.** Send `/newteam` and paste the token. The server checks it, creates the team, sets the webhook to `/tg/{botId}`, and makes the sender the owner.
-4. **Set the bank account** in the team bot with `/setbank`. Only the owner can do this.
+4. **Set the bank account** in the team bot with `/setbank`. Only the owner can do this. Anyone can check it with `/bank`.
 5. **Connect SePay.** The bot shows a webhook URL `/sepay/{teamId}` and an API key to paste into the SePay dashboard.
 6. **Add the bot to the team group** and send `/linkgroup` there.
 7. **Add members and the fee** with `/add`, `/setfee` and `/setdue`.
@@ -87,7 +87,7 @@ Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID
 |---|---|---|
 | Owner | Whoever registered the bot with `/newteam` | Everything a manager can, plus `/setbank`, approve or remove managers, `/transferowner`, `/log` |
 | Manager | Approved by the owner | `/add` `/edit` `/remove` members, `/setfee` `/setdue`, `/markpaid`, `/expense`, `/charge` `/split`, `/remind`, assign unmatched payments, `/export` |
-| Everyone | Anyone who opens the bot | `/start` and pay, `/status`, `/fund`, `/history`, `/lang`, `/requestmanager` |
+| Everyone | Anyone who opens the bot | `/start` and pay, `/status`, `/fund`, `/history`, `/bank` (the team account; managers also see whether SePay is connected), `/lang`, `/requestmanager` |
 
 ### Becoming a manager: request and approve
 
