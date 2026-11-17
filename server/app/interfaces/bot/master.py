@@ -53,7 +53,7 @@ async def master_context(handler, update: Update, data: dict):
 
 @router.message(Command("start", "help"))
 async def cmd_start(message: Message, lang):
-    text = t(lang, "m.welcome")
+    text = t(lang, "m.welcome_auto" if await call(S.registration.can_make_bot) else "m.welcome")
     if is_super(message.from_user.id):
         text += t(lang, "m.admin")
     await message.answer(text)
@@ -75,12 +75,17 @@ async def cmd_newteam(message: Message, lang):
     if not r["request"] and not r["is_super"]:
         await message.answer(t(lang, "err.not_approved"))
         return
-    set_state(input_key(message.chat.id), {"type": "token"}, 600)
-    if r["request"] and await call(S.registration.can_make_bot):
+    can = await call(S.registration.can_make_bot)
+    if r["request"] and can:
+        set_state(input_key(message.chat.id), {"type": "token"}, 600)
         await message.answer(t(lang, "m.newteam_choice", team=esc(r["request"]["team_name"])),
                              reply_markup=make_bot_button(lang))
+    elif can:  # a system admin without a request: any team name
+        set_state(input_key(message.chat.id), {"type": "bot_team_name"}, 600)
+        await message.answer(t(lang, "m.newteam_admin"))
     else:
-        await message.answer(t(lang, "m.ask_token"))
+        set_state(input_key(message.chat.id), {"type": "token"}, 600)
+        await message.answer(t(lang, "m.ask_token") + (t(lang, "m.login_hint") if r["is_super"] else ""))
 
 
 @router.callback_query(F.data == "nb:make")
@@ -99,6 +104,17 @@ async def on_make_bot(cq: CallbackQuery, lang):
     except DomainError as e:
         text = error_text(lang, e)
     await edit(cq, text)
+
+
+async def make_and_register(message: Message, lang: str, team_name: str) -> None:
+    """A system admin typed a team name: create its bot through @BotFather and register the team."""
+    wait = await message.answer(t(lang, "m.making_bot"))
+    try:
+        made = await call(S.registration.make_bot, message.from_user.id, team_name)
+        text = await register_token(message.bot, message.from_user.id, lang, made["token"], made["team_name"])
+    except DomainError as e:
+        text = error_text(lang, e) + "\n\n" + t(lang, "m.make_bot_fallback")
+    await message.bot.edit_message_text(text, chat_id=wait.chat.id, message_id=wait.message_id)
 
 
 @router.callback_query(F.data.regexp(r"^tr:(a|r):(\d+)$").as_("m"))
@@ -186,6 +202,10 @@ async def on_text(message: Message, lang):
                 log.warning("admin %s notify failed: %s", admin_id, e)
         return
 
+    if st["type"] == "bot_team_name" and not TOKEN_RE.match(text):
+        await make_and_register(message, lang, text[:100])
+        return
+
     # token
     try:
         await message.delete()
@@ -198,7 +218,7 @@ async def on_text(message: Message, lang):
     await message.answer(await register_token(message.bot, message.from_user.id, lang, text))
 
 
-async def register_token(bot, actor: int, lang: str, token: str) -> str:
+async def register_token(bot, actor: int, lang: str, token: str, team_name: str | None = None) -> str:
     """Check a bot token with Telegram, register the team and start its bot. Returns the message to show."""
     probe = make_bot(token)
     try:
@@ -207,7 +227,7 @@ async def register_token(bot, actor: int, lang: str, token: str) -> str:
         return t(lang, "m.token_rejected")
     finally:
         await probe.session.close()
-    created = await call(S.registration.create_team, actor, token, me.id, me.username, me.first_name)
+    created = await call(S.registration.create_team, actor, token, me.id, me.username, team_name or me.first_name)
     await registry.register_team(created)
     return t(lang, "m.team_created", team=esc(created["name"]), bot=created["bot_username"])
 

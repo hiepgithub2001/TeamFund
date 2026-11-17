@@ -454,3 +454,14 @@ def test_make_bot_through_botfather():
     svc.registration.decide_team_request(SUPER, req["id"], True)
     assert code(svc.registration.make_bot, OWNER) == "botfather_limit"
     assert make_services(datetime(2026, 11, 17), bot_factory=FakeBotFactory(ready=False))[0].registration.can_make_bot() is False
+
+
+def test_admin_makes_a_bot_by_name():
+    from .fakes import FakeBotFactory
+    svc, _, _ = make_services(datetime(2026, 11, 17, 10, 0), admin_ids=(SUPER,), bot_factory=FakeBotFactory())
+    assert code(svc.registration.make_bot, SUPER) == "not_approved", "an admin still has to give a name"
+    made = svc.registration.make_bot(SUPER, "  Đội Bóng Hà Nội ")
+    assert made["team_name"] == "Đội Bóng Hà Nội" and made["username"] == "doi_bong_ha_noi_fund_bot"
+    assert svc.registration.create_team(SUPER, made["token"], 801, made["username"], made["team_name"])["name"] \
+        == "Đội Bóng Hà Nội"
+    assert code(svc.registration.make_bot, OWNER, "Any") == "not_approved", "others need an approved request"

@@ -69,14 +69,18 @@ class RegistrationUseCases:
         """Is the master bot able to create team bots itself (the admin's Telegram login is set up)?"""
         return self.d.bot_factory.available()
 
-    def make_bot(self, actor: int) -> dict:
-        """Create the bot for the actor's approved team request through @BotFather. Returns its token and
-        username; registering it is then the same as a pasted token (create_team)."""
+    def make_bot(self, actor: int, team_name: str | None = None) -> dict:
+        """Create a team's bot through @BotFather: for the actor's approved team request, or, for a system
+        admin, any team name. Returns its token and username; registering it is then the same as a pasted
+        token (create_team, with the same team name)."""
         with self.d.uow() as uow:
             req = uow.team_requests.latest_approved(actor)
-            if not req:
+            if req:
+                name = req.team_name
+            elif is_super(self.d.config, actor) and (team_name or "").strip():
+                name = team_name.strip()[:100]
+            else:
                 raise DomainError(403, "not_approved")
-            name = req.team_name
         with _making_lock:
             if actor in _making:
                 raise DomainError(409, "botfather_busy")
@@ -92,7 +96,7 @@ class RegistrationUseCases:
         with self.d.uow() as uow:
             audit(uow, self.d.clock, None, actor, "bot.create", target=bot.username)
             uow.commit()
-        return {"token": bot.token, "username": bot.username}
+        return {"token": bot.token, "username": bot.username, "team_name": name}
 
     def create_team(self, actor: int, token: str, bot_id: int, bot_username: str, name: str | None) -> dict:
         with self.d.uow() as uow:
