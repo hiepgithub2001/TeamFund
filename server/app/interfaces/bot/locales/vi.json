@@ -529,7 +529,5 @@
  "ct.btn_add_phone": "📞 Thêm SĐT",
  "ct.btn_add_note": "📝 Thêm ghi chú",
  "ct.btn_done": "✅ Xong",
- "ct.done": "✅ Đã lưu <b>{name}</b> vào danh bạ.",
- "web.open_contacts": "🌐 Mở trang danh bạ",
- "web.open_matches": "🌐 Mở lịch đá trên web"
+ "ct.done": "✅ Đã lưu <b>{name}</b> vào danh bạ."
 }

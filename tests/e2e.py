@@ -754,8 +754,6 @@ async def main():
         await T(text_update(FAN, "/contacts"))
         fan = await wait_sent(to(FAN, "Opposing teams"), "everyone can look contacts up")
         assert "ct:a" not in buttons(fan), "only managers add"
-        urls = [b.get("url") for row in fan["params"]["reply_markup"]["inline_keyboard"] for b in row if b.get("url")]
-        assert len(urls) == 1 and urls[0].endswith("/#contacts"), urls
         await T(cb_update(FAN, next(d for d in buttons(fan) if d.startswith("ct:v:")), fan["message_id"]))
         card = await wait_sent(lambda c: c["method"] == "editMessageText" and str(c["params"].get("chat_id")) == str(FAN)
                                and "📇" in c["params"]["text"], "a member opens a contact")

@@ -529,7 +529,5 @@
  "ct.btn_add_phone": "📞 Add phone",
  "ct.btn_add_note": "📝 Add note",
  "ct.btn_done": "✅ Done",
- "ct.done": "✅ <b>{name}</b> saved to contacts.",
- "web.open_contacts": "🌐 Open the contacts page",
- "web.open_matches": "🌐 Open the calendar page"
+ "ct.done": "✅ <b>{name}</b> saved to contacts."
 }

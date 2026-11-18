@@ -7,7 +7,7 @@ from datetime import date, timedelta
 
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
-from aiogram.types import CallbackQuery, ForceReply, InlineKeyboardButton, Message
+from aiogram.types import CallbackQuery, ForceReply, Message
 
 from ..deps import S
 from .fmt import esc, parse_contact, parse_match, parse_phone, show_phone
@@ -21,14 +21,6 @@ router = Router()
 WD = {"vi": ["T2", "T3", "T4", "T5", "T6", "T7", "CN"], "en": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]}
 REASONS = ("rain", "opp", "short", "holiday", "pitch")
 PASTE_KEY = "mtp:{}:{}"
-
-
-async def with_page(entry, lang, markup, tab: str):
-    """Add a button that opens the team page straight on one tab (…/#contacts), if the team has a page."""
-    url = await call(S.teams.page_url, tid(entry))
-    if url:
-        markup.inline_keyboard.append([InlineKeyboardButton(text=t(lang, f"web.open_{tab}"), url=f"{url}#{tab}")])
-    return markup
 
 
 def _wd(lang: str, i: int) -> str:
@@ -95,7 +87,6 @@ def list_view(lang: str, v: dict):
 async def show_list(ev, entry, lang, limit: int = 5, edit_in_place: bool = False) -> None:
     v = await call(S.matches.show, tid(entry), ev.from_user.id, limit)
     text, markup = list_view(lang, v)
-    markup = await with_page(entry, lang, markup, "matches")
     await (edit(ev, text, markup) if edit_in_place else say(ev, text, reply_markup=markup))
 
 
@@ -438,7 +429,6 @@ async def cmd_contacts(message: Message, command: CommandObject, entry, lang):
         return
     items = await call(S.contacts.search, tid(entry), message.from_user.id, args or None)
     text, markup = contact_list(lang, items, args or None, await is_manager(message, entry))
-    markup = await with_page(entry, lang, markup, "contacts")
     await message.answer(text, reply_markup=markup)
 
 
@@ -503,7 +493,6 @@ async def on_contacts(cq: CallbackQuery, m: re.Match, entry, lang):
         can = await is_manager(cq, entry)
         if action == "l":
             text, markup = contact_list(lang, await call(S.contacts.search, team, user), None, can)
-            markup = await with_page(entry, lang, markup, "contacts")
         else:
             text, markup = contact_view(lang, await call(S.contacts.get, team, user, int(a)), can)
         await edit(cq, text, markup)
