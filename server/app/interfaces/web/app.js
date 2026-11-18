@@ -17,6 +17,11 @@ const T = {
     error: "Có lỗi xảy ra. Vui lòng thử lại.", offline: "Không có mạng. Kiểm tra kết nối rồi thử lại.",
     slow: "Thao tác quá nhanh. Đợi một chút rồi thử lại.", nothing: "Những người này không còn khoản nào phải đóng.",
     install: "Cài vào màn hình chính", iosInstall: "iPhone: bấm Chia sẻ → Thêm vào MH chính để cài.",
+    guide: "Hướng dẫn", guideTitle: "Cách dùng trang này", close: "Đóng lại",
+    g1: "Đóng quỹ: chọn tên (của mình hoặc đóng hộ) → Tạo mã QR.",
+    g2: "Quét QR bằng app ngân hàng, giữ nguyên số tiền và nội dung. Tự xác nhận trong vài phút.",
+    g3: "Quỹ: thu chi, số dư · Thành viên: ai còn nợ · Lịch đá · Danh bạ (bấm số để gọi).",
+    g4: "Thêm trang vào màn hình chính để mở như app.", gBot: "Dùng Telegram: mở bot {b}, bấm Start.",
     monthly: "Quỹ tháng {p}", retry: "Thử lại", telegram: "Dùng Telegram? Mở bot",
     tabPay: "Đóng quỹ", tabFund: "Quỹ", tabMembers: "Thành viên", owingPeople: "Còn nợ",
     tapMonth: "Bấm vào một tháng để xem mọi giao dịch của tháng đó.",
@@ -47,6 +52,11 @@ const T = {
     error: "Something went wrong. Please try again.", offline: "You're offline. Check your connection and try again.",
     slow: "Too many tries. Wait a moment and try again.", nothing: "Those people have nothing left to pay.",
     install: "Add to home screen", iosInstall: "iPhone: tap Share → Add to Home Screen to install.",
+    guide: "Guide", guideTitle: "How to use this page", close: "Close",
+    g1: "Pay: pick names (yours, or pay for others) → Get QR code.",
+    g2: "Scan the QR in your bank app, keep the amount and message as they are. Confirmed in a few minutes.",
+    g3: "Fund: income, expenses, balance · Members: who owes · Matches · Contacts (tap a number to call).",
+    g4: "Add this page to your home screen to open it like an app.", gBot: "On Telegram: open the bot {b}, tap Start.",
     monthly: "Monthly fee {p}", retry: "Try again", telegram: "Use Telegram? Open the bot",
     tabPay: "Pay", tabFund: "Fund", tabMembers: "Members", owingPeople: "Owing",
     tapMonth: "Tap a month to see all its transactions.",
@@ -114,15 +124,35 @@ async function copy(text) {
   toast(t("copied"));
 }
 
+if (!store.get("guideSeen")) S.guide = true;  // open once on a device's first visit
+function guidePanel() {
+  const d = S.data;
+  const bot = d && d.bot_username
+    ? h("a", { href: `https://t.me/${encodeURIComponent(d.bot_username)}`, rel: "noreferrer" }, "@" + d.bot_username) : null;
+  const [pre, post] = t("gBot").split("{b}");
+  return h("section", { class: "guide", "aria-label": t("guideTitle") },
+    h("strong", {}, "📘 " + t("guideTitle")),
+    h("ol", {}, ["g1", "g2", "g3", "g4"].map((k) => h("li", {}, t(k)))),
+    bot ? h("p", { class: "small" }, pre, bot, post) : null,
+    h("button", { class: "btn ghost small", onclick: () => { S.guide = false; store.set("guideSeen", 1); render(); } },
+      t("close")));
+}
 function header() {
+  return h("div", {}, topBar(), S.guide ? guidePanel() : null);
+}
+function topBar() {
   const d = S.data;
   return h("header", { class: "top" },
     h("div", { class: "brand" }, h("img", { class: "avatar", src: "bot.jpg", alt: "", width: 44, height: 44 }),
       h("div", {}, h("h1", {}, d ? d.team : "Team Fund"),
         h("div", { class: "muted small" }, d ? `${t("title")} · ${t("month", { p: d.period_label })}` : t("title")))),
-    h("button", { class: "lang", "aria-label": "Language", onclick: () => {
-      S.lang = S.lang === "en" ? "vi" : "en"; store.set("lang", S.lang); document.documentElement.lang = S.lang; render();
-    } }, S.lang === "en" ? "Tiếng Việt" : "English"));
+    h("div", { class: "actions" },
+      h("button", { class: "pill", "aria-expanded": S.guide ? "true" : "false", onclick: () => {
+        S.guide = !S.guide; if (!S.guide) store.set("guideSeen", 1); render();
+      } }, "❓ " + t("guide")),
+      h("button", { class: "lang", "aria-label": "Language", onclick: () => {
+        S.lang = S.lang === "en" ? "vi" : "en"; store.set("lang", S.lang); document.documentElement.lang = S.lang; render();
+      } }, S.lang === "en" ? "Tiếng Việt" : "English")));
 }
 function footer() {
   const d = S.data, ios = /iphone|ipad|ipod/i.test(navigator.userAgent) && !navigator.standalone;

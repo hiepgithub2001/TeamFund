@@ -28,7 +28,11 @@ button { font: inherit; cursor: pointer; }
 header.top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 20px 0 12px; }
 header.top .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
 header.top .avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; flex: none; background: var(--line, #ddd); }
-.lang { border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 999px;
+header.top .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; flex: none; }
+.guide { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin: 0 0 14px; }
+.guide ol { margin: 8px 0; padding-left: 20px; } .guide li { margin: 4px 0; }
+.guide p { margin: 6px 0 10px; }
+.lang, .pill { border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 999px;
         padding: 4px 10px; font-size: 13px; flex: none; }
 
 .summary { display: flex; gap: 10px; margin: 4px 0 16px; }
