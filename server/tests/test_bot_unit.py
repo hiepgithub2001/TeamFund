@@ -101,3 +101,14 @@ def test_charge_picker_buttons():
     assert "☑️ Tất cả" in texts() and "✔️ Xác nhận (1) · 15.000đ/người" in texts()
     st["kind"], st["selected"] = "charge", [0, 2]
     assert "✔️ Xác nhận (2) · tổng 30.000đ" in texts()
+
+
+def test_charge_one_screen():
+    """/charge: nobody ticked at first; pick people (or 👥 Whole team), then the button says how."""
+    from app.interfaces.bot.team import picker_keyboard
+    st = {"kind": "charge", "options": [{"id": i, "label": n} for i, n in enumerate(["An", "Bình", "Cường"])],
+          "selected": [], "data": {"title": "Testing", "amount": 15000, "choose": True}}
+    texts = lambda: [b.text for row in picker_keyboard("vi", st).inline_keyboard for b in row]  # noqa: E731
+    assert texts()[-4:] == ["👥 Cả đội (3 người)", "👤 Mỗi người đóng 15.000đ", "➗ Chia đều 15.000đ", "Huỷ"]
+    st["selected"] = [0, 2]
+    assert texts()[-3:-1] == ["👤 Mỗi người đóng 15.000đ · tổng 30.000đ", "➗ Chia đều 15.000đ · 8.000đ/người"]

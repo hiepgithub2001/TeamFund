@@ -532,14 +532,16 @@ async def main():
         await wait_sent(lambda c: c["method"] == "editMessageText" and "Default package</b>: 250,000đ/month" in c["params"]["text"],
                         "back to monthly")
         await T(text_update(OWNER, "/charge 100k Jersey"))
-        how = await wait_sent(to(OWNER, "how should it be charged"), "charge asks each or split")
-        assert buttons(how) == ["c:charge", "c:split", "c:x"]
-        await T(cb_update(OWNER, "c:split", how["message_id"]))
-        await wait_sent(lambda c: c["method"] == "editMessageText" and "Who shares <b>Jersey</b>" in c["params"]["text"],
-                        "same message becomes the split picker")
-        await T(cb_update(OWNER, "k:ok", how["message_id"]))
+        how = await wait_sent(to(OWNER, "Tap the names of who pays"), "charge: pick people, then how")
+        assert buttons(how)[-4:] == ["k:a", "k:ok:1", "k:ok:2", "k:x"] and not any(
+            b["text"].startswith("✅") for row in how["params"]["reply_markup"]["inline_keyboard"] for b in row), "nobody ticked"
+        await T(cb_update(OWNER, "k:a", how["message_id"]))  # 👥 whole team
+        await wait_sent(lambda c: c["method"] == "editMessageText" and "Tap the names" in c["params"]["text"]
+                        and any("Split 100,000đ ·" in b["text"] for row in c["params"]["reply_markup"]["inline_keyboard"]
+                                for b in row), "whole team ticked, the split shows each share")
+        await T(cb_update(OWNER, "k:ok:2", how["message_id"]))
         await wait_sent(lambda c: c["method"] == "editMessageText" and "Jersey" in c["params"]["text"]
-                        and "Who shares" not in c["params"]["text"], "split charged")
+                        and "Tap the names" not in c["params"]["text"], "split charged")
         await T(text_update(OWNER, "/members"))
         lst = await wait_sent(to(OWNER, r"Members</b>"), "members with add button")
         assert "m:add" in buttons(lst)

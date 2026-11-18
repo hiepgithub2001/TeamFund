@@ -23,7 +23,7 @@
  "err.sepay_va_missing": "❌ {bank} <code>{account}</code> only reports payments made to a <b>virtual account (VA)</b>, and it has none yet.\n\nCreate one in my.sepay.vn → <b>Ngân hàng</b> → this account → <b>Tài khoản ảo</b>, then send /setbank again.",
  "err.sepay_rejected": "SePay refused the change: {message}",
  "err.sepay_unavailable": "Couldn't reach SePay right now. Please try again in a minute.",
- "usage.charge": "Usage: <code>/charge 150000 Jersey</code>\nThen choose: each chosen member pays this amount, or they split it.",
+ "usage.charge": "Usage: <code>/charge 150000 Jersey</code>\nThen pick who pays, and whether each pays this amount or they split it.",
  "usage.teamlang": "Usage: <code>/teamlang vi</code> or <code>/teamlang en</code>",
  "pay.title": "💰 <b>{team}</b>\nChoose who you are paying for, then press Pay.",
  "pay.none": "🎉 Everyone has paid. There is nothing to pay right now.",
@@ -293,8 +293,7 @@
  "m.welcome_auto": "👋 <b>Team Fund</b> gives your team its own Telegram bot that collects the monthly fee and confirms payments automatically through SePay.\n\n<b>How to start</b>\n1. Send /requestteam and wait for approval.\n2. When approved, tap <b>🤖 Create the bot for me</b>: the team's bot is made for you, no @BotFather needed.\n(Prefer your own? Create one in @BotFather, then send /newteam and paste its token.)\n\n/myteams Your teams\n/lang Language",
  "m.newteam_admin": "🤖 Send the <b>team name</b> and I'll create its bot through @BotFather and register the team.\n(Or paste the token of a bot you made yourself.)",
  "m.login_hint": "\n\n💡 Admin: to have bots created for you, log the server in to Telegram once:\n<code>docker compose exec app python -m app.telegram_login phone +84…</code>",
- "charge.how": "<b>{title}</b> · {amount}: how should it be charged?\nNext you pick who pays: tap names to remove or add them, or ⬜ Clear all and pick a few.",
- "btn.charge_each": "👤 {amount} each",
+ "btn.charge_each": "👤 Each pays {amount}",
  "btn.charge_split": "➗ Split {amount}",
  "btn.add_members": "➕ Add members",
  "plans.ask_default": "Send the default package's fee (per period, on the package's cycle), e.g. <code>200k</code>. <code>0</code> removes it. It applies to everyone on no other package.",
@@ -576,5 +575,7 @@
  "btn.none": "⬜ Clear all",
  "pick.total": "{amount} in total",
  "pick.each": "{amount} each",
- "weblink.none": "The team has no pay page link yet. Ask a manager to send /weblink to make one."
+ "weblink.none": "The team has no pay page link yet. Ask a manager to send /weblink to make one.",
+ "pick.choose": "<b>{title}</b> · {amount}\n1️⃣ Tap the names of who pays (or 👥 Whole team).\n2️⃣ Then pick how, below:\n• 👤 Each pays {amount}\n• ➗ Split {amount} between them",
+ "btn.everyone": "👥 Whole team ({n})"
 }

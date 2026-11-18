@@ -112,6 +112,17 @@ def picker_keyboard(lang, st):
                  [("🔄", "k:r"), (t(lang, "btn.donate"), "dn:a")]]
     else:
         everyone = n == len(st["options"]) and n > 0
+        data = st.get("data") or {}
+        if st["kind"] in ("charge", "split") and data.get("choose"):
+            a = data["amount"]
+            each = t(lang, "btn.charge_each", amount=money(a, lang))
+            split = t(lang, "btn.charge_split", amount=money(a, lang))
+            if n:
+                each += " · " + t(lang, "pick.total", amount=money(a * n, lang))
+                split += " · " + t(lang, "pick.each", amount=money(split_share(a, n), lang))
+            rows += [[(t(lang, "btn.none") if everyone else t(lang, "btn.everyone", n=len(st["options"])), "k:a")],
+                     [(each, "k:ok:1")], [(split, "k:ok:2")], [(t(lang, "btn.cancel"), "k:x")]]
+            return kb(*rows)
         confirm = t(lang, "btn.confirm", n=n)
         amount = (st.get("data") or {}).get("amount")
         if st["kind"] in ("charge", "split") and n and amount:  # what the choice costs
@@ -255,6 +266,8 @@ async def on_picker(cq: CallbackQuery, m: re.Match, entry, lang):
         await edit(cq, t(lang, "cancelled"))
         return
     elif action == "ok":
+        if arg in ("1", "2") and st["kind"] in ("charge", "split"):  # /charge: the button says how
+            st["kind"] = "charge" if arg == "1" else "split"
         await on_picker_confirm(cq, entry, lang, st, key)
         return
     set_state(key, st)
@@ -822,6 +835,10 @@ async def charge_picker(ev, entry, lang, kind: str, amount: int, title: str) -> 
     if not members:
         await say(ev, t(lang, "err.no_members"))
         return None
+    if kind == "choose":  # /charge: nobody ticked yet; the person picks people, then how
+        return {"kind": "charge", "title": t(lang, "pick.choose", title=esc(title), amount=money(amount, lang)),
+                "options": [{"id": m["id"], "label": m["name"]} for m in members], "selected": [],
+                "data": {"title": title, "amount": amount, "choose": True}}
     return {"kind": kind, "title": t(lang, f"pick.{kind}", title=esc(title), amount=money(amount, lang)),
             "options": [{"id": m["id"], "label": m["name"]} for m in members],
             "selected": [m["id"] for m in members], "data": {"title": title, "amount": amount}}
@@ -836,11 +853,9 @@ async def cmd_charge(message: Message, command: CommandObject, entry, lang):
     if not amount or not title:
         await message.answer(t(lang, "usage.charge"))
         return
-    a = money(amount, lang)
-    msg = await message.answer(t(lang, "charge.how", title=esc(title), amount=a), reply_markup=kb(
-        [(t(lang, "btn.charge_each", amount=a), "c:charge")], [(t(lang, "btn.charge_split", amount=a), "c:split")],
-        [(t(lang, "btn.cancel"), "c:x")]))
-    set_state(pick_key(msg.bot.id, msg.chat.id, msg.message_id), {"type": "charge_how", "amount": amount, "title": title}, 600)
+    pick = await charge_picker(message, entry, lang, "choose", amount, title)
+    if pick:
+        await open_picker(message, lang, pick)
 
 
 @router.callback_query(F.data.regexp(r"^c:(charge|split|x)$").as_("m"))
