@@ -707,6 +707,22 @@ async def main():
         assert any(d.startswith("ct:v:") for d in buttons(added)) is False  # not in contacts yet: offer to save
         assert any(d.startswith("mt:sc:") for d in buttons(added))
 
+        # money after a played match: the 26/10 one, we paid 300k
+        await T(cb_update(OWNER, "mt:p", lst["message_id"]))
+        pastv = await wait_sent(lambda c: c["method"] == "editMessageText" and "Past matches" in c["params"]["text"],
+                                "past matches")
+        assert "Pick a match to record money" in pastv["params"]["text"]
+        pm = next(d for d in buttons(pastv) if d.startswith("mt:v:"))
+        await T(cb_update(OWNER, pm, pastv["message_id"]))
+        card = await wait_sent(lambda c: c["method"] == "editMessageText" and "Tăng High" in c["params"]["text"]
+                               and "mt:mp:" in json.dumps(c["params"].get("reply_markup")), "a played match's card")
+        await T(cb_update(OWNER, pm.replace("mt:v:", "mt:mp:"), pastv["message_id"]))
+        await wait_sent(to(OWNER, "How much did we pay the opponent"), "amount asked")
+        await T(text_update(OWNER, "300k"))
+        await wait_sent(lambda c: to(OWNER, "Recorded 300,000đ spent")(c) and "We paid: 300,000đ" in c["params"]["text"],
+                        "recorded on the match")
+        await wait_sent(to(MEMBER, "Trận vs Tăng High"), "followers see the expense")
+
         FAN = 777001  # someone who just opened the bot
         await T(text_update(FAN, "/matches"))
         mem = await wait_sent(to(FAN, "Upcoming matches"), "everyone sees the calendar")

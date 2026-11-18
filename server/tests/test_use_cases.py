@@ -856,3 +856,26 @@ def test_pay_page_shows_matches_and_contacts():
     assert [(m["day"], m["opponent"]) for m in page["matches"]] == [("2026-11-22", "FC Moreh")]
     assert page["contacts"] == [{"name": "FC Moreh", "phone": "0912345678", "note": "fb: Dũng", "played": 0,
                                  "cancelled": 0, "last": None, "next": "2026-11-22"}]
+
+
+def test_match_money():
+    """After a match, a manager records what we paid the opponent or what they paid us: it's in the fund on
+    the match day, shows on the match, and undo takes both back."""
+    from datetime import date
+    svc, clock, _ = make_services(datetime(2026, 11, 18, 10, 0))
+    tid = setup_team(svc)
+    past, ahead = [x["id"] for x in svc.matches.add(tid, OWNER, [{"day": date(2026, 11, 15), "opponent": "FC Moreh"},
+                                                                {"day": date(2026, 11, 22)}])]
+    assert code(svc.matches.record_money, tid, OWNER, ahead, "paid", 300000) == "match_not_played"
+    assert code(svc.matches.record_money, tid, MEMBER, past, "paid", 300000) == "not_manager"
+    r = svc.matches.record_money(tid, OWNER, past, "paid", 300000)
+    assert (r["title"], r["balance"], r["match"]["paid"]) == ("Trận vs FC Moreh", -300000, 300000)
+    r = svc.matches.record_money(tid, OWNER, past, "received", 500000)
+    assert (r["title"], r["balance"], r["match"]["received"]) == ("Đối trả: FC Moreh", 200000, 500000)
+    nov = svc.money.history(tid, 10, "2026-11")
+    assert sorted((x["amount"], x["at"][:5]) for x in nov) == [(300000, "15/11"), (500000, "15/11")], nov
+    entry = next(x for x in svc.undo.recent(tid, OWNER) if x["action"] == "match.money")
+    svc.undo.undo(tid, OWNER, entry["id"])
+    got = svc.matches.get(tid, OWNER, past)
+    assert (got["paid"], got["received"]) == (300000, None), "undo takes back the income and the match's total"
+    assert svc.money.fund(tid)["balance"] == -300000

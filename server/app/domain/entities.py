@@ -247,6 +247,8 @@ class Match:
     status: str = "scheduled"    # scheduled|cancelled|deleted
     reason: str | None = None    # why it was cancelled
     schedule_id: int | None = None  # made by a repeating calendar
+    paid: int | None = None      # what the team paid the opponent for it (recorded as an expense)
+    received: int | None = None  # what the opponent paid the team (recorded as income)
     created_at: datetime | None = None
     id: int | None = None
 

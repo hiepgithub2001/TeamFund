@@ -143,7 +143,7 @@ matches = Table(
     Column("team_id", ForeignKey("teams.id"), index=True, nullable=False), Column("day", Date, nullable=False),
     Column("at", String(5)), Column("place", String(100)), Column("opponent", String(100)), Column("note", String(255)),
     Column("status", String(16), nullable=False), Column("reason", String(255)), Column("schedule_id", Integer),
-    Column("created_at", DateTime, nullable=False),
+    Column("created_at", DateTime, nullable=False), Column("paid", Integer), Column("received", Integer),
 )
 
 match_schedules = Table(

@@ -185,7 +185,7 @@ Team bots don't work in groups. Everyone who opens a team bot privately **follow
 
 ## Matches and contacts
 
-Two tools for running the team that never touch money: pitch costs still go through `/expense`. Use cases live in `application/matches.py` and `application/contacts.py`; the screens in `interfaces/bot/matches.py`, a router placed before the team router so its typed replies are seen first.
+Two tools for running the team. They touch money only when a manager asks, after a match: pitch costs can still go through `/expense`. Use cases live in `application/matches.py` and `application/contacts.py`; the screens in `interfaces/bot/matches.py`, a router placed before the team router so its typed replies are seen first.
 
 | Command | Who | What it does |
 |---|---|---|
@@ -197,6 +197,7 @@ Two tools for running the team that never touch money: pitch costs still go thro
 - **A match** (`matches`) is a day, and optionally a time, pitch, opponent and note. Status: scheduled, cancelled (with an optional reason), or deleted (hidden; a repeating calendar won't bring the day back).
 - **Cancelling** from ✏️ Edit offers reasons (🌧 Mưa, 🙅 Đối huỷ, 👥 Thiếu người, 🎉 Nghỉ lễ, 🏟 Hết sân), a typed reason, or none. Followers are told at once. ↩️ Restore brings it back and tells them too. Cancelled matches get no reminder.
 - **Repeating calendars** (`match_schedules`, at most 5): every week on a weekday, every 2 weeks from a first date, or every month (week 1–4 or the last week on a weekday, or a fixed day, clamped to short months). Each has a usual time and pitch. Their match days are filled 8 weeks ahead, without opponents, and never on a day that already has a match. Stopping one drops its future days that have no opponent or note; the others stay.
+- **Money after a match.** 🕘 Đã đá lists played matches as buttons for managers. A match on or before today has 💸 Mình trả (the team paid the opponent: an expense titled "Trận vs <opponent>") and 💰 Đối trả (the opponent paid the team: income, "Đối trả: <opponent>"). Each asks the amount, counts in the fund on the match day, adds up on the match (`Match.paid`, `Match.received`, shown on its card and in the played list), and tells followers like `/expense` and `/income` do. One undo (match.money) takes back both the record and the match's total. Future matches refuse it.
 - **Reminders** (the `matches` job): from 18:00, followers get tomorrow's matches; from 09:00, managers are told about a match 7 days away with no opponent yet. Once a day each.
 - **The pay page** has two more tabs: Lịch đá with the next 10 matches, and Danh bạ with every contact (name, phone as a tap-to-call link, note, played/cancelled, last and next match). The team chose to show phones there and in the bot: every member can look contacts up and ask opponents for a match. Each tab has its own link (`…/p/<token>/#contacts`, `#matches`) that opens the page on that tab; tab names wrap to two lines on narrow phones.
 - Every change is logged and can be undone with `/undo` (match.add, match.update, match.delete, match.cancel, match.restore, schedule.add, schedule.stop, contact.save, contact.update, contact.delete).

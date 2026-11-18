@@ -1,12 +1,14 @@
 """Use cases: the match calendar. Matches one by one or pasted many at a time, repeating calendars that fill
-matches ahead, cancelling with a reason. Separate from money: pitch costs go through /expense."""
+matches ahead, cancelling with a reason. Money only when a manager asks: after a match, what the team paid
+the opponent (an expense) or the opponent paid the team (income), dated on the match day."""
 from datetime import date, timedelta
 
-from ..domain.entities import Match, MatchSchedule, Team
+from ..domain.entities import Expense, Match, MatchSchedule, Payment, Team
 from ..domain.errors import DomainError, invalid
 from ..domain.rules import MATCH_FILL_DAYS, MAX_MATCHES_AT_ONCE, fold, schedule_dates
+from . import billing
 from .access import get_team, manager_team
-from .people import audit
+from .people import audit, display_name
 from .ports import Deps, UnitOfWork
 
 TEXT_LIMITS = {"place": 100, "opponent": 100, "note": 255, "reason": 255}
@@ -44,7 +46,8 @@ def _day(v) -> date:
 def match_dict(m: Match, today: date | None = None) -> dict:
     return {"id": m.id, "day": m.day.isoformat(), "weekday": m.day.weekday(), "at": m.at, "place": m.place,
             "opponent": m.opponent, "note": m.note, "status": m.status, "reason": m.reason,
-            "schedule_id": m.schedule_id, "past": bool(today and m.day < today)}
+            "schedule_id": m.schedule_id, "past": bool(today and m.day < today),
+            "settleable": bool(today and m.day <= today), "paid": m.paid, "received": m.received}
 
 
 def schedule_dict(s: MatchSchedule) -> dict:
@@ -280,6 +283,34 @@ class MatchUseCases:
             audit(uow, self.d.clock, team.id, actor, "schedule.stop", target=s.every, after={"dropped": dropped})
             uow.commit()
             return {**schedule_dict(s), "dropped": dropped}
+
+    def record_money(self, team_id: int, actor: int, match_id: int, kind: str, amount: int) -> dict:
+        """After a match: "paid" (the team paid the opponent: an expense) or "received" (the opponent paid the
+        team: income), counted in the fund on the match day and added up on the match. Undo takes both back."""
+        from .money import MoneyUseCases
+        if kind not in ("paid", "received"):
+            raise invalid()
+        mu = MoneyUseCases(self.d)
+        with self.d.uow() as uow:
+            team = manager_team(uow, team_id, actor)
+            m = self._match(uow, team, match_id)
+            if m.day > self._today():
+                raise DomainError(400, "match_not_played")
+            who = m.opponent or m.day.strftime("%d/%m")
+            title = mu._check(amount, f"Trận vs {who}" if kind == "paid" else f"Đối trả: {who}", 200)
+            at = mu._when(m.day)
+            if kind == "paid":
+                uow.expenses.add(Expense(team_id=team.id, amount=amount, title=title, created_by=actor, created_at=at))
+                m.paid = (m.paid or 0) + amount
+            else:
+                uow.payments.add(Payment(team_id=team.id, source="other", amount=amount, status="matched",
+                                         recorded_by=actor, note=title, created_at=at))
+                m.received = (m.received or 0) + amount
+            audit(uow, self.d.clock, team.id, actor, "match.money", target=title, after={"kind": kind, "amount": amount})
+            uow.commit()
+            return {"match": match_dict(m, self._today()), "kind": kind, "amount": amount, "title": title,
+                    "by": display_name(uow, actor), "at": self.d.clock.fmt(at), "backdated": m.day != self._today(),
+                    "balance": billing.fund(uow, team)["balance"]}
 
     # ---- the clock ----
 
