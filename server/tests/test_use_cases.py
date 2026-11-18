@@ -728,3 +728,20 @@ def test_undo_plan_window():
     svc.undo.undo(tid, OWNER, entry["id"])
     assert svc.money.unpaid(tid)[0]["total"] == 600000
     assert svc.plans.get_plan(tid, OWNER, p["id"])["members"][0]["from"] == "2026-10"
+
+
+def test_moving_package_after_a_later_start():
+    """Khánh Huy's case: his 600k quarter is pushed to next quarter (this quarter's bill and its fine go),
+    then he moves to a 200k package for this quarter only: he's billed 200k for this quarter."""
+    svc, clock, _ = make_services(datetime(2026, 11, 18, 10, 0))
+    tid = setup_team(svc)
+    kh, = [m["id"] for m in svc.members.add_members(tid, OWNER, [{"name": "Khánh Huy"}])]
+    big = svc.plans.save_plan(tid, OWNER, 600000, 3, [kh])
+    svc.plans.set_terms(tid, OWNER, big["id"], late_fee=1000)
+    assert svc.money.unpaid(tid)[0]["total"] > 600000, "the quarter plus its fine"
+    svc.plans.set_window(tid, OWNER, big["id"], [kh], "2027-01", None)
+    assert svc.money.unpaid(tid) == [], "nothing this quarter, the fine went with the bill"
+    small = svc.plans.save_plan(tid, OWNER, 200000, 3, [kh])
+    svc.plans.set_window(tid, OWNER, small["id"], [kh], "2026-10", "2026-12")
+    bills = svc.money.unpaid(tid)[0]["bills"]
+    assert [(b["kind"], b["period_label"], b["amount"]) for b in bills] == [("monthly", "10/2026–12/2026", 200000)]

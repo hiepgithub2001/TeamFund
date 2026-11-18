@@ -105,6 +105,7 @@ class PlanUseCases:
                   after={"amount": amount, "months": months, "members": sorted(m.name for m in chosen)})
             uow.commit()
             billing.ensure_bills(uow, self.d, team)
+            billing.update_late_fees(uow, self.d, team)
             return next(x for x in self._view(uow, team)["plans"] if x["id"] == plan.id)
 
     def set_window(self, team_id: int, actor: int, plan_id: int, member_ids: list, start: str | None,

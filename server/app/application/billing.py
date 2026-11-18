@@ -153,18 +153,25 @@ def reprice_current_month(uow: UnitOfWork, d: Deps, team: Team) -> None:
         # other bills' months stay covered; this bill's are free to be redrawn
         others = covered.get(member.id, set()) - {add_months(bill.period, i) for i in range(bill.months or 1)}
         shape = _shape(team, member, plans, period, others, today, keep_from=bill.period)
-        if shape is None:
-            bill.status = "waived"
+        if shape is None or shape[1] > period:  # nothing owed for this month (any more)
+            _void(uow, team, bill)
             continue
         plan, first, k, price, due_on = shape
-        if first > period:  # the plan starts later: nothing is owed for this month yet
-            bill.status = "waived"
-            continue
         if (first, k, plan.id if plan else None) == (bill.period, bill.months or 1, bill.plan_id):
             due_on = bill.due_on if due_on is not None else None  # the same bill: keep the deadline it was given
         bill.period, bill.monthly_key = first, f"{member.id}:{first}"
         bill.amount, bill.months = price, k if k > 1 else None
         bill.plan_id, bill.due_on = (plan.id if plan else None), due_on
+
+
+def _void(uow: UnitOfWork, team: Team, bill: Bill) -> None:
+    """A fee bill a plan change made unnecessary: it stops counting as the member's fee for its months (so a
+    later change can bill them again), and its unpaid fine goes with it. Unlike a manager's waive, which
+    forgives those months for good."""
+    bill.kind, bill.status, bill.monthly_key = "replaced", "waived", None
+    for lb in uow.bills.late_of_team(team.id):
+        if lb.monthly_key == f"late:{bill.id}" and lb.status == "unpaid":
+            lb.status = "waived"
 
 
 def _group(team: Team, plans: dict, plan_id, amount: int, months: int, count: int, period: str,

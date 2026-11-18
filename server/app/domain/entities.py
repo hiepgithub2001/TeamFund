@@ -141,7 +141,7 @@ class FeePlan:
 class Bill:
     team_id: int
     member_id: int
-    kind: str  # monthly|charge|split
+    kind: str  # monthly|late|charge|split; "replaced": a fee bill a plan change made unnecessary
     title: str
     period: str  # YYYY-MM
     amount: int
