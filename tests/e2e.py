@@ -631,8 +631,8 @@ async def main():
                 await wait_sent(to(OWNER, "Send the first and last month"), "months asked")
                 await T(text_update(OWNER, reply))
 
-        if today.month % 3 != 1:  # not the quarter's first month: "from this month" is offered
-            await set_window(0, "w:mon")
+        if today.month % 3 != 1:  # not the quarter's first month: a mid-quarter start, typed
+            await set_window(0, "w:in", f"{today.month:02d}/{today.year}")
             await wait_sent(lambda c: "Months set: " in (c["params"].get("text") or "")
                             and f"Cường (from {today.month:02d}/{today.year})" in c["params"]["text"], "joined mid-quarter")
         await set_window(1, "w:next")
