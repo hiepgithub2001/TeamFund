@@ -10,7 +10,7 @@ from aiogram.filters import Command, CommandObject
 from aiogram.types import CallbackQuery, ForceReply, Message
 
 from ..deps import S
-from .fmt import esc, parse_contact, parse_match
+from .fmt import esc, parse_contact, parse_match, parse_phone, show_phone
 from .i18n import t
 from .render import edit, is_private, kb, say
 from .run import call
@@ -432,12 +432,13 @@ async def contacts_preview(message: Message, entry, lang, text: str) -> None:
     lines = [t(lang, "ct.read", n=len(items))]
     for c in marked:
         tag = t(lang, "ct.tag_update") if c["update"] else t(lang, "ct.tag_new")
-        lines.append(f"• {tag} <b>{esc(c['name'])}</b>" + (f" · {esc(c['note'])}" if c["note"] else ""))
+        lines.append(f"• {tag} <b>{esc(c['name'])}</b>" + (f" · 📞 {show_phone(c['phone'])}" if c["phone"] else "")
+                     + (f" · {esc(c['note'])}" if c["note"] else ""))
     await message.answer("\n".join(lines), reply_markup=kb([(t(lang, "mt.btn_save"), "ct:ok"), (t(lang, "btn.cancel"), "ct:x")]))
 
 
 def contact_view(lang: str, c: dict):
-    lines = [f"📇 <b>{esc(c['name'])}</b>"]
+    lines = [f"📇 <b>{esc(c['name'])}</b>", f"📞 {show_phone(c['phone'])}" if c.get("phone") else t(lang, "ct.no_phone")]
     if c.get("note"):
         lines.append(f"📝 {esc(c['note'])}")
     hist = t(lang, "ct.history", played=c["played"], cancelled=c["cancelled"])
@@ -447,7 +448,8 @@ def contact_view(lang: str, c: dict):
         hist += t(lang, "ct.next", day=day_label(lang, date.fromisoformat(c["next"])))
     lines.append("⚽ " + hist)
     i = c["id"]
-    return "\n".join(lines), kb([(t(lang, "ct.btn_name"), f"ct:en:{i}"), (t(lang, "ct.btn_note"), f"ct:nt:{i}")],
+    return "\n".join(lines), kb([(t(lang, "ct.btn_name"), f"ct:en:{i}"), (t(lang, "ct.btn_phone"), f"ct:ph:{i}"),
+                                 (t(lang, "ct.btn_note"), f"ct:nt:{i}")],
                                 [(t(lang, "mt.btn_delete"), f"ct:d:{i}"), (t(lang, "ct.btn_list"), "ct:l")])
 
 
@@ -470,6 +472,8 @@ async def on_contacts(cq: CallbackQuery, m: re.Match, entry, lang):
         await ask(cq, lang, {"type": "ct_add"}, t(lang, "ct.ask_add"), "FC Moreh (0912 345 678, fb: Dũng)")
     elif action == "en" and a:
         await ask(cq, lang, {"type": "ct_name", "id": int(a)}, t(lang, "ct.ask_name"), "FC Moreh")
+    elif action == "ph" and a:
+        await ask(cq, lang, {"type": "ct_phone", "id": int(a)}, t(lang, "ct.ask_phone"), "0912 345 678")
     elif action == "nt" and a:
         await ask(cq, lang, {"type": "ct_note", "id": int(a)}, t(lang, "ct.ask_note"), "0912 345 678, fb: Dũng")
     elif action == "d" and a:
@@ -559,9 +563,15 @@ async def on_reply(message: Message, entry, lang):
         await sched_save(message, entry, lang, st, p["at"], p["place"] or p["opponent"])
     elif kind == "ct_add":
         await contacts_preview(message, entry, lang, text)
-    elif kind in ("ct_name", "ct_note"):
+    elif kind in ("ct_name", "ct_phone", "ct_note"):
         if kind == "ct_name":
             changes = {"name": text}
+        elif kind == "ct_phone":
+            phone = None if text == "-" else parse_phone(text)
+            if text != "-" and not phone:
+                await again("ct.ask_phone", "0912 345 678")
+                return
+            changes = {"phone": phone}
         else:
             changes = {"note": None if text == "-" else text}
         await call(S.contacts.update, team, user, st["id"], changes)

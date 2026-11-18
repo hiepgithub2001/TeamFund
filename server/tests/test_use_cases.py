@@ -816,14 +816,16 @@ def test_contacts():
     svc, clock, _ = make_services(datetime(2026, 11, 18, 10, 0))
     tid = setup_team(svc)
     c = svc.contacts
-    items = [{"name": "FC Moreh", "note": "0367 000 000, fb: Dũng Minh"}, {"name": "FC Sóc Sơn"}]
+    items = [{"name": "FC Moreh", "phone": "0367000000", "note": "fb: Dũng Minh"}, {"name": "FC Sóc Sơn"}]
     assert code(c.search, tid, MEMBER) == "not_manager"
     assert [p["update"] for p in c.preview(tid, OWNER, items)] == [False, False]
     assert c.save_many(tid, OWNER, items) == {"added": 2, "updated": 0}
-    assert [p["update"] for p in c.preview(tid, OWNER, [{"name": "fc soc son", "note": "0584 000 000"}])] == [True]
-    assert c.save_many(tid, OWNER, [{"name": "FC Soc Son", "note": "0584 000 000"}]) == {"added": 0, "updated": 1}
+    assert [p["update"] for p in c.preview(tid, OWNER, [{"name": "fc soc son", "phone": "0584000000"}])] == [True]
+    assert c.save_many(tid, OWNER, [{"name": "FC Soc Son", "phone": "0584000000"}]) == {"added": 0, "updated": 1}
+    assert code(c.save_many, tid, OWNER, [{"name": "X", "phone": "12345"}]) == "invalid"
     found = c.search(tid, OWNER, "soc son")
-    assert len(found) == 1 and found[0]["note"] == "0584 000 000"
+    assert len(found) == 1 and found[0]["phone"] == "0584000000"
+    assert [x["name"] for x in c.search(tid, OWNER, "0584")] == ["FC Soc Son"]
     assert c.update(tid, OWNER, found[0]["id"], {"name": "FC Sóc Sơn"})["name"] == "FC Sóc Sơn"
     assert c.update(tid, OWNER, found[0]["id"], {"note": None})["note"] is None
     assert [x["name"] for x in c.search(tid, OWNER, "dung minh")] == ["FC Moreh"]

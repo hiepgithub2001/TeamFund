@@ -489,10 +489,10 @@
  "ct.title": "📇 <b>Opposing teams</b> ({n})",
  "ct.found": "📇 \"{q}\": {n} found",
  "ct.empty": "Nobody yet.",
- "ct.help": "Add: paste after <code>/contacts</code>, one team per line: the name, then any note (phone, fb, zalo…), e.g. <code>FC Moreh (0912 345 678, fb: Dung)</code>. Search: <code>/contacts moreh</code>.",
+ "ct.help": "Add: paste after <code>/contacts</code>, one team per line: name (phone, note), e.g. <code>FC Moreh (0912 345 678, fb: Dung)</code>. Search: <code>/contacts moreh</code>.",
  "ct.btn_add": "➕ Add",
  "ct.btn_list": "« Contacts",
- "ct.usage": "One team per line: the name, then any note, e.g. <code>FC Moreh (0912 345 678, fb: Dung)</code>.",
+ "ct.usage": "One team per line: name (phone, note), e.g. <code>FC Moreh (0912 345 678, fb: Dung)</code>.",
  "ct.read": "📇 Read <b>{n}</b> teams:",
  "ct.tag_new": "🆕",
  "ct.tag_update": "♻️ update",
@@ -501,7 +501,7 @@
  "ct.history": "Played {played} · cancelled {cancelled}",
  "ct.last": " · last {day}",
  "ct.next": " · next {day}",
- "ct.ask_add": "Send the teams to add, one per line: name (note).",
+ "ct.ask_add": "Send the teams to add, one per line: name (phone, note).",
  "ct.confirm_delete": "🗑 Delete {name} from contacts?",
  "ct.deleted": "🗑 Deleted {name}.",
  "ct.updated": "✅ Updated.",
@@ -521,5 +521,8 @@
  "ct.btn_name": "✏️ Edit name",
  "ct.btn_note": "📝 Note",
  "ct.ask_name": "Send the team's new name.",
- "ct.ask_note": "Send the note (phone, fb, zalo, contact person…). <code>-</code> clears it."
+ "ct.ask_note": "Send the note (fb, zalo, contact person…). <code>-</code> clears it.",
+ "ct.btn_phone": "📞 Phone",
+ "ct.no_phone": "📞 no phone number yet",
+ "ct.ask_phone": "Send the phone number, e.g. <code>0912 345 678</code>. <code>-</code> clears it."
 }

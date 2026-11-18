@@ -163,17 +163,36 @@ def parse_match(text: str, today: date) -> dict | None:
             "note": clean(", ".join(n for n in notes if n.strip()))}
 
 
+_PHONE = re.compile(r"(?<!\d)(\+84|84|0)((?:[ .\-]?\d){9})(?!\d)")
+
+
+def parse_phone(text: str) -> str | None:
+    """A Vietnamese phone number anywhere in the text, as 10 digits: "+84 912 345 678" -> "0912345678"."""
+    m = _PHONE.search(text or "")
+    return "0" + re.sub(r"\D", "", m.group(2)) if m else None
+
+
+def show_phone(phone: str | None) -> str:
+    """"0912345678" -> "0912 345 678" (Telegram makes it tappable)."""
+    return f"{phone[:4]} {phone[4:7]} {phone[7:]}" if phone and len(phone) == 10 else (phone or "")
+
+
 def parse_contact(text: str) -> dict | None:
-    """"FC Moreh (0367 774 669, fb: Dũng Minh)" -> name "FC Moreh", note "0367 774 669, fb: Dũng Minh".
-    The name is what comes before the first bracket, dash or colon; everything else is the note, as written."""
+    """"FC Moreh (0367 774 669, fb: Dũng Minh)" -> name "FC Moreh", phone "0367774669", note "fb: Dũng Minh".
+    The name is what comes before the first bracket, dash or colon; the phone is any Vietnamese number on the
+    line; everything else is the note, as written."""
     text = " ".join((text or "").split()).lstrip("-–•* ")
     if not text:
         return None
+    phone = parse_phone(text)
+    if phone:
+        m = _PHONE.search(text)
+        text = text[:m.start()] + text[m.end():]
     cut = re.search(r"\s*(\(|\s-\s|\s–\s|:)", text)
     name, rest = (text[:cut.start()], text[cut.start():]) if cut else (text, "")
-    rest = rest.strip()
-    if rest.startswith("(") and rest.endswith(")") and rest.count("(") == 1:
-        rest = rest[1:-1]
+    rest = re.sub(r"(?i)\b(sđt|sdt|số điện thoại|so dien thoai|phone|tel)\b\s*(là|la)?\s*:?", " ", rest)
+    rest = re.sub(r"[()]", " ", rest)
+    rest = re.sub(r"\s*,\s*(,\s*)+", ", ", rest)
     note = " ".join(rest.strip(" :-–,").split()) or None
     name = " ".join(name.strip(" :-–,").split())
-    return {"name": name, "note": note} if name else None
+    return {"name": name, "phone": phone, "note": note} if name else None

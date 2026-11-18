@@ -489,10 +489,10 @@
  "ct.title": "📇 <b>Danh bạ đội bạn</b> ({n})",
  "ct.found": "📇 Tìm \"{q}\": {n} đội",
  "ct.empty": "Chưa có ai.",
- "ct.help": "Thêm: dán sau <code>/contacts</code>, mỗi dòng một đội: tên, rồi ghi chú tuỳ ý (số điện thoại, fb, zalo…), ví dụ <code>FC Moreh (0912 345 678, fb: Dũng)</code>. Tìm: <code>/contacts moreh</code>.",
+ "ct.help": "Thêm: dán sau <code>/contacts</code>, mỗi dòng một đội: tên (số điện thoại, ghi chú), ví dụ <code>FC Moreh (0912 345 678, fb: Dũng)</code>. Tìm: <code>/contacts moreh</code>.",
  "ct.btn_add": "➕ Thêm",
  "ct.btn_list": "« Danh bạ",
- "ct.usage": "Mỗi dòng một đội: tên, rồi ghi chú tuỳ ý, ví dụ <code>FC Moreh (0912 345 678, fb: Dũng)</code>.",
+ "ct.usage": "Mỗi dòng một đội: tên (số điện thoại, ghi chú), ví dụ <code>FC Moreh (0912 345 678, fb: Dũng)</code>.",
  "ct.read": "📇 Đọc được <b>{n}</b> đội:",
  "ct.tag_new": "🆕",
  "ct.tag_update": "♻️ cập nhật",
@@ -501,7 +501,7 @@
  "ct.history": "Đã đá {played} · huỷ {cancelled}",
  "ct.last": " · gần nhất {day}",
  "ct.next": " · sắp tới {day}",
- "ct.ask_add": "Gửi đội cần thêm, mỗi dòng một đội: tên (ghi chú).",
+ "ct.ask_add": "Gửi đội cần thêm, mỗi dòng một đội: tên (số điện thoại, ghi chú).",
  "ct.confirm_delete": "🗑 Xoá {name} khỏi danh bạ?",
  "ct.deleted": "🗑 Đã xoá {name}.",
  "ct.updated": "✅ Đã cập nhật.",
@@ -521,5 +521,8 @@
  "ct.btn_name": "✏️ Sửa tên",
  "ct.btn_note": "📝 Ghi chú",
  "ct.ask_name": "Gửi tên mới của đội.",
- "ct.ask_note": "Gửi ghi chú (số điện thoại, fb, zalo, người liên hệ…). Gửi <code>-</code> để xoá."
+ "ct.ask_note": "Gửi ghi chú (fb, zalo, người liên hệ…). Gửi <code>-</code> để xoá.",
+ "ct.btn_phone": "📞 SĐT",
+ "ct.no_phone": "📞 chưa có số điện thoại",
+ "ct.ask_phone": "Gửi số điện thoại, ví dụ <code>0912 345 678</code>. Gửi <code>-</code> để xoá."
 }

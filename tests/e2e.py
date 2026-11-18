@@ -715,7 +715,7 @@ async def main():
         # 18. contacts: paste, search, open one with its match history
         await T(text_update(OWNER, "/contacts\nFC Moreh (0912 345 678, fb: Dung)\nFC Soc Son"))
         prev = await wait_sent(to(OWNER, "Read <b>2</b> teams"), "contacts preview")
-        assert "FC Moreh</b> · 0912 345 678, fb: Dung" in prev["params"]["text"]
+        assert "FC Moreh</b> · 📞 0912 345 678 · fb: Dung" in prev["params"]["text"]
         await T(cb_update(OWNER, "ct:ok", prev["message_id"]))
         await wait_sent(to(OWNER, "Saved: 2 new, 0 updated"), "contacts saved")
         await T(text_update(OWNER, "/contacts moreh"))
@@ -724,7 +724,12 @@ async def main():
         await T(cb_update(OWNER, cid, found["message_id"]))
         card = await wait_sent(lambda c: c["method"] == "editMessageText" and "Played 0 · cancelled 1" in c["params"]["text"],
                                "contact with history")
-        assert [d.split(":")[1] for d in buttons(card)] == ["en", "nt", "d", "l"], buttons(card)
+        assert [d.split(":")[1] for d in buttons(card)] == ["en", "ph", "nt", "d", "l"], buttons(card)
+        assert "📞 0912 345 678" in card["params"]["text"]
+        await T(cb_update(OWNER, cid.replace("ct:v:", "ct:ph:"), found["message_id"]))
+        await wait_sent(to(OWNER, "Send the phone number"), "phone asked")
+        await T(text_update(OWNER, "+84 98 765 4321"))
+        await wait_sent(lambda c: to(OWNER, "Updated")(c) and "📞 0987 654 321" in c["params"]["text"], "phone saved")
         await T(cb_update(OWNER, cid.replace("ct:v:", "ct:nt:"), found["message_id"]))
         await wait_sent(to(OWNER, "Send the note"), "note asked")
         await T(text_update(OWNER, "zalo: Dung, sân Mỹ Đình"))
