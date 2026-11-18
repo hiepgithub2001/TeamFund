@@ -539,8 +539,6 @@ async def cmd_fund(message: Message, entry, lang):
     f = await call(S.money.fund, tid(entry))
     text = t(lang, "fund.text", income=money(f["income"], lang), expense=money(f["expense"], lang),
              balance=money(f["balance"], lang))
-    if f.get("other_income"):
-        text += "\n" + t(lang, "fund.other", other=money(f["other_income"], lang))
     if f["unmatched"] and is_private(message) and await role(entry, message.from_user) in ("owner", "manager"):
         text += "\n\n" + t(lang, "fund.unmatched", n=f["unmatched"])
     await message.answer(text)

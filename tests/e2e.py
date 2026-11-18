@@ -449,8 +449,8 @@ async def main():
         # 11. other income and backdated records
         await T(text_update(OWNER, "/income 2m Championship prize"))
         await wait_sent(to(OWNER, "Income recorded. Fund balance"), "income recorded")
-        await wait_sent(to(MEMBER, "Other income</b>: 2,000,000đ · Championship prize"), "income announced")
-        assert not sent(to(OWNER, "Other income</b>: 2,000,000đ")), "whoever records it isn't told again"
+        await wait_sent(to(MEMBER, "Income</b>: 2,000,000đ · Championship prize"), "income announced")
+        assert not sent(to(OWNER, "Income</b>: 2,000,000đ")), "whoever records it isn't told again"
         await T(text_update(OWNER, "/expense 100k Balls 01/01"))
         await wait_sent(to(OWNER, r"Expense recorded on 01/01/\d{4}"), "backdated expense")
         await T(text_update(OWNER, "/income 5k Bad day 31/02"))
@@ -474,9 +474,10 @@ async def main():
         await T(text_update(OWNER, "120k Water"))
         await wait_sent(to(OWNER, r"Expense recorded\. Fund balance"), "expense from the reply, now")
         await T(text_update(OWNER, "/fund"))
-        await wait_sent(to(OWNER, "Of which other income: 2,800,000đ"), "fund shows other income")
+        fund = await wait_sent(to(OWNER, "Team fund|Fund"), "fund")
+        assert "other income" not in fund["params"]["text"].lower(), "one kind of income only"
         await T(text_update(OWNER, "/history"))
-        await wait_sent(to(OWNER, r"Championship prize \(other income\)"), "history labels other income")
+        await wait_sent(to(OWNER, r"Championship prize \(income\)"), "history labels income")
         await T(text_update(OWNER, "/expense 50k Water 03-02-2026"))
         await wait_sent(to(OWNER, "Expense recorded on 03/02/2026"), "dd-mm-yyyy date")
         await T(text_update(OWNER, "/history 02/2026"))
@@ -586,7 +587,7 @@ async def main():
         await T(text_update(OWNER, "/undo"))
         lst = await wait_sent(to(OWNER, "Pick an action to undo"), "undo list")
         labels = [b["text"] for row in lst["params"]["reply_markup"]["inline_keyboard"] for b in row]
-        assert labels[0].startswith("Other income · Keep") and labels[1].startswith("Expense · Typo"), labels
+        assert labels[0].startswith("Income · Keep") and labels[1].startswith("Expense · Typo"), labels
         typo = buttons(lst)[1]
         await T(cb_update(OWNER, typo, lst["message_id"]))  # the one in the middle
         await wait_sent(lambda c: c["method"] == "editMessageText" and "Undo this action?" in c["params"]["text"]

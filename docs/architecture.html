@@ -685,11 +685,11 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
 </section>
 
 <section>
-  <h2>Fees, plans and other income</h2>
+  <h2>Fees, plans and income</h2>
   <p>Every member pays one fee: their <b>fee plan</b> if they're on one, else their own monthly fee (set on the member screen), else the team's default fee (<code>/plans</code> → 💰 Default fee). A plan is an amount plus a cycle (month, quarter, 6 months, year), so "An, Bình, Cường pay 150k a month, Dũng, Em, Phúc pay 300k a quarter" is two plans. Money that isn't anyone's fee (a prize, a sponsor, the balance from before the bot) goes in with <code>/income</code>.</p>
   <figure>
     <div class="frame">
-    <svg viewBox="0 0 860 250" role="img" aria-label="Timeline from 10/2026 to 03/2027. An, on a 150,000đ monthly plan, gets a bill every month. Cường, on a 300,000đ quarterly plan, gets one bill for the standard quarter October to December, then the next for January to March. Other income, such as a 2,000,000đ prize recorded with /income, and a backdated expense, land in the month of their date and change the fund balance but are nobody's bill.">
+    <svg viewBox="0 0 860 250" role="img" aria-label="Timeline from 10/2026 to 03/2027. An, on a 150,000đ monthly plan, gets a bill every month. Cường, on a 300,000đ quarterly plan, gets one bill for the standard quarter October to December, then the next for January to March. Income, such as a 2,000,000đ prize recorded with /income, and a backdated expense, land in the month of their date and change the fund balance but are nobody's bill.">
       <text class="lb" x="280" y="34" text-anchor="middle">10/2026</text><text class="lb" x="380" y="34" text-anchor="middle">11/2026</text><text class="lb" x="480" y="34" text-anchor="middle">12/2026</text><text class="lb" x="580" y="34" text-anchor="middle">01/2027</text><text class="lb" x="680" y="34" text-anchor="middle">02/2027</text><text class="lb" x="780" y="34" text-anchor="middle">03/2027</text>
       <line class="life" x1="230" y1="44" x2="230" y2="238"/><line class="life" x1="330" y1="44" x2="330" y2="238"/><line class="life" x1="430" y1="44" x2="430" y2="238"/><line class="life" x1="530" y1="44" x2="530" y2="238"/><line class="life" x1="630" y1="44" x2="630" y2="238"/><line class="life" x1="730" y1="44" x2="730" y2="238"/><line class="life" x1="830" y1="44" x2="830" y2="238"/>
       <text class="t" x="20" y="72">An</text><text class="lb" x="20" y="88">plan 150k / month</text>
@@ -700,7 +700,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <rect class="box hot" x="336" y="170" width="88" height="34" rx="6"/><text class="lb" x="380" y="192" text-anchor="middle">+2tr prize</text><rect class="box ghost" x="236" y="170" width="88" height="34" rx="6"/><text class="lb" x="280" y="192" text-anchor="middle">−300k 15/10</text>
     </svg>
     </div>
-    <figcaption>One bill per cycle: a quarterly bill covers its three months, so Cường counts as paid in November and December without a new bill. Other income and expenses are no one's bill: they only move the fund balance, in the month of the date they carry.</figcaption>
+    <figcaption>One bill per cycle: a quarterly bill covers its three months, so Cường counts as paid in November and December without a new bill. Income and expenses are no one's bill: they only move the fund balance, in the month of the date they carry.</figcaption>
   </figure>
   <div class="tbl">
   <table>
@@ -708,7 +708,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
     <tbody>
       <tr><td><code>/plans</code></td><td>Lists the default fee and each plan with its members. Buttons: 💰 default fee (everyone not on a plan pays it monthly; replaces the old <code>/setfee</code>), ➕ new plan (cycle → amount → pick members), and per plan 👥 members, 📅 months it applies, 💰 amount, 🔁 cycle, 🗑 delete.</td></tr>
       <tr><td><code>/plans 300k quý</code></td><td>Quick create: goes straight to picking members. Cycle words: tháng / quý / 6 tháng / năm, or month / quarter / 6 months / year.</td></tr>
-      <tr><td><code>/income 2tr Thưởng vô địch</code></td><td>Records other income. Announced to followers; counts in <code>/fund</code> (shown as "of which other income"), <code>/history</code>, the month totals and the pay page.</td></tr>
+      <tr><td><code>/income 2tr Thưởng vô địch</code></td><td>Records income (there is one kind: prizes, sponsors, opponents paying, the old balance all read the same; only member fees are shown by name). Announced to followers; counts in <code>/fund</code>, <code>/history</code>, the month totals and the pay page.</td></tr>
       <tr><td><code>/income 1.5tr Số dư đầu kỳ 31/10</code><br><code>/expense 300k Sân bóng 15-10-2026</code></td><td>A date at the end (<code>dd/mm/yyyy</code>, <code>dd-mm-yyyy</code>, <code>dd/mm/yy</code>, <code>dd-mm-yy</code>, <code>dd/mm</code> / <code>dd-mm</code> for this year, or <code>mm/yyyy</code> / <code>mm-yyyy</code> for the 1st of that month) records it on that day (noon, team time); without one it's now. Being stored at that time, it sorts into place in the transaction log and falls under its own month in <code>/history 10/2026</code>, the month totals and the pay page's month blocks. Not in the future, at most 3 years back. Amounts can be <code>450k</code>, <code>1tr</code>, <code>1.5M</code>, <code>1tr5</code>, <code>5M</code>, <code>450.000</code>…; <code>/money</code> lists every form. A bare <code>/income</code> or <code>/expense</code> explains the format and takes the answer as a reply.</td></tr>
     </tbody>
   </table>
@@ -732,7 +732,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
     <li><b>Deadline:</b> <code>15 5</code> announces the fee on the 15th of each month and makes it due 5 days later (the 20th); the deadline may run into the next month (<code>/setdue 25 10</code> → the 5th). A bill's due date is the announcement day of its first month plus the deadline. Reminders: 3 days before the due date, on it, then every 3 days while someone owes, never before the announcement. Defaults for a new team (and any package without its own): announced on the 1st, due 5 days later, no late fee.</li>
     <li><b>Late fee:</b> <code>1k</code> adds 1,000đ per day to each overdue fee bill, as its own line "Phạt trễ N ngày", updated once a day by a job at 00:05 (also once at startup, and right after a package's terms change). Days are always counted from the bill's real due date (a quarter's: its first month's announcement day plus the deadline, e.g. 05/10), including days before the late fee was turned on. It stops growing when the fee is paid, freezes for paused members, isn't charged on <code>/charge</code> costs, and goes away when the fee is waived or when the package's late fee is set to <code>0</code>. A QR made one day and paid the next is accepted at the QR's amount.</li>
     <li>Reminders and the monthly "fee is open" post run when anyone has a fee: the team fee or a plan. The post lists each fee with how many people pay it.</li>
-    <li>Plan changes, other income and backdated records all go into <code>/log</code> (<code>plan.save</code>, <code>plan.delete</code>, <code>income.add</code>, with the date).</li>
+    <li>Plan changes, income and backdated records all go into <code>/log</code> (<code>plan.save</code>, <code>plan.delete</code>, <code>income.add</code>, with the date).</li>
   </ul>
 </section>
 
@@ -740,13 +740,13 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
 <section>
   <h2>Announcements and undo</h2>
   <h3 class="sub">Followers instead of a group</h3>
-  <p>Team bots don't work in groups. Everyone who opens a team bot privately <b>follows</b> the team (a new follower is welcomed once). Whatever used to be posted in a team group now goes to each follower privately: the fee is open, reminders, who paid (except to the payer, who gets the receipt), expenses, other income, charges, a bank change, and undos of those. The person who caused an announcement doesn't get it again. <code>/notify</code> turns announcements off or on for yourself; someone who blocks the bot is muted. <code>/remind</code> sends the unpaid list to all followers and says how many got it.</p>
+  <p>Team bots don't work in groups. Everyone who opens a team bot privately <b>follows</b> the team (a new follower is welcomed once). Whatever used to be posted in a team group now goes to each follower privately: the fee is open, reminders, who paid (except to the payer, who gets the receipt), expenses, income, charges, a bank change, and undos of those. The person who caused an announcement doesn't get it again. <code>/notify</code> turns announcements off or on for yourself; someone who blocks the bot is muted. <code>/remind</code> sends the unpaid list to all followers and says how many got it.</p>
   <h3 class="sub">Undo</h3>
   <p><code>/undo</code> (managers) lists the recent actions you can take back, newest first, from the last 7 days. Pick any of them, not only the newest, confirm, and it's undone; <b>↩️ Undo another action</b> goes back to the list. Followers are told when an announced action is undone.</p>
   <ul class="rules">
     <li>Each undoable action's log entry keeps the rows it inserted, changed or deleted (the unit of work records them on every flush). Undo puts exactly those back.</li>
     <li>It only happens if every one of those rows is still as the action left it. A charge whose bill was paid since, a cash payment whose bills changed, or members who already have fee bills: the undo is refused with a reason and nothing changes. Fix those with a normal command.</li>
-    <li>Undoable: expenses, other income, cash payments (also part amounts), assigning or dismissing a transfer, charges and splits, waiving a bill, fee plans (save, delete, deadline, late fee), team settings, adding, editing or removing members.</li>
+    <li>Undoable: expenses, income, cash payments (also part amounts), assigning or dismissing a transfer, charges and splits, waiving a bill, fee plans (save, delete, deadline, late fee), team settings, adding, editing or removing members.</li>
     <li>Not undoable, so never offered: anything about the bank, SePay, managers, the owner, the pay page link, and SePay payments themselves (the money really arrived). The undo itself is logged in <code>/log</code> (as <code>undo</code>) and can't be undone; undone actions show ↩️ there.</li>
     <li>A manager sees and undoes only their own actions; the owner can undo anyone's.</li>
   </ul>

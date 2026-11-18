@@ -139,19 +139,19 @@ SePay only confirms money it can see, and what it can see depends on the bank an
 
 A bank missing from the table doesn't send webhooks. For an account already linked, SePay's bank-account API answers directly and overrules the table: `va_only: true` means VA only. Team Fund handles both cases. The `SEVQR` keyword comes from `domain/rules.py` `transfer_content`. For VA-only accounts, the `/setbank` picker reads `va_only` and lists the account's active official VAs from SePay (`GET /v2/bank-accounts/{xid}/va`) as the choices; the chosen VA is stored as the team's `pay_account`, and the QR, its caption, `/bank` and the pay page show it. Money sent there lands in the same account. An account with no VA yet is listed with "needs a VA" and tapping it explains how to create one in my.sepay.vn.
 
-## Fees, plans and other income
+## Fees, plans and income
 
 Every member pays one fee: their **fee plan** if they're on one, else their own monthly fee (set on the member screen), else the team's default fee (`/plans` → 💰 Default fee). A plan is an amount plus a cycle (month, quarter, 6 months, year), so "An, Bình, Cường pay 150k a month, Dũng, Em, Phúc pay 300k a quarter" is two plans. Money that isn't anyone's fee (a prize, a sponsor, the balance from before the bot) goes in with `/income`.
 
-![Timeline from 10/2026 to 03/2027. An, on a 150,000đ monthly plan, gets a bill every month. Cường, on a 300,000đ quarterl](diagrams/08-fees-plans-and-other-income.svg)
+![Timeline from 10/2026 to 03/2027. An, on a 150,000đ monthly plan, gets a bill every month. Cường, on a 300,000đ quarterl](diagrams/08-fees-plans-and-income.svg)
 
-_One bill per cycle: a quarterly bill covers its three months, so Cường counts as paid in November and December without a new bill. Other income and expenses are no one's bill: they only move the fund balance, in the month of the date they carry._
+_One bill per cycle: a quarterly bill covers its three months, so Cường counts as paid in November and December without a new bill. Income and expenses are no one's bill: they only move the fund balance, in the month of the date they carry._
 
 | Command (managers) | What it does |
 |---|---|
 | `/plans` | Lists the default fee and each plan with its members. Buttons: 💰 default fee (everyone not on a plan pays it monthly; replaces the old `/setfee`), ➕ new plan (cycle → amount → pick members), and per plan 👥 members, 📅 months it applies, 💰 amount, 🔁 cycle, 🗑 delete. |
 | `/plans 300k quý` | Quick create: goes straight to picking members. Cycle words: tháng / quý / 6 tháng / năm, or month / quarter / 6 months / year. |
-| `/income 2tr Thưởng vô địch` | Records other income. Announced to followers; counts in `/fund` (shown as "of which other income"), `/history`, the month totals and the pay page. |
+| `/income 2tr Thưởng vô địch` | Records income (there is one kind: prizes, sponsors, opponents paying, the old balance all read the same; only member fees are shown by name). Announced to followers; counts in `/fund`, `/history`, the month totals and the pay page. |
 | `/income 1.5tr Số dư đầu kỳ 31/10``/expense 300k Sân bóng 15-10-2026` | A date at the end (`dd/mm/yyyy`, `dd-mm-yyyy`, `dd/mm/yy`, `dd-mm-yy`, `dd/mm` / `dd-mm` for this year, or `mm/yyyy` / `mm-yyyy` for the 1st of that month) records it on that day (noon, team time); without one it's now. Being stored at that time, it sorts into place in the transaction log and falls under its own month in `/history 10/2026`, the month totals and the pay page's month blocks. Not in the future, at most 3 years back. Amounts can be `450k`, `1tr`, `1.5M`, `1tr5`, `5M`, `450.000`…; `/money` lists every form. A bare `/income` or `/expense` explains the format and takes the answer as a reply. |
 
 - A member is on at most one plan. Picking them for a plan moves them off any other; a plan nobody is left on is deleted.
@@ -165,13 +165,13 @@ _One bill per cycle: a quarterly bill covers its three months, so Cường count
 - **Deadline:** `15 5` announces the fee on the 15th of each month and makes it due 5 days later (the 20th); the deadline may run into the next month (`/setdue 25 10` → the 5th). A bill's due date is the announcement day of its first month plus the deadline. Reminders: 3 days before the due date, on it, then every 3 days while someone owes, never before the announcement. Defaults for a new team (and any package without its own): announced on the 1st, due 5 days later, no late fee.
 - **Late fee:** `1k` adds 1,000đ per day to each overdue fee bill, as its own line "Phạt trễ N ngày", updated once a day by a job at 00:05 (also once at startup, and right after a package's terms change). Days are always counted from the bill's real due date (a quarter's: its first month's announcement day plus the deadline, e.g. 05/10), including days before the late fee was turned on. It stops growing when the fee is paid, freezes for paused members, isn't charged on `/charge` costs, and goes away when the fee is waived or when the package's late fee is set to `0`. A QR made one day and paid the next is accepted at the QR's amount.
 - Reminders and the monthly "fee is open" post run when anyone has a fee: the team fee or a plan. The post lists each fee with how many people pay it.
-- Plan changes, other income and backdated records all go into `/log` (`plan.save`, `plan.delete`, `income.add`, with the date).
+- Plan changes, income and backdated records all go into `/log` (`plan.save`, `plan.delete`, `income.add`, with the date).
 
 ## Announcements and undo
 
 ### Followers instead of a group
 
-Team bots don't work in groups. Everyone who opens a team bot privately **follows** the team (a new follower is welcomed once). Whatever used to be posted in a team group now goes to each follower privately: the fee is open, reminders, who paid (except to the payer, who gets the receipt), expenses, other income, charges, a bank change, and undos of those. The person who caused an announcement doesn't get it again. `/notify` turns announcements off or on for yourself; someone who blocks the bot is muted. `/remind` sends the unpaid list to all followers and says how many got it.
+Team bots don't work in groups. Everyone who opens a team bot privately **follows** the team (a new follower is welcomed once). Whatever used to be posted in a team group now goes to each follower privately: the fee is open, reminders, who paid (except to the payer, who gets the receipt), expenses, income, charges, a bank change, and undos of those. The person who caused an announcement doesn't get it again. `/notify` turns announcements off or on for yourself; someone who blocks the bot is muted. `/remind` sends the unpaid list to all followers and says how many got it.
 
 ### Undo
 
@@ -179,7 +179,7 @@ Team bots don't work in groups. Everyone who opens a team bot privately **follow
 
 - Each undoable action's log entry keeps the rows it inserted, changed or deleted (the unit of work records them on every flush). Undo puts exactly those back.
 - It only happens if every one of those rows is still as the action left it. A charge whose bill was paid since, a cash payment whose bills changed, or members who already have fee bills: the undo is refused with a reason and nothing changes. Fix those with a normal command.
-- Undoable: expenses, other income, cash payments (also part amounts), assigning or dismissing a transfer, charges and splits, waiving a bill, fee plans (save, delete, deadline, late fee), team settings, adding, editing or removing members.
+- Undoable: expenses, income, cash payments (also part amounts), assigning or dismissing a transfer, charges and splits, waiving a bill, fee plans (save, delete, deadline, late fee), team settings, adding, editing or removing members.
 - Not undoable, so never offered: anything about the bank, SePay, managers, the owner, the pay page link, and SePay payments themselves (the money really arrived). The undo itself is logged in `/log` (as `undo`) and can't be undone; undone actions show ↩️ there.
 - A manager sees and undoes only their own actions; the owner can undo anyone's.
 

@@ -22,7 +22,7 @@ const T = {
     tapMonth: "Bấm vào một tháng để xem mọi giao dịch của tháng đó.",
     noTx: "Tháng này không có giao dịch.",
     paidOf: "Đã đóng {a}/{b}", due: "hạn {d}", lateRule: "phạt trễ {f}/ngày", late: "Phạt trễ {n} ngày (quỹ {p})", feeIs: "Mức quỹ: {f}", feeN: "{f} × {n} người", feeCycle: "Quỹ {c} {p}",
-    c1: "tháng", c3: "quý", c6: "6 tháng", c12: "năm", otherFrom: "Thu khác: {n}", otherIncome: "Trong đó thu khác: {a}",
+    c1: "tháng", c3: "quý", c6: "6 tháng", c12: "năm", otherFrom: "{n}",
     paidList: "Đã đóng", unpaidList: "Chưa đóng", nobodyPaid: "Chưa ai đóng tháng này.", nobodyOwes: "Không ai còn nợ.",
     income: "Tổng thu", expense: "Tổng chi", balance: "Số dư", byMonth: "Theo tháng", in: "Thu", out: "Chi",
     history: "Giao dịch gần đây", noHistory: "Chưa có giao dịch.", feeFrom: "Đóng quỹ: {n}", cashFrom: "Tiền mặt: {n}",
@@ -52,7 +52,7 @@ const T = {
     tapMonth: "Tap a month to see all its transactions.",
     noTx: "No transactions this month.",
     paidOf: "{a} of {b} paid", due: "due {d}", lateRule: "late fee {f}/day", late: "Late fee, {n} days (fee {p})", feeIs: "Fee: {f}", feeN: "{f} for {n}", feeCycle: "Fee per {c} {p}",
-    c1: "month", c3: "quarter", c6: "6 months", c12: "year", otherFrom: "Other income: {n}", otherIncome: "Of which other income: {a}",
+    c1: "month", c3: "quarter", c6: "6 months", c12: "year", otherFrom: "{n}",
     paidList: "Paid", unpaidList: "Not paid yet", nobodyPaid: "Nobody has paid this month yet.", nobodyOwes: "Nobody owes anything.",
     income: "Money in", expense: "Money out", balance: "Balance", byMonth: "By month", in: "In", out: "Out",
     history: "Recent transactions", noHistory: "No transactions yet.", feeFrom: "Fee: {n}", cashFrom: "Cash: {n}",
@@ -196,10 +196,12 @@ function monthBlock(m) {
     else S.open.delete(m.period);
     render();
   } },
+    // only what happened: money in, money out, and the net only when there was both
     h("summary", {}, h("b", { class: "mlabel" }, m.period_label),
-      h("span", { class: "pos" }, m.collected ? "+" + money(m.collected) : "–"),
-      h("span", { class: "neg" }, m.spent ? "−" + money(m.spent) : "–"),
-      h("span", { class: "muted small" }, (net >= 0 ? "+" : "−") + money(Math.abs(net)))),
+      m.collected ? h("span", { class: "pos" }, "+" + money(m.collected)) : null,
+      m.spent ? h("span", { class: "neg" }, "−" + money(m.spent)) : null,
+      m.collected && m.spent ? h("span", { class: "muted small" }, "= " + (net >= 0 ? "+" : "−") + money(Math.abs(net)))
+        : !m.collected && !m.spent ? h("span", { class: "muted small" }, money(0)) : null),
     open ? monthBody(m) : null);
 }
 
@@ -216,7 +218,6 @@ function fundView() {
       h("div", { class: "stat" }, h("span", { class: "muted small" }, t("income")), h("b", { class: "pos" }, money(f.income))),
       h("div", { class: "stat" }, h("span", { class: "muted small" }, t("expense")), h("b", { class: "neg" }, money(f.expense))),
       h("div", { class: "stat" }, h("span", { class: "muted small" }, t("balance")), h("b", {}, money(f.balance)))),
-    f.other_income ? h("p", { class: "muted small" }, t("otherIncome", { a: money(f.other_income) })) : null,
     section(t("byMonth"), h("p", { class: "muted small" }, t("tapMonth")),
       h("div", { class: "months" }, d.months.map(monthBlock))),
     footer());
