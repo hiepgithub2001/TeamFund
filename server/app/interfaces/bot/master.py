@@ -6,7 +6,7 @@ from aiogram import Dispatcher, F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message, Update
 
-from . import registry
+from . import registry, tips
 from ...config import settings
 from ..deps import S
 from .registry import make_bot
@@ -45,9 +45,11 @@ async def master_context(handler, update: Update, data: dict):
     code = getattr(user, "language_code", None)
     lang = await lang_of(user, code if code in ("en", "vi") else settings.default_lang)
     data["lang"] = lang
+    await tips.arm(update, lang, "mtip")
     try:
         return await handler(update, data)
     except Exception as e:
+        tips.drop()
         await report_error(update, lang, e)
 
 

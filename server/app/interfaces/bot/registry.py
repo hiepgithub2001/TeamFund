@@ -12,7 +12,7 @@ from aiogram.types import Update
 
 from ...config import settings
 from ..deps import S
-from . import matches, team
+from . import matches, team, tips
 from .commands import set_master_commands, set_team_default_commands, sync_admin_commands
 from .lang import lang_of
 from .render import report_error
@@ -25,6 +25,7 @@ ALLOWED_UPDATES = ["message", "callback_query"]
 def make_bot(token: str) -> Bot:
     api = TelegramAPIServer.from_base(settings.telegram_api_root) if settings.telegram_api_root else None
     session = AiohttpSession(api=api) if api else AiohttpSession()
+    session.middleware(tips.TipRequests())
     return Bot(token, session=session,
                default=DefaultBotProperties(parse_mode=ParseMode.HTML, link_preview_is_disabled=True))
 
@@ -64,9 +65,15 @@ async def team_context(handler, update: Update, data: dict):
             data["new_follower"] = await call(S.teams.follow, *key)
             _followed.add(key)
         team.acting_user.set(user.id)
+    private = chat is not None and chat.type == "private"
+
+    async def manager():
+        return private and await team.role(entry, user) in ("owner", "manager")
+    await tips.arm(update, lang, "tip", manager, private)
     try:
         return await handler(update, data)
     except Exception as e:
+        tips.drop()
         await report_error(update, lang, e)
 
 

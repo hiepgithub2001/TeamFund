@@ -266,7 +266,8 @@ async def main():
 
         # non-managers are refused
         await T(text_update(MEMBER, "/plans"))
-        await wait_sent(to(MEMBER, "Only team managers"), "role check")
+        refused = await wait_sent(to(MEMBER, "Only team managers"), "role check")
+        assert "💡" not in refused["params"]["text"], "no how-to tip on a refusal"
 
         # 3. a member pays for An and Bình
         await T(text_update(MEMBER, "/start"))
@@ -295,6 +296,7 @@ async def main():
         await T(text_update(MEMBER, "/donate"))
         ask = await wait_sent(to(MEMBER, "Give to the team fund"), "donation amount asked")
         assert "dn:50000" in buttons(ask)
+        assert "/donate 50k" in ask["params"]["text"], "a bare command ends with its tip"
         await T(text_update(MEMBER, "1500"))
         await wait_sent(to(MEMBER, "multiple of 1,000đ"), "odd amount refused")
         await T(text_update(MEMBER, "30k"))
@@ -311,7 +313,8 @@ async def main():
 
         # 5. status, an unmatched transfer, assign it
         await T(text_update(MEMBER, "/status"))
-        await wait_sent(lambda c: to(MEMBER, r"Paid \(2\)")(c) and "Cường: 200,000đ" in c["params"]["text"], "status")
+        st = await wait_sent(lambda c: to(MEMBER, r"Paid \(2\)")(c) and "Cường: 200,000đ" in c["params"]["text"], "status")
+        assert st["params"]["text"].endswith("💡 Pay: /start · where the money went: /fund, /history"), "status tip"
         async with http.post(f"http://127.0.0.1:{PORT}/sepay/1", headers=sepay_headers, json={
                 "id": 2, "transferType": "in", "transferAmount": 200000, "content": "cuong dong quy"}):
             pass
@@ -788,6 +791,7 @@ async def main():
                         "followers told about the cancellation")
         await T(text_update(OWNER, "/matches"))
         lst = await wait_sent(to(OWNER, "Upcoming matches"), "list again")
+        assert "/matches cancel 30/11" in lst["params"]["text"], "managers get the manager tip"
         assert "<s>" in lst["params"]["text"] and "🚫 rain" in lst["params"]["text"]
         assert any(d.startswith("mt:v:") for d in buttons(lst)) and not any(d.startswith("mt:e:") for d in buttons(lst)), \
             "each match is its own button; no separate Edit step"
@@ -865,6 +869,7 @@ async def main():
         await T(text_update(OWNER, "/contacts moreh"))
         found = await wait_sent(to(OWNER, '"moreh": 1 found'), "search")
         assert "• <b>FC Moreh</b> · 📞 0912 345 678" in found["params"]["text"], "phones show in the list"
+        assert "💡" not in found["params"]["text"], "no tip when the command came with arguments"
         cid = next(d for d in buttons(found) if d.startswith("ct:v:"))
         await T(cb_update(OWNER, cid, found["message_id"]))
         card = await wait_sent(lambda c: c["method"] == "editMessageText" and "Played 0 · cancelled 1" in c["params"]["text"],

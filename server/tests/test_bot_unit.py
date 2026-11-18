@@ -228,3 +228,25 @@ def test_webhook_errors_from_a_restart_are_not_problems(monkeypatch):
     rows = {r["name"]: r for r in asyncio.run(ops.webhooks())}
     assert rows["@deploy_bot"]["ok"] and rows["@deploy_bot"]["error"] is None and rows["@deploy_bot"]["old_error_at"]
     assert not rows["@broken_bot"]["ok"] and rows["@broken_bot"]["error"] == "502 Bad Gateway"
+
+
+def test_tip_command_parsing():
+    from aiogram.types import Update
+    from app.interfaces.bot.tips import command_of
+
+    def upd(text):
+        return Update.model_validate({"update_id": 1, "message": {
+            "message_id": 1, "date": 0, "chat": {"id": 5, "type": "private"}, "text": text}})
+    assert command_of(upd("/history")) == ("history", "")
+    assert command_of(upd("/history@fc37it_bot 10/2026")) == ("history", "10/2026")
+    assert command_of(upd("/matches\n7/12 19h FC Moreh")) == ("matches", "7/12 19h FC Moreh")
+    assert command_of(upd("hello")) == (None, "")
+
+
+def test_every_tip_exists_in_both_languages():
+    import json
+    from pathlib import Path
+    d = Path(__file__).resolve().parents[1] / "app/interfaces/bot/locales"
+    en, vi = (json.loads((d / f).read_text()) for f in ("en.json", "vi.json"))
+    tips = {k for k in en if k.startswith(("tip.", "mtip."))}
+    assert len(tips) >= 25 and tips == {k for k in vi if k.startswith(("tip.", "mtip."))}

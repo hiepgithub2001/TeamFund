@@ -21,6 +21,7 @@ from .render import (bill_label, edit, error_text, fee_text, is_private, kb, owe
                      status_text)
 from .run import call
 from .state import del_state, get_state, set_state
+from . import tips
 
 router = Router(name="team")
 log = logging.getLogger("team")
@@ -56,11 +57,13 @@ async def role(entry, user) -> str | None:
 async def allow(ev, entry, lang, level: str, private_only: bool = True) -> bool:
     """True if the sender has the role; otherwise tells them and returns False."""
     if private_only and not is_private(ev):
+        tips.drop()
         await say(ev, t(lang, "err.private_only"))
         return False
     r = await role(entry, ev.from_user)
     ok = r == "owner" if level == "owner" else r in ("owner", "manager")
     if not ok:
+        tips.drop()
         text = t(lang, "err.not_owner" if level == "owner" else "err.not_manager")
         if isinstance(ev, CallbackQuery):
             await ev.answer(strip_tags(text), show_alert=True)
@@ -779,9 +782,8 @@ async def cmd_history(message: Message, command: CommandObject, entry, lang):
         period = f"{m.group(2)}-{int(m.group(1)):02d}"
     items = await call(S.money.history, tid(entry), 10, period)
     label = f"{period[5:]}/{period[:4]}" if period else None
-    hint = "" if period else "\n\n" + t(lang, "history.hint", month=_this_month())
     if not items:
-        await message.answer((t(lang, "history.month_empty", period=label) if period else t(lang, "history.empty")) + hint)
+        await message.answer(t(lang, "history.month_empty", period=label) if period else t(lang, "history.empty"))
         return
     lines = [f"{'➕' if i['type'] == 'in' else '➖'} {i['at']} · <b>{money(i['amount'], lang)}</b> · {esc(i['title'])}"
              f"{' (' + t(lang, 'history.' + i['source']) + ')' if i['source'] in ('cash', 'other', 'donation') else ''}"
@@ -796,14 +798,7 @@ async def cmd_history(message: Message, command: CommandObject, entry, lang):
             await message.answer(chunk)
             chunk = ""
         chunk += ("\n" if chunk else "") + line
-    await message.answer(chunk + hint)
-
-
-def _this_month() -> str:
-    from zoneinfo import ZoneInfo
-    from datetime import datetime
-    from ...config import settings
-    return datetime.now(ZoneInfo(settings.timezone)).strftime("%m/%Y")
+    await message.answer(chunk)
 
 
 @router.message(Command("lang"))
