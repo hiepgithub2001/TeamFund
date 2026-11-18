@@ -28,6 +28,11 @@ class WebUseCases:
     def __init__(self, d: Deps):
         self.d = d
 
+    def team_id(self, token: str) -> int:
+        """Which team a pay-page link belongs to (404 if none)."""
+        with self.d.uow() as uow:
+            return _team(uow, token).id
+
     def page(self, token: str) -> dict:
         """Everything the page shows: the team, its bank account, and who owes what."""
         with self.d.uow() as uow:

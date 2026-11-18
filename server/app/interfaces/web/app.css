@@ -26,6 +26,8 @@ h2 { font-size: 17px; margin: 0; }
 button { font: inherit; cursor: pointer; }
 
 header.top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 20px 0 12px; }
+header.top .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+header.top .avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; flex: none; background: var(--line, #ddd); }
 .lang { border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 999px;
         padding: 4px 10px; font-size: 13px; flex: none; }
 

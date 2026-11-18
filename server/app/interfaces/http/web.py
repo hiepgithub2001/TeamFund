@@ -2,7 +2,9 @@
 
 Everything lives under the team's secret path, so the service worker's scope is that one team and Caddy only
 needs to pass /p/* through. The page can read who owes and create a QR code; managing stays in Telegram."""
+import io
 import json
+import logging
 import time
 from collections import defaultdict, deque
 from pathlib import Path
@@ -15,6 +17,7 @@ from ..bot.run import call
 from ..deps import S
 
 router = APIRouter()
+log = logging.getLogger("web")
 STATIC = Path(__file__).resolve().parent.parent / "web"
 ASSETS = {"app.js": "text/javascript", "app.css": "text/css", "icon.svg": "image/svg+xml",
           "icon-192.png": "image/png", "icon-512.png": "image/png"}
@@ -100,17 +103,63 @@ async def manifest(token: str, request: Request):
         return _too_many()
     try:
         info = await call(S.web.page, token)
+        photo, size = await bot_photo(await call(S.web.team_id, token))
     except DomainError as e:
         return _error(e)
+    own = [{"src": "bot.jpg", "sizes": f"{size}x{size}", "type": "image/jpeg"},
+           {"src": "bot.jpg", "sizes": f"{size}x{size}", "type": "image/jpeg", "purpose": "maskable"}] if photo else []
     body = {"name": f"{info['team']} · Team Fund", "short_name": info["team"][:12], "lang": info["lang"],
             "start_url": "./", "scope": "./", "id": "./", "display": "standalone",
             "background_color": "#f6f7f4", "theme_color": "#1f7a4d",
-            "icons": [{"src": "icon-192.png", "sizes": "192x192", "type": "image/png"},
+            "icons": own + [{"src": "icon-192.png", "sizes": "192x192", "type": "image/png"},
                       {"src": "icon-512.png", "sizes": "512x512", "type": "image/png"},
                       {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
                       {"src": "icon.svg", "sizes": "any", "type": "image/svg+xml"}]}
     return Response(json.dumps(body, ensure_ascii=False), media_type="application/manifest+json",
                     headers={**SECURITY, "Cache-Control": "no-cache"})
+
+
+# The team bot's Telegram profile photo, as the page's icon. Asked from Telegram at most every few hours.
+PHOTO_TTL = 6 * 3600
+_photos: dict[int, tuple[float, bytes | None, int]] = {}  # team id -> (fetched at, jpeg or None, size px)
+
+
+async def bot_photo(team_id: int) -> tuple[bytes | None, int]:
+    hit = _photos.get(team_id)
+    if hit and time.monotonic() - hit[0] < PHOTO_TTL:
+        return hit[1], hit[2]
+    from ..bot import registry  # the running bots; imported here so the web app loads without them
+    data, size = None, 0
+    entry = registry.by_team.get(team_id)
+    if entry is not None:
+        try:
+            photos = await entry.bot.get_user_profile_photos(entry.bot.id, limit=1)
+            if photos.photos:
+                best = max(photos.photos[0], key=lambda p: p.width)
+                buf = io.BytesIO()
+                await entry.bot.download(best.file_id, destination=buf)
+                data, size = buf.getvalue(), best.width
+        except Exception as e:  # no photo is fine: the page keeps its own icon
+            log.warning("bot photo for team %s: %s", team_id, e)
+            if hit:
+                return hit[1], hit[2]
+    _photos[team_id] = (time.monotonic(), data, size)
+    return data, size
+
+
+@router.get("/p/{token}/bot.jpg")
+async def bot_icon(token: str, request: Request):
+    """The team bot's photo; the default icon when it has none."""
+    if not read_limit.allow(client_ip(request)):
+        return _too_many()
+    try:
+        data, _ = await bot_photo(await call(S.web.team_id, token))
+    except DomainError as e:
+        return _error(e)
+    if data is None:
+        return FileResponse(STATIC / "icon-512.png", media_type="image/png",
+                            headers={**SECURITY, "Cache-Control": "public, max-age=3600"})
+    return Response(data, media_type="image/jpeg", headers={**SECURITY, "Cache-Control": "public, max-age=3600"})
 
 
 @router.get("/p/{token}/{asset}")

@@ -109,8 +109,9 @@ async function copy(text) {
 function header() {
   const d = S.data;
   return h("header", { class: "top" },
-    h("div", {}, h("h1", {}, d ? d.team : "Team Fund"),
-      h("div", { class: "muted small" }, d ? `${t("title")} · ${t("month", { p: d.period_label })}` : t("title"))),
+    h("div", { class: "brand" }, h("img", { class: "avatar", src: "bot.jpg", alt: "", width: 44, height: 44 }),
+      h("div", {}, h("h1", {}, d ? d.team : "Team Fund"),
+        h("div", { class: "muted small" }, d ? `${t("title")} · ${t("month", { p: d.period_label })}` : t("title")))),
     h("button", { class: "lang", "aria-label": "Language", onclick: () => {
       S.lang = S.lang === "en" ? "vi" : "en"; store.set("lang", S.lang); document.documentElement.lang = S.lang; render();
     } }, S.lang === "en" ? "Tiếng Việt" : "English"));
