@@ -171,8 +171,7 @@ class MoneyUseCases:
         with self.d.uow() as uow:
             team = manager_team(uow, team_id, actor)
             return [{"payment_id": p.id, "amount": p.amount, "content": p.content, "reason": p.reason,
-                     "shared_with": p.shared_with, "at": self.d.clock.fmt(p.created_at)}
-                    for p in uow.payments.unmatched(team.id)]
+                     "at": self.d.clock.fmt(p.created_at)} for p in uow.payments.unmatched(team.id)]
 
     def assign(self, team_id: int, actor: int, payment_id: int, member_ids: list[int]) -> dict:
         with self.d.uow() as uow:
@@ -181,36 +180,16 @@ class MoneyUseCases:
             audit(uow, self.d.clock, team.id, actor, "payment.assign", target=", ".join(result["members"]),
                   after={"payment_id": payment_id})
             uow.commit()
-        for ev in result.pop("told"):
-            self.d.notifier.publish(ev)
-        return result
+            return result
 
     def dismiss(self, team_id: int, actor: int, payment_id: int) -> dict:
         with self.d.uow() as uow:
             team = manager_team(uow, team_id, actor)
             p = billing.unmatched_payment(uow, team, payment_id)
             p.status, p.recorded_by, p.note = "resolved", actor, "other income"
-            told = billing.claim_shared(uow, team, p)
             audit(uow, self.d.clock, team.id, actor, "payment.other_income", after={"payment_id": payment_id})
             uow.commit()
-            amount = p.amount
-        for ev in told:
-            self.d.notifier.publish(ev)
-        return {"amount": amount}
-
-    def not_ours(self, team_id: int, actor: int, payment_id: int) -> dict:
-        """A shared transfer this team says belongs to another team using the account: its copy goes."""
-        with self.d.uow() as uow:
-            team = manager_team(uow, team_id, actor)
-            p = billing.unmatched_payment(uow, team, payment_id)
-            if not p.shared_with:
-                raise DomainError(400, "not_shared")
-            amount = p.amount
-            uow.payments.remove(p)
-            audit(uow, self.d.clock, team.id, actor, "payment.not_ours", after={"amount": amount,
-                                                                               "content": (p.content or "")[:200]})
-            uow.commit()
-            return {"amount": amount}
+            return {"amount": p.amount}
 
     def export(self, team_id: int, actor: int) -> bytes:
         """Members, bills, payments and expenses as a spreadsheet."""

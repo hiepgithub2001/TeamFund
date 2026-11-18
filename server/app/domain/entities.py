@@ -204,9 +204,6 @@ class Payment:
     reason: str | None = None
     note: str | None = None
     created_at: datetime | None = None
-    # a code-less transfer into a bank account other teams use too: their names. Each team has a copy; it
-    # isn't in the balance until a team claims it (assign / keep), and then the other copies go away.
-    shared_with: str | None = None
     id: int | None = None
 
 
