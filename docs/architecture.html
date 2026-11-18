@@ -638,6 +638,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <tr><td>What it can do</td><td>Read the page and one month's transactions, create a QR for chosen members, and poll that QR's status. Nothing else.</td></tr>
       <tr><td>Abuse</td><td>Per-IP limits: 10 QR codes and 120 reads a minute. Unpaid QR codes simply expire.</td></tr>
       <tr><td>Keeping the link private</td><td><code>Referrer-Policy: no-referrer</code> (the QR image comes from qr.sepay.vn and must not see the link), <code>noindex</code>, and a strict Content-Security-Policy: only our own scripts run, and names are inserted as text, never HTML.</td></tr>
+      <tr><td>Guide</td><td>A ❓ Guide button in the header opens a four-step how-to (pay, scan, the other tabs, add to home screen) plus a link to the team bot. It opens by itself on a device's first visit; closing it is remembered on that device. The same how-to is the <code>/guide</code> command in the bot.</td></tr>
       <tr><td>Installing</td><td>A web app manifest and a service worker scoped to that team's path: "Add to home screen" on Android and iPhone. The app shell works offline; amounts always come live from the server.</td></tr>
       <tr><td>Language</td><td>The team's language by default, with a Tiếng Việt / English switch remembered on the device.</td></tr>
     </tbody>

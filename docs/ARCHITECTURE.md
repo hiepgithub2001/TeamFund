@@ -102,6 +102,7 @@ _The page is one HTML shell with plain JavaScript (no build step) in `interfaces
 | What it can do | Read the page and one month's transactions, create a QR for chosen members, and poll that QR's status. Nothing else. |
 | Abuse | Per-IP limits: 10 QR codes and 120 reads a minute. Unpaid QR codes simply expire. |
 | Keeping the link private | `Referrer-Policy: no-referrer` (the QR image comes from qr.sepay.vn and must not see the link), `noindex`, and a strict Content-Security-Policy: only our own scripts run, and names are inserted as text, never HTML. |
+| Guide | A ❓ Guide button in the header opens a four-step how-to (pay, scan, the other tabs, add to home screen) plus a link to the team bot. It opens by itself on a device's first visit; closing it is remembered on that device. The same how-to is the `/guide` command in the bot. |
 | Installing | A web app manifest and a service worker scoped to that team's path: "Add to home screen" on Android and iPhone. The app shell works offline; amounts always come live from the server. |
 | Language | The team's language by default, with a Tiếng Việt / English switch remembered on the device. |
 
