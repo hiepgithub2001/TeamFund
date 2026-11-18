@@ -1454,9 +1454,10 @@ async def cmd_remind(message: Message, entry, lang):
     if not await allow(message, entry, lang, "manager"):
         return
     G = group_lang(entry)
-    text = status_text(G, await call(S.money.status, tid(entry)))
-    n = await broadcast(entry, text, reply_markup=pay_keyboard(G, entry.username))
-    await message.answer(t(lang, "remind.sent", n=n))
+    status = await call(S.money.status, tid(entry))
+    n = await broadcast(entry, status_text(G, status), reply_markup=pay_keyboard(G, entry.username))
+    # the manager sees the same list that went out, then how many got it
+    await message.answer(f"{status_text(lang, status)}\n\n{t(lang, 'remind.sent', n=n)}")
 
 
 def action_text(lang: str, v: dict) -> str:
