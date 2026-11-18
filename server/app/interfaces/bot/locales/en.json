@@ -158,7 +158,7 @@
  "export.caption": "📄 {team} export",
  "lang.choose": "Choose your language:",
  "lang.done": "✅ Language: English",
- "help.everyone": "<b>Commands</b>\n/start Pay the team fee\n/status Who has paid this month\n/fund Fund balance\n/history Latest transactions (/history 10/2026: one month)\n/bank Team bank account\n/notify Turn team announcements on or off\n/requestmanager Ask to become a manager\n/lang Language",
+ "help.everyone": "<b>Commands</b>\n/start Pay the team fee\n/status Who has paid this month\n/fund Fund balance\n/history Latest transactions (/history 10/2026: one month)\n/bank Team bank account\n/notify Turn team announcements on or off\n/requestmanager Ask to become a manager\n/guide How to use the bot and the web page\n/lang Language",
  "help.manager": "\n\n<b>Manager</b>\n/weblink Pay page link for members without Telegram\n/members View, add and edit members\n/plans Fee packages: amount, cycle, deadline and late fee for groups of people\n/charge One-off charge or shared cost\n/markpaid Record cash payments\n/expense Record an expense\n/income Record income (prizes, sponsors, an old balance)\n/undo Undo a recent action\n/money How to write amounts and dates\n/remind Send the unpaid list to everyone\n/unmatched Payments to check\n/export Excel file\n/settings Team settings\n/teamlang Announcement language",
  "help.owner": "\n\n<b>Owner</b>\n/sepaytoken Connect SePay (API token)\n/setbank Choose the bank account (from SePay)\n/requests Review manager requests\n/managers Managers\n/transferowner Give the team to a manager\n/log Audit log",
  "cmd.start": "Pay the team fee",
@@ -547,5 +547,10 @@
  "member.plans": "💳 <b>Packages ({n})</b>:",
  "member.pack_from": "from {p}",
  "member.pack_until": "until {p}",
- "member.pack_now": " ✅ now"
+ "member.pack_now": " ✅ now",
+ "cmd.guide": "How to use the bot and the web page",
+ "guide.bot": "📘 <b>How to pay the team fund</b>\n\n<b>🤖 Telegram bot</b>\n1. Open @{bot}, tap <b>Start</b>.\n2. Pick your name (or pay for someone else) → <b>Pay</b>.\n3. Scan the QR in your bank app, <b>keep the amount and message as they are</b>. The bot confirms in a few minutes.\nMore: /status who paid · /fund balance · /matches fixtures · /contacts contacts",
+ "guide.web": "<b>🌐 Web page</b> (no Telegram needed){link}\n• <b>Pay</b>: pick names → scan the QR\n• <b>Fund</b>: income, expenses, balance · <b>Members</b>: who still owes\n• <b>Matches</b>, <b>Contacts</b> of other teams (tap a number to call)\n• Add it to your home screen to open it like an app",
+ "guide.link": "\n👉 {url}",
+ "guide.forward": "↪️ Forward this message to the team chat."
 }

@@ -158,7 +158,7 @@
  "export.caption": "📄 Dữ liệu {team}",
  "lang.choose": "Chọn ngôn ngữ:",
  "lang.done": "✅ Ngôn ngữ: Tiếng Việt",
- "help.everyone": "<b>Lệnh</b>\n/start Đóng quỹ\n/status Ai đã đóng tháng này\n/fund Số dư quỹ\n/history Giao dịch gần đây (/history 10/2026: theo tháng)\n/bank Tài khoản ngân hàng của đội\n/notify Bật/tắt thông báo của đội\n/requestmanager Xin làm quản lý\n/lang Ngôn ngữ",
+ "help.everyone": "<b>Lệnh</b>\n/start Đóng quỹ\n/status Ai đã đóng tháng này\n/fund Số dư quỹ\n/history Giao dịch gần đây (/history 10/2026: theo tháng)\n/bank Tài khoản ngân hàng của đội\n/notify Bật/tắt thông báo của đội\n/requestmanager Xin làm quản lý\n/guide Hướng dẫn dùng bot và trang web\n/lang Ngôn ngữ",
  "help.manager": "\n\n<b>Quản lý</b>\n/weblink Link trang đóng quỹ cho người không dùng Telegram\n/members Xem, thêm và sửa thành viên\n/plans Gói phí: mức, chu kỳ, hạn đóng và phạt trễ cho từng nhóm người\n/charge Khoản thu riêng hoặc chia tiền\n/markpaid Ghi nhận tiền mặt\n/expense Ghi khoản chi\n/income Ghi khoản thu (thưởng, tài trợ, số dư cũ)\n/undo Hoàn tác một thao tác gần đây\n/money Cách nhập số tiền và ngày\n/remind Gửi danh sách chưa đóng cho mọi người\n/unmatched Khoản cần kiểm tra\n/export Xuất Excel\n/settings Cài đặt đội\n/teamlang Ngôn ngữ thông báo",
  "help.owner": "\n\n<b>Chủ đội</b>\n/sepaytoken Kết nối SePay (API token)\n/setbank Chọn tài khoản ngân hàng (từ SePay)\n/requests Duyệt yêu cầu làm quản lý\n/managers Quản lý\n/transferowner Chuyển chủ đội\n/log Nhật ký thao tác",
  "cmd.start": "Đóng quỹ",
@@ -547,5 +547,10 @@
  "member.plans": "💳 <b>Gói phí ({n})</b>:",
  "member.pack_from": "từ {p}",
  "member.pack_until": "đến {p}",
- "member.pack_now": " ✅ đang áp dụng"
+ "member.pack_now": " ✅ đang áp dụng",
+ "cmd.guide": "Hướng dẫn dùng bot và trang web",
+ "guide.bot": "📘 <b>Hướng dẫn đóng quỹ</b>\n\n<b>🤖 Bot Telegram</b>\n1. Mở @{bot}, bấm <b>Start</b>.\n2. Chọn tên mình (hoặc đóng hộ người khác) → <b>Thanh toán</b>.\n3. Quét QR bằng app ngân hàng, <b>giữ nguyên số tiền và nội dung</b>. Bot tự xác nhận trong vài phút.\nKhác: /status ai đã đóng · /fund số dư · /matches lịch đá · /contacts danh bạ",
+ "guide.web": "<b>🌐 Trang web</b> (không cần Telegram){link}\n• <b>Đóng quỹ</b>: chọn tên → quét QR\n• <b>Quỹ</b>: thu chi, số dư · <b>Thành viên</b>: ai còn nợ\n• <b>Lịch đá</b>, <b>Danh bạ</b> đội bạn (bấm số để gọi)\n• Thêm vào màn hình chính để mở như app",
+ "guide.link": "\n👉 {url}",
+ "guide.forward": "↪️ Chuyển tiếp tin này vào nhóm chat của đội."
 }

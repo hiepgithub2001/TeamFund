@@ -687,6 +687,11 @@ async def main():
         await until(lambda: len(sent(lambda c: to(OWNER, "Overlaps another package")(c))) >= 2, "still overlapping: warned again")
         await T(cb_update(OWNER, "w:x", menu["message_id"]))
 
+        # 16c. /guide: short how-to with the pay page link, and a hint for managers to forward it
+        await T(text_update(OWNER, "/guide"))
+        await wait_sent(lambda c: to(OWNER, "How to pay the team fund")(c) and "/p/" in c["params"]["text"]
+                        and "Forward this message" in c["params"]["text"], "guide sent")
+
         # 17. the match calendar: paste lines, cancel with a reason (followers told), a weekly calendar, show more
         from datetime import timedelta as _td
         soon = today + _td(days=10)

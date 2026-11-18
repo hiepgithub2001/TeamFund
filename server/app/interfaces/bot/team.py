@@ -640,6 +640,23 @@ async def cmd_help(message: Message, entry, lang):
     await message.answer(text)
 
 
+@router.message(Command("guide"))
+async def cmd_guide(message: Message, entry, lang):
+    """A short how-to for members: the bot and the pay page. Managers get the page link made if needed,
+    and a hint to forward the message to the team chat."""
+    manager = bool(await role(entry, message.from_user))
+    if manager:
+        url = (await call(S.teams.web_link, tid(entry), message.from_user.id))["url"]
+    else:
+        url = await call(S.teams.public_link, tid(entry))
+    me = await message.bot.me()
+    text = t(lang, "guide.bot", bot=esc(me.username or ""))
+    text += "\n\n" + t(lang, "guide.web", link=t(lang, "guide.link", url=esc(url)) if url else "")
+    if manager:
+        text += "\n\n" + t(lang, "guide.forward")
+    await message.answer(text, disable_web_page_preview=True)
+
+
 # ---- commands: managers --------------------------------------------------------------------------
 
 @router.message(Command("members"))
