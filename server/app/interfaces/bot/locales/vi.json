@@ -121,8 +121,8 @@
  "settings.text": "⚙️ <b>{team}</b>\nQuỹ tháng: {fee}\nHạn đóng: {due}\nNgân hàng: {bank}\nSePay: {sepay}\nNgười nhận thông báo: {group}\nNgôn ngữ thông báo: {lang}",
  "settings.not_set": "chưa cài",
  "teamlang.done": "✅ Tin nhắn trong nhóm sẽ dùng tiếng Việt.",
- "pick.charge": "Ai đóng <b>{title}</b> ({amount} mỗi người)?",
- "pick.split": "Ai cùng chia <b>{title}</b> (tổng {amount})?",
+ "pick.charge": "Ai đóng <b>{title}</b> ({amount} mỗi người)?\nBấm tên để chọn hoặc bỏ chọn.",
+ "pick.split": "Ai cùng chia <b>{title}</b> (tổng {amount})?\nBấm tên để chọn hoặc bỏ chọn.",
  "pick.markpaid": "Ai đã đóng tiền mặt?\nChọn <b>một người</b> để nhập số tiền thực nhận (nếu khác số nợ). Chọn nhiều người: mỗi người được ghi là đóng đủ.",
  "pick.markpaid_none": "Không ai có khoản chưa đóng.",
  "pick.assign": "Khoản {amount} này là của những ai?",
@@ -293,7 +293,7 @@
  "m.welcome_auto": "👋 <b>Team Fund</b> tạo cho đội bạn một bot Telegram riêng để thu quỹ hằng tháng và tự xác nhận thanh toán qua SePay.\n\n<b>Bắt đầu</b>\n1. Gửi /requestteam và chờ duyệt.\n2. Khi được duyệt, bấm <b>🤖 Tạo bot giúp tôi</b>: hệ thống tạo bot cho đội, không cần vào @BotFather.\n(Muốn tự tạo? Tạo trong @BotFather, rồi gửi /newteam và dán token.)\n\n/myteams Đội của bạn\n/lang Ngôn ngữ",
  "m.newteam_admin": "🤖 Gửi <b>tên đội</b>, hệ thống sẽ tạo bot cho đội qua @BotFather và đăng ký đội luôn.\n(Hoặc dán token của một bot bạn đã tạo.)",
  "m.login_hint": "\n\n💡 Admin: để hệ thống tự tạo bot, đăng nhập Telegram cho server một lần:\n<code>docker compose exec app python -m app.telegram_login phone +84…</code>",
- "charge.how": "<b>{title}</b> · {amount}: tính thế nào?",
+ "charge.how": "<b>{title}</b> · {amount}: tính thế nào?\nBước sau chọn người đóng: bấm tên để bỏ hoặc thêm, hoặc ⬜ Bỏ chọn hết rồi chọn vài người.",
  "btn.charge_each": "👤 Mỗi người {amount}",
  "btn.charge_split": "➗ Chia đều {amount}",
  "btn.add_members": "➕ Thêm thành viên",
@@ -572,5 +572,8 @@
  "donate.receipt": "💝 Đã nhận <b>{amount}</b> ủng hộ quỹ. Cảm ơn bạn!",
  "group.donated": "💝 <b>{donor}</b> đã ủng hộ quỹ {amount}. Cảm ơn!",
  "err.donation_amount": "Số tiền phải là bội số của 1.000đ, từ 1.000đ đến 50.000.000đ. Nhập lại, ví dụ <code>50k</code>.",
- "history.donation": "ủng hộ"
+ "history.donation": "ủng hộ",
+ "btn.none": "⬜ Bỏ chọn hết",
+ "pick.total": "tổng {amount}",
+ "pick.each": "{amount}/người"
 }

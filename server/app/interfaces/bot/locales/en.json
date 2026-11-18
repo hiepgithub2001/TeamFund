@@ -121,8 +121,8 @@
  "settings.text": "⚙️ <b>{team}</b>\nMonthly fee: {fee}\nDue: {due}\nBank: {bank}\nSePay: {sepay}\nGet announcements: {group}\nAnnouncement language: {lang}",
  "settings.not_set": "not set",
  "teamlang.done": "✅ Group messages will be in English.",
- "pick.charge": "Who pays <b>{title}</b> ({amount} each)?",
- "pick.split": "Who shares <b>{title}</b> ({amount} in total)?",
+ "pick.charge": "Who pays <b>{title}</b> ({amount} each)?\nTap a name to pick or unpick it.",
+ "pick.split": "Who shares <b>{title}</b> ({amount} in total)?\nTap a name to pick or unpick it.",
  "pick.markpaid": "Who paid in cash?\nPick <b>one person</b> to enter the amount actually received (if it differs). Several people: each is recorded as paid in full.",
  "pick.markpaid_none": "Nobody has unpaid bills.",
  "pick.assign": "Which members is this {amount} payment for?",
@@ -293,7 +293,7 @@
  "m.welcome_auto": "👋 <b>Team Fund</b> gives your team its own Telegram bot that collects the monthly fee and confirms payments automatically through SePay.\n\n<b>How to start</b>\n1. Send /requestteam and wait for approval.\n2. When approved, tap <b>🤖 Create the bot for me</b>: the team's bot is made for you, no @BotFather needed.\n(Prefer your own? Create one in @BotFather, then send /newteam and paste its token.)\n\n/myteams Your teams\n/lang Language",
  "m.newteam_admin": "🤖 Send the <b>team name</b> and I'll create its bot through @BotFather and register the team.\n(Or paste the token of a bot you made yourself.)",
  "m.login_hint": "\n\n💡 Admin: to have bots created for you, log the server in to Telegram once:\n<code>docker compose exec app python -m app.telegram_login phone +84…</code>",
- "charge.how": "<b>{title}</b> · {amount}: how should it be charged?",
+ "charge.how": "<b>{title}</b> · {amount}: how should it be charged?\nNext you pick who pays: tap names to remove or add them, or ⬜ Clear all and pick a few.",
  "btn.charge_each": "👤 {amount} each",
  "btn.charge_split": "➗ Split {amount}",
  "btn.add_members": "➕ Add members",
@@ -572,5 +572,8 @@
  "donate.receipt": "💝 Received <b>{amount}</b> for the fund. Thank you!",
  "group.donated": "💝 <b>{donor}</b> gave {amount} to the fund. Thank you!",
  "err.donation_amount": "The amount must be a multiple of 1,000đ, from 1,000đ to 50,000,000đ. Type it again, e.g. <code>50k</code>.",
- "history.donation": "donation"
+ "history.donation": "donation",
+ "btn.none": "⬜ Clear all",
+ "pick.total": "{amount} in total",
+ "pick.each": "{amount} each"
 }

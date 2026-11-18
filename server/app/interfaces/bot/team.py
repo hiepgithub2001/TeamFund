@@ -16,7 +16,7 @@ from .fmt import amount_and_title, esc, money, parse_amount, parse_periods, spli
 from .i18n import has, t
 from .lang import lang_for, set_lang
 from ...domain.errors import DomainError
-from ...domain.rules import add_months, cycle_start, period_end, period_name
+from ...domain.rules import add_months, cycle_start, period_end, period_name, split_share
 from .render import (bill_label, edit, error_text, fee_text, is_private, kb, owes_lines, pay_keyboard, say,
                      status_text)
 from .run import call
@@ -111,7 +111,13 @@ def picker_keyboard(lang, st):
         rows += [[(t(lang, "pay.button", count=n, amount=money(total, lang)), "k:ok")],
                  [("🔄", "k:r"), (t(lang, "btn.donate"), "dn:a")]]
     else:
-        rows += [[(t(lang, "btn.all"), "k:a"), (t(lang, "btn.confirm", n=n), "k:ok")],
+        everyone = n == len(st["options"]) and n > 0
+        confirm = t(lang, "btn.confirm", n=n)
+        amount = (st.get("data") or {}).get("amount")
+        if st["kind"] in ("charge", "split") and n and amount:  # what the choice costs
+            confirm += " · " + (t(lang, "pick.total", amount=money(amount * n, lang)) if st["kind"] == "charge"
+                                else t(lang, "pick.each", amount=money(split_share(amount, n), lang)))
+        rows += [[(t(lang, "btn.none" if everyone else "btn.all"), "k:a")], [(confirm, "k:ok")],
                  [(t(lang, "btn.cancel"), "k:x")]]
     return kb(*rows)
 

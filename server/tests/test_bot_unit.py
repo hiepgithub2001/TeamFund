@@ -87,3 +87,17 @@ def test_parse_periods():
     assert parse_periods("2027", 12, "2026-01") == ("2027-01", None)
     assert parse_periods("2026 - 2027", 12, "2026-01") == ("2026-01", "2027-12")
     assert parse_periods("11/2026 - 01/27", 1, "2026-11") == ("2026-11", "2027-01")
+
+
+def test_charge_picker_buttons():
+    """A charge picker starts with everyone; ⬜ Clear all lets a manager pick a few, and the confirm button says
+    what the choice costs."""
+    from app.interfaces.bot.team import picker_keyboard
+    st = {"kind": "split", "options": [{"id": i, "label": n} for i, n in enumerate(["An", "Bình", "Cường"])],
+          "selected": [0, 1, 2], "data": {"title": "Áo", "amount": 15000}}
+    texts = lambda: [b.text for row in picker_keyboard("vi", st).inline_keyboard for b in row]  # noqa: E731
+    assert "⬜ Bỏ chọn hết" in texts() and "✔️ Xác nhận (3) · 5.000đ/người" in texts()
+    st["selected"] = [1]
+    assert "☑️ Tất cả" in texts() and "✔️ Xác nhận (1) · 15.000đ/người" in texts()
+    st["kind"], st["selected"] = "charge", [0, 2]
+    assert "✔️ Xác nhận (2) · tổng 30.000đ" in texts()
