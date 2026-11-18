@@ -8,6 +8,7 @@ the sender's full name and bank references)."""
 import re
 
 from ..domain.entities import Team
+from .contacts import same
 from ..domain.errors import DomainError, invalid
 from ..domain.rules import months_between, period_label
 from . import billing
@@ -69,7 +70,7 @@ class WebUseCases:
         ms = uow.matches.all_of_team(team.id)
         out = []
         for c in sorted(uow.contacts.of_team(team.id), key=lambda c: fold(c.name)):
-            mine = [m for m in ms if fold(m.opponent) == fold(c.name)]
+            mine = [m for m in ms if same(m.opponent) == same(c.name)]
             played = [m for m in mine if m.day < today and m.status == "scheduled"]
             ahead = [m for m in mine if m.day >= today and m.status == "scheduled"]
             out.append({"name": c.name, "phone": c.phone, "note": c.note, "played": len(played),

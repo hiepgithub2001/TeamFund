@@ -841,6 +841,9 @@ def test_contacts():
     assert c.save_many(tid, OWNER, items) == {"added": 2, "updated": 0}
     assert [p["update"] for p in c.preview(tid, OWNER, [{"name": "fc soc son", "phone": "0584000000"}])] == [True]
     assert c.save_many(tid, OWNER, [{"name": "FC Soc Son", "phone": "0584000000"}]) == {"added": 0, "updated": 1}
+    assert c.save_many(tid, OWNER, [{"name": "FCSocSon", "note": "Anh Sơn"}]) == {"added": 0, "updated": 1}, \
+        "spaces don't make a new team"
+    c.save_many(tid, OWNER, [{"name": "FC Soc Son"}])
     assert code(c.save_many, tid, OWNER, [{"name": "X", "phone": "12345"}]) == "invalid"
     found = c.search(tid, OWNER, "soc son")
     assert len(found) == 1 and found[0]["phone"] == "0584000000"

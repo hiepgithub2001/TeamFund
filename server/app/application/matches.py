@@ -4,6 +4,7 @@ matches ahead, cancelling with a reason. Each match can carry money a manager re
 from datetime import date, timedelta
 
 from ..domain.entities import Bill, Expense, Match, MatchSchedule, Payment, Team
+from .contacts import same
 from ..domain.errors import DomainError, invalid
 from ..domain.rules import MATCH_FILL_DAYS, MAX_FEE, MAX_MATCHES_AT_ONCE, fold, schedule_dates
 from . import billing
@@ -131,8 +132,8 @@ class MatchUseCases:
             team = manager_team(uow, team_id, actor)
             m = self._match(uow, team, match_id)
             out = match_dict(m, self._today())
-            key = fold(m.opponent)
-            c = next((c for c in uow.contacts.of_team(team.id) if key and fold(c.name) == key), None)
+            key = same(m.opponent)
+            c = next((c for c in uow.contacts.of_team(team.id) if key and same(c.name) == key), None)
             out["contact_id"] = c.id if c else None
             out["contact_phone"] = c.phone if c else None
             out["players"] = self._players(uow, m)

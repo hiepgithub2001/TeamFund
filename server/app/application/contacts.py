@@ -12,6 +12,11 @@ LIMITS = {"name": 100, "phone": 10, "note": 500}
 MAX_AT_ONCE = 60
 
 
+def same(name: str | None) -> str:
+    """Two contact names are the same team when they match ignoring accents, case and spaces ("KC United" = "KCUnited")."""
+    return "".join(fold(name or "").split())
+
+
 def _clean(field: str, v) -> str | None:
     if v is None:
         return None
@@ -30,7 +35,7 @@ def contact_dict(c: Contact) -> dict:
 
 
 def _by_name(uow: UnitOfWork, team: Team) -> dict[str, Contact]:
-    return {fold(c.name): c for c in uow.contacts.of_team(team.id)}
+    return {same(c.name): c for c in uow.contacts.of_team(team.id)}
 
 
 class ContactUseCases:
@@ -59,7 +64,7 @@ class ContactUseCases:
             team = get_team(uow, team_id)
             c = self._contact(uow, team, contact_id)
             today = self.d.clock.local_now().date()
-            mine = [m for m in uow.matches.all_of_team(team.id) if fold(m.opponent) == fold(c.name)]
+            mine = [m for m in uow.matches.all_of_team(team.id) if same(m.opponent) == same(c.name)]
             played = [m for m in mine if m.day < today and m.status == "scheduled"]
             ahead = [m for m in mine if m.day >= today and m.status == "scheduled"]
             return {**contact_dict(c), "played": len(played),
@@ -72,7 +77,7 @@ class ContactUseCases:
         with self.d.uow() as uow:
             team = manager_team(uow, team_id, actor)
             have = _by_name(uow, team)
-            return [{**it, "update": fold(it.get("name")) in have} for it in self._valid(items)]
+            return [{**it, "update": same(it.get("name")) in have} for it in self._valid(items)]
 
     @staticmethod
     def _valid(items) -> list[dict]:
@@ -95,12 +100,12 @@ class ContactUseCases:
             have = _by_name(uow, team)
             added = updated = 0
             for it in items:
-                c = have.get(fold(it["name"]))
+                c = have.get(same(it["name"]))
                 if c is None:
                     c = Contact(team_id=team.id, name=it["name"], phone=it["phone"], note=it["note"],
                                 created_at=self.d.clock.now())
                     uow.contacts.add(c)
-                    have[fold(c.name)] = c
+                    have[same(c.name)] = c
                     added += 1
                 else:
                     c.name, c.phone, c.note = it["name"], it["phone"] or c.phone, it["note"] or c.note
