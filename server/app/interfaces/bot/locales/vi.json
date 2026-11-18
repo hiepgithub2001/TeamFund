@@ -634,5 +634,6 @@
  "ops.p_unmatched": "<b>{team}</b>: {n} khoản ({amount}) chờ xử lý hơn {days} ngày. Mở /unmatched trong bot đội.",
  "ops.p_quiet": "<b>{team}</b>: {n} mã QR trong 7 ngày nhưng không nhận được giao dịch SePay nào. Kiểm tra webhook trên my.sepay.vn.",
  "ops.daily": "🩺 <b>Kiểm tra hằng ngày: {n} việc cần xem</b>",
- "ops.daily_more": "Xem đầy đủ: /ops"
+ "ops.daily_more": "Xem đầy đủ: /ops",
+ "ops.bot_restart_error": "lỗi lúc {at}, trước lần khởi động lại (Telegram đã gửi lại, không mất tin)"
 }

@@ -199,3 +199,32 @@ def test_daily_check_messages_admins_only_when_needed(monkeypatch):
     state["r"] = {**fine, "disk": {"pct": 91, "used_gb": 1, "total_gb": 2}}
     asyncio.run(ops.daily_check())
     assert [c for c, _ in sent] == [1, 2] and "Daily check: 1 to look at" in sent[0][1] and "91%" in sent[0][1]
+
+
+def test_webhook_errors_from_a_restart_are_not_problems(monkeypatch):
+    """A 502 while the app restarts (a deploy) is retried by Telegram: shown, not flagged. One while it runs is."""
+    import asyncio
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+    from app.interfaces.bot import ops, registry
+    now = datetime.now(timezone.utc)
+    infos = {}
+
+    class Bot:
+        def __init__(self, name):
+            self.name = name
+
+        async def get_webhook_info(self):
+            return infos[self.name]
+    monkeypatch.setattr(ops.settings, "telegram_mode", "webhook")
+    monkeypatch.setattr(ops, "STARTED", now.timestamp() - 3600)  # up for an hour
+    monkeypatch.setitem(registry.master, "bot", None)
+    monkeypatch.setattr(registry, "by_bot", {1: SimpleNamespace(username="deploy_bot", bot=Bot("a")),
+                                             2: SimpleNamespace(username="broken_bot", bot=Bot("b"))})
+    infos["a"] = SimpleNamespace(url="https://x/tg/1", pending_update_count=0, last_error_message="502 Bad Gateway",
+                                 last_error_date=datetime.fromtimestamp(now.timestamp() - 3700, timezone.utc))
+    infos["b"] = SimpleNamespace(url="https://x/tg/2", pending_update_count=3, last_error_message="502 Bad Gateway",
+                                 last_error_date=datetime.fromtimestamp(now.timestamp() - 600, timezone.utc))
+    rows = {r["name"]: r for r in asyncio.run(ops.webhooks())}
+    assert rows["@deploy_bot"]["ok"] and rows["@deploy_bot"]["error"] is None and rows["@deploy_bot"]["old_error_at"]
+    assert not rows["@broken_bot"]["ok"] and rows["@broken_bot"]["error"] == "502 Bad Gateway"

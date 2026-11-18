@@ -23,6 +23,7 @@ STARTED = time.time()
 DISK_LIMIT = 80          # % used
 BACKUP_MAX_AGE = timedelta(hours=26)
 WEBHOOK_BACKLOG = 20     # updates waiting at Telegram
+RESTART_GRACE = 60       # seconds after start: Telegram may still report errors from the restart itself
 
 
 class ErrorLog(logging.Handler):
@@ -95,13 +96,16 @@ async def webhooks() -> list[dict]:
         bots.insert(0, ("master", registry.master["bot"]))
     out = []
     for name, bot in bots:
-        row = {"name": name, "ok": True, "pending": 0, "error": None, "error_at": None}
+        row = {"name": name, "ok": True, "pending": 0, "error": None, "error_at": None, "old_error_at": None}
         if settings.telegram_mode == "webhook":
             try:
                 info = await bot.get_webhook_info()
                 row["pending"] = info.pending_update_count or 0
-                if info.last_error_date and datetime.now(timezone.utc) - info.last_error_date < timedelta(hours=24):
-                    row["error"], row["error_at"] = info.last_error_message or "?", info.last_error_date
+                at = info.last_error_date
+                if at and at.timestamp() > STARTED + RESTART_GRACE:  # failed while this server was up: a real problem
+                    row["error"], row["error_at"] = info.last_error_message or "?", at
+                elif at and datetime.now(timezone.utc) - at < timedelta(hours=24):
+                    row["old_error_at"] = at  # during a restart or deploy: Telegram retried, nothing lost
                 row["ok"] = bool(info.url) and row["pending"] <= WEBHOOK_BACKLOG and row["error"] is None
                 if not info.url:
                     row["error"] = "no webhook"
@@ -186,6 +190,8 @@ def report(lang: str, r: dict) -> str:
         extra = t(lang, "ops.bot_pending", n=bot["pending"]) if bot["pending"] else ""
         if bot["error"]:
             extra += f" · {esc(bot['error'])}"
+        elif bot.get("old_error_at"):
+            extra += " · " + t(lang, "ops.bot_restart_error", at=_local(bot["old_error_at"]))
         lines.append(f"{mark} {esc(bot['name'])}{extra}")
     lines += ["", t(lang, "ops.teams")]
     for x in r["teams"]:

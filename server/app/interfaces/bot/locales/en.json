@@ -634,5 +634,6 @@
  "ops.p_unmatched": "<b>{team}</b>: {n} payments ({amount}) waiting over {days} days. Open /unmatched in the team bot.",
  "ops.p_quiet": "<b>{team}</b>: {n} QR codes in 7 days but no SePay transfer at all. Check the webhook on my.sepay.vn.",
  "ops.daily": "🩺 <b>Daily check: {n} to look at</b>",
- "ops.daily_more": "Full view: /ops"
+ "ops.daily_more": "Full view: /ops",
+ "ops.bot_restart_error": "error at {at}, before the last restart (Telegram retried, nothing lost)"
 }
