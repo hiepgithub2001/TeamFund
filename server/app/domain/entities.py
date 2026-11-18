@@ -184,6 +184,7 @@ class PaymentIntent:
     member_names: list = field(default_factory=list)
     status: str = "pending"  # pending|paid|expired
     payment_id: int | None = None
+    kind: str | None = None  # None: bills; "donation": money given to the fund (member_names: the donor)
     created_at: datetime | None = None
     expires_at: datetime | None = None
     id: int | None = None
@@ -192,7 +193,7 @@ class PaymentIntent:
 @dataclass(eq=False)
 class Payment:
     team_id: int
-    source: str  # sepay|cash|other (money that isn't a member's fee: a prize, a sponsor, the opening balance)
+    source: str  # sepay|cash|other (a prize, a sponsor, the opening balance)|donation (a donation QR; note: donor)
     amount: int
     sepay_tx_id: str | None = None
     content: str | None = None

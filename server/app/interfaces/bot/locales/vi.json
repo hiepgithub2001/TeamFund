@@ -158,7 +158,7 @@
  "export.caption": "📄 Dữ liệu {team}",
  "lang.choose": "Chọn ngôn ngữ:",
  "lang.done": "✅ Ngôn ngữ: Tiếng Việt",
- "help.everyone": "<b>Lệnh</b>\n/start Đóng quỹ\n/status Ai đã đóng tháng này\n/fund Số dư quỹ\n/history Giao dịch gần đây (/history 10/2026: theo tháng)\n/bank Tài khoản ngân hàng của đội\n/notify Bật/tắt thông báo của đội\n/requestmanager Xin làm quản lý\n/guide Hướng dẫn dùng bot và trang web\n/lang Ngôn ngữ",
+ "help.everyone": "<b>Lệnh</b>\n/start Đóng quỹ\n/donate Ủng hộ quỹ đội (số tiền tuỳ bạn)\n/status Ai đã đóng tháng này\n/fund Số dư quỹ\n/history Giao dịch gần đây (/history 10/2026: theo tháng)\n/bank Tài khoản ngân hàng của đội\n/notify Bật/tắt thông báo của đội\n/requestmanager Xin làm quản lý\n/guide Hướng dẫn dùng bot và trang web\n/lang Ngôn ngữ",
  "help.manager": "\n\n<b>Quản lý</b>\n/weblink Link trang đóng quỹ cho người không dùng Telegram\n/members Xem, thêm và sửa thành viên\n/plans Gói phí: mức, chu kỳ, hạn đóng và phạt trễ cho từng nhóm người\n/charge Khoản thu riêng hoặc chia tiền\n/markpaid Ghi nhận tiền mặt\n/expense Ghi khoản chi\n/income Ghi khoản thu (thưởng, tài trợ, số dư cũ)\n/undo Hoàn tác một thao tác gần đây\n/money Cách nhập số tiền và ngày\n/remind Gửi danh sách chưa đóng cho mọi người\n/unmatched Khoản cần kiểm tra\n/export Xuất Excel\n/settings Cài đặt đội\n/teamlang Ngôn ngữ thông báo",
  "help.owner": "\n\n<b>Chủ đội</b>\n/sepaytoken Kết nối SePay (API token)\n/setbank Chọn tài khoản ngân hàng (từ SePay)\n/requests Duyệt yêu cầu làm quản lý\n/managers Quản lý\n/transferowner Chuyển chủ đội\n/log Nhật ký thao tác",
  "cmd.start": "Đóng quỹ",
@@ -564,5 +564,13 @@
  "member.pack_pick": "Thêm gói cho <b>{name}</b>: chọn một gói của đội, hoặc tạo gói mới.",
  "member.pack_new_ask": "Nhập mức và chu kỳ của gói, ví dụ <code>300k quý</code> (chu kỳ: tháng, quý, 6 tháng, năm).",
  "member.pack_drop_confirm": "Bỏ gói này? Những tháng gói không còn áp dụng sẽ đóng theo gói khác hoặc gói mặc định.",
- "member.pack_dropped": "✅ Đã bỏ gói."
+ "member.pack_dropped": "✅ Đã bỏ gói.",
+ "cmd.donate": "Ủng hộ quỹ đội (số tiền tuỳ bạn)",
+ "btn.donate": "💝 Ủng hộ quỹ",
+ "donate.ask": "💝 <b>Ủng hộ quỹ đội</b>\nChọn số tiền, hoặc nhập số khác (bội số của 1.000đ, ví dụ <code>30k</code>, <code>150000</code>).",
+ "donate.qr_caption": "💝 <b>Ủng hộ quỹ:</b> {amount}\n🏦 {bank} · <code>{account}</code>\n👤 {holder}\n📝 <b>Nội dung chuyển khoản:</b> <code>{code}</code>\n\nQuét mã QR bằng ứng dụng ngân hàng, giữ nguyên nội dung. Tiền sẽ tự vào quỹ, thường trong vòng 5 phút.\n⏳ Hiệu lực đến {expires}.",
+ "donate.receipt": "💝 Đã nhận <b>{amount}</b> ủng hộ quỹ. Cảm ơn bạn!",
+ "group.donated": "💝 <b>{donor}</b> đã ủng hộ quỹ {amount}. Cảm ơn!",
+ "err.donation_amount": "Số tiền phải là bội số của 1.000đ, từ 1.000đ đến 50.000.000đ. Nhập lại, ví dụ <code>50k</code>.",
+ "history.donation": "ủng hộ"
 }

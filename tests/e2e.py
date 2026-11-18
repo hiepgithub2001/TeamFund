@@ -282,6 +282,24 @@ async def main():
         await wait_sent(to(OWNER, r"An, Bình</b> paid 400,000đ"), "followers told who paid")
         assert not sent(to(MEMBER, r"An, Bình</b> paid 400,000đ")), "the payer only gets the receipt"
 
+        # 4b. a donation: any multiple of 1,000đ, made by anyone; SePay confirms and everyone is thanked
+        await T(text_update(MEMBER, "/donate"))
+        ask = await wait_sent(to(MEMBER, "Give to the team fund"), "donation amount asked")
+        assert "dn:50000" in buttons(ask)
+        await T(text_update(MEMBER, "1500"))
+        await wait_sent(to(MEMBER, "multiple of 1,000đ"), "odd amount refused")
+        await T(text_update(MEMBER, "30k"))
+        dq = await until(lambda: next((c for c in calls if c["method"] == "sendPhoto"
+                                       and "Donation:" in c["params"].get("caption", "")), None), "donation qr")
+        assert "amount=30000" in dq["params"]["photo"]
+        dcode = re.search(r"<code>(TF[A-Z0-9]{8})</code>", dq["params"]["caption"]).group(1)
+        async with http.post(f"http://127.0.0.1:{PORT}/sepay/1", headers=sepay_headers, json={
+                "id": 41, "gateway": "MBBank", "transferType": "in", "transferAmount": 30000,
+                "content": f"{dcode} ung ho"}) as r:
+            assert await r.json() == {"success": True}
+        await wait_sent(to(MEMBER, r"Received <b>30,000đ</b> for the fund"), "donor thanked")
+        await wait_sent(to(OWNER, r"gave 30,000đ to the fund"), "followers told")
+
         # 5. status, an unmatched transfer, assign it
         await T(text_update(MEMBER, "/status"))
         await wait_sent(lambda c: to(MEMBER, r"Paid \(2\)")(c) and "Cường: 200,000đ" in c["params"]["text"], "status")
@@ -312,7 +330,7 @@ async def main():
 
         # 7. fund, members screen, language, export
         await T(text_update(OWNER, "/fund"))
-        await wait_sent(to(OWNER, "Balance: 300,000đ"), "fund")
+        await wait_sent(to(OWNER, "Balance: 330,000đ"), "fund")
         await T(text_update(OWNER, "/members"))
         lst = await wait_sent(to(OWNER, r"Members</b> \(3\)"), "members list")
         await T(cb_update(OWNER, buttons(lst)[0], 77))

@@ -202,6 +202,16 @@ async def pay(token: str, request: Request, body: dict = Body(...)):
         return _error(e)
 
 
+@router.post("/p/{token}/api/donate")
+async def donate(token: str, request: Request, body: dict = Body(...)):
+    if not pay_limit.allow(client_ip(request)):
+        return _too_many()
+    try:
+        return _json(await call(S.web.donate, token, body.get("amount"), body.get("name")))
+    except DomainError as e:
+        return _error(e)
+
+
 @router.get("/p/{token}/api/pay/{code}")
 async def pay_status(token: str, code: str, request: Request):
     if not read_limit.allow(client_ip(request)):

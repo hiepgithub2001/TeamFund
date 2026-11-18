@@ -942,3 +942,34 @@ def test_several_plans_without_overlap():
     svc.undo.undo(tid, OWNER, entry["id"])
     assert sorted(p["amount"] for p in svc.plans.list_plans(tid, OWNER)["plans"]) == [200000, 600000]
 
+
+
+def test_donation(world):
+    """Anyone can make a QR for any multiple of 1.000đ; whatever arrives with its code goes to the fund,
+    labelled with the donor, and everyone following the bot is thanked."""
+    svc, clock, notifier = world
+    tid = setup_team(svc)
+    assert code(svc.money.donate, tid, MEMBER, 50000, "Khách") == "bank_not_set"
+    link_bank(svc, tid)
+    for bad in (0, 999, 50500, 1500.0, "50000", True, 50_001_000):
+        assert code(svc.money.donate, tid, MEMBER, bad, "Khách") == "donation_amount", bad
+    q = svc.money.donate(tid, MEMBER, 50000, "  Anh   Tuấn  ")
+    assert q["amount"] == 50000 and q["members"] == ["Anh Tuấn"] and q["donation"] and "qr.sepay.vn" in q["qr_url"]
+    key = sepay_key(svc, tid)
+    assert svc.money.record_transfer(tid, key, IncomingTransfer("tx-dn", 60000, f"ck {q['content']}")) == "donation_received"
+    ev = notifier.events[-1]
+    assert ev["donor"] == "Anh Tuấn" and ev["amount"] == 60000 and ev["payer_tg_id"] == MEMBER
+    assert svc.money.fund(tid)["balance"] == 60000  # what arrived, not what the QR said
+    h = svc.money.history(tid)[0]
+    assert (h["source"], h["title"], h["amount"]) == ("donation", "Anh Tuấn", 60000)
+
+    # from the pay page: no name is fine
+    token = svc.teams.web_link(tid, OWNER)["url"].rstrip("/").rsplit("/", 1)[1]
+    assert code(svc.web.donate, token, 12345, None) == "donation_amount"
+    w = svc.web.donate(token, 20000, "")
+    assert w["members"] == ["Ẩn danh"] and w["donation"]
+    svc.money.record_transfer(tid, key, IncomingTransfer("tx-dn2", 20000, w["content"]))
+    st = svc.web.intent_status(token, w["code"])
+    assert st["status"] == "paid" and st["donation"]
+    assert ("in", "donation", "Ẩn danh", 20000) in {(x["type"], x["kind"], x["title"], x["amount"])
+                                                     for x in svc.web.page(token)["history"]}

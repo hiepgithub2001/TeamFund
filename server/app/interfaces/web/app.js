@@ -8,6 +8,10 @@ const T = {
     search: "Tìm tên…", pick: "Chọn người bạn đóng cho (thường là chính bạn).", selected: "Đã chọn {n}",
     pay: "Tạo mã QR", allPaid: "Cả đội đã đóng đủ 🎉", allPaidSub: "Không còn ai nợ quỹ.",
     noBank: "Đội chưa cài tài khoản ngân hàng. Nhờ quản lý đội gửi /setbank trong bot Telegram.",
+    donate: "💝 Ủng hộ quỹ", donateTitle: "Ủng hộ quỹ đội",
+    donateSub: "Đá giao lưu, đi xem, hay chỉ muốn góp cho đội? Số tiền tuỳ bạn, bội số của 1.000đ.",
+    donateAmount: "Số tiền (đ)", donateName: "Tên bạn (không bắt buộc)", donateBad: "Số tiền phải là bội số của 1.000đ, từ 1.000đ đến 50.000.000đ.",
+    donateFrom: "Ủng hộ: {n}", donor: "Người ủng hộ", donatedSub: "Cảm ơn {m} đã ủng hộ quỹ đội!",
     for: "Đóng cho", amount: "Số tiền", bank: "Ngân hàng", account: "Số tài khoản", holder: "Chủ tài khoản",
     content: "Nội dung chuyển khoản", copy: "Chép", copied: "Đã chép",
     scan: "Quét mã QR bằng app ngân hàng. Giữ nguyên số tiền và nội dung chuyển khoản.",
@@ -43,6 +47,10 @@ const T = {
     search: "Search names…", pick: "Choose who you're paying for (usually yourself).", selected: "{n} selected",
     pay: "Get QR code", allPaid: "Everyone has paid 🎉", allPaidSub: "Nobody owes the fund.",
     noBank: "The team's bank account isn't set yet. Ask a manager to send /setbank in the Telegram bot.",
+    donate: "💝 Donate", donateTitle: "Give to the team fund",
+    donateSub: "Joined a game, came to watch, or just want to chip in? Any amount, in multiples of 1,000đ.",
+    donateAmount: "Amount (đ)", donateName: "Your name (optional)", donateBad: "The amount must be a multiple of 1,000đ, from 1,000đ to 50,000,000đ.",
+    donateFrom: "Donation: {n}", donor: "From", donatedSub: "Thank you {m} for supporting the team!",
     for: "Paying for", amount: "Amount", bank: "Bank", account: "Account number", holder: "Account holder",
     content: "Transfer content", copy: "Copy", copied: "Copied",
     scan: "Scan the QR code in your banking app. Keep the amount and transfer content exactly as shown.",
@@ -80,7 +88,7 @@ const store = {  // per-device conveniences only; the page works without them
   get(k) { try { return JSON.parse(localStorage.getItem("tf." + k)); } catch { return null; } },
   set(k, v) { try { v == null ? localStorage.removeItem("tf." + k) : localStorage.setItem("tf." + k, JSON.stringify(v)); } catch { /* private mode */ } },
 };
-const S = { data: null, lang: store.get("lang"), tab: ["pay", "fund", "members", "matches", "contacts"].includes(store.get("tab")) ? store.get("tab") : "pay", open: null, months: {}, selected: new Set(), query: "", intent: null, timer: null, install: null };
+const S = { donating: false, donateAmount: null, data: null, lang: store.get("lang"), tab: ["pay", "fund", "members", "matches", "contacts"].includes(store.get("tab")) ? store.get("tab") : "pay", open: null, months: {}, selected: new Set(), query: "", intent: null, timer: null, install: null };
 
 const t = (k, p = {}) => (T[S.lang] || T.vi)[k].replace(/\{(\w+)\}/g, (_, x) => p[x] ?? "");
 const money = (n) => Number(n).toLocaleString(S.lang === "en" ? "en-US" : "vi-VN") + "đ";
@@ -105,7 +113,7 @@ async function api(path, opts = {}) {
   } catch { throw new Error("offline"); }
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(res.status === 404 ? "notFound" : res.status === 429 ? "slow" :
-                               body.error === "nothing_to_pay" ? "nothing" : body.error === "bank_not_set" ? "noBank" : "error");
+                               body.error === "nothing_to_pay" ? "nothing" : body.error === "donation_amount" ? "donateBad" : body.error === "bank_not_set" ? "noBank" : "error");
   return body;
 }
 
@@ -199,7 +207,8 @@ function item(main, sub, right, cls = "") {
 
 function txLabel(x) {
   return x.kind === "expense" ? x.title : x.kind === "unassigned" ? t("unassigned")
-    : t(x.kind === "cash" ? "cashFrom" : x.kind === "other" ? "otherFrom" : "feeFrom", { n: x.title });
+    : t(x.kind === "cash" ? "cashFrom" : x.kind === "other" ? "otherFrom" : x.kind === "donation" ? "donateFrom" : "feeFrom",
+        { n: x.title });
 }
 function txList(items, empty) {
   return items.length ? h("ul", { class: "list" }, items.map((x) =>
@@ -305,8 +314,9 @@ function contactsView() {
 function listView() {
   const d = S.data;
   if (!d.has_bank) return show(header(), tabs(), h("div", { class: "card note" }, t("noBank")), footer());
+  if (S.donating) return donateView();
   if (!d.unpaid.length) return show(header(), tabs(), h("div", { class: "empty" }, h("div", { class: "big" }, "⚽"),
-    h("h2", {}, t("allPaid")), h("p", { class: "muted" }, t("allPaidSub"))), footer());
+    h("h2", {}, t("allPaid")), h("p", { class: "muted" }, t("allPaidSub"))), donateButton(), footer());
 
   const q = S.query.trim().toLocaleLowerCase();
   const fold = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d").toLowerCase();
@@ -333,10 +343,37 @@ function listView() {
       h("div", { class: "stat" }, h("span", { class: "muted small" }, t("owing")), h("b", {}, t("people", { n: d.unpaid.length }))),
       h("div", { class: "stat" }, h("span", { class: "muted small" }, t("total")), h("b", {}, money(d.total_unpaid)))),
     teamFees(d) ? h("p", { class: "muted small fees" }, teamFees(d)) : null,
-    h("p", { class: "muted small" }, t("pick")), search, h("ul", { class: "people" }, items), footer(),
+    donateButton(), h("p", { class: "muted small" }, t("pick")), search, h("ul", { class: "people" }, items), footer(),
     h("div", { class: "bar" }, h("div", { class: "wrap" },
       h("div", { class: "sel" }, t("selected", { n: chosen.length }), h("b", {}, money(sum))),
       h("button", { class: "btn", disabled: !chosen.length, onclick: pay }, t("pay")))));
+}
+
+function donateButton() {
+  return h("button", { class: "btn ghost block donate", onclick: () => { S.donating = true; render(); toTop(); } }, t("donate"));
+}
+const DONATE_CHOICES = [20000, 50000, 100000, 200000];
+function donateView() {
+  const amount = h("input", { class: "search", id: "dn-amount", type: "number", inputmode: "numeric", min: 1000, step: 1000,
+    placeholder: "50000", "aria-label": t("donateAmount"), value: S.donateAmount || "" });
+  const name = h("input", { class: "search", id: "dn-name", type: "text", maxlength: 60, autocomplete: "name",
+    placeholder: t("donateName"), "aria-label": t("donateName"), value: store.get("donor") || "" });
+  const go = async (e) => {
+    const btn = e.currentTarget, a = Number(amount.value);
+    if (!Number.isInteger(a) || a < 1000 || a > 50000000 || a % 1000) return toast(t("donateBad"));
+    btn.disabled = true; S.donateAmount = a; store.set("donor", name.value.trim());
+    try {
+      const intent = await api("donate", { method: "POST", body: JSON.stringify({ amount: a, name: name.value.trim() }) });
+      S.intent = intent; store.set("intent", intent); S.donating = false; qrView(); toTop(); poll();
+    } catch (err) { btn.disabled = false; toast(t(err.message)); }
+  };
+  show(header(), tabs(), h("div", { class: "card" },
+      h("h2", {}, "💝 " + t("donateTitle")), h("p", { class: "muted small" }, t("donateSub")),
+      h("div", { class: "chips" }, DONATE_CHOICES.map((v) => h("button", { class: "pill", onclick: () => { amount.value = v; } }, money(v)))),
+      h("label", { class: "small muted", for: "dn-amount" }, t("donateAmount")), amount,
+      h("label", { class: "small muted", for: "dn-name" }, t("donateName")), name,
+      h("button", { class: "btn block", onclick: go }, t("pay"))),
+    h("button", { class: "btn ghost block", onclick: () => { S.donating = false; render(); } }, t("back")), footer());
 }
 
 async function pay(e) {
@@ -358,7 +395,7 @@ function qrView() {
       h("p", { class: "small muted center" }, t("scan")),
       h("div", { class: "wait", role: "status" }, h("span", { class: "dot" }), t("waiting"))),
     h("div", { class: "card" },
-      row(t("for"), i.members.join(", "), { copyable: false }),
+      row(t(i.donation ? "donor" : "for"), i.members.join(", "), { copyable: false }),
       row(t("amount"), money(i.amount)),
       row(t("content"), i.content, { code: true }),
       row(t("bank"), i.bank_name, { copyable: false }),
@@ -371,7 +408,7 @@ function qrView() {
 function doneView(st) {
   toTop();
   show(header(), h("div", { class: "done" }, h("div", { class: "big" }, "✅"), h("h1", {}, t("paidTitle", { a: money(st.amount) })),
-      h("p", { class: "muted" }, t("paidSub", { m: st.members.join(", ") }))),
+      h("p", { class: "muted" }, t(st.donation ? "donatedSub" : "paidSub", { m: st.members.join(", ") }))),
     h("button", { class: "btn block", onclick: () => load() }, t("other")), footer());
 }
 function messageView(key, retry = true) {

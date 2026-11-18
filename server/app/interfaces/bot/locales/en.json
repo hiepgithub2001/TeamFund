@@ -158,7 +158,7 @@
  "export.caption": "📄 {team} export",
  "lang.choose": "Choose your language:",
  "lang.done": "✅ Language: English",
- "help.everyone": "<b>Commands</b>\n/start Pay the team fee\n/status Who has paid this month\n/fund Fund balance\n/history Latest transactions (/history 10/2026: one month)\n/bank Team bank account\n/notify Turn team announcements on or off\n/requestmanager Ask to become a manager\n/guide How to use the bot and the web page\n/lang Language",
+ "help.everyone": "<b>Commands</b>\n/start Pay the team fee\n/donate Give to the team fund (any amount)\n/status Who has paid this month\n/fund Fund balance\n/history Latest transactions (/history 10/2026: one month)\n/bank Team bank account\n/notify Turn team announcements on or off\n/requestmanager Ask to become a manager\n/guide How to use the bot and the web page\n/lang Language",
  "help.manager": "\n\n<b>Manager</b>\n/weblink Pay page link for members without Telegram\n/members View, add and edit members\n/plans Fee packages: amount, cycle, deadline and late fee for groups of people\n/charge One-off charge or shared cost\n/markpaid Record cash payments\n/expense Record an expense\n/income Record income (prizes, sponsors, an old balance)\n/undo Undo a recent action\n/money How to write amounts and dates\n/remind Send the unpaid list to everyone\n/unmatched Payments to check\n/export Excel file\n/settings Team settings\n/teamlang Announcement language",
  "help.owner": "\n\n<b>Owner</b>\n/sepaytoken Connect SePay (API token)\n/setbank Choose the bank account (from SePay)\n/requests Review manager requests\n/managers Managers\n/transferowner Give the team to a manager\n/log Audit log",
  "cmd.start": "Pay the team fee",
@@ -564,5 +564,13 @@
  "member.pack_pick": "Add a package for <b>{name}</b>: pick one of the team's, or make a new one.",
  "member.pack_new_ask": "Type the amount and cycle, e.g. <code>300k quarter</code> (cycle: month, quarter, 6 months, year).",
  "member.pack_drop_confirm": "Remove this package? Months it no longer covers are paid on another package or the default.",
- "member.pack_dropped": "✅ Package removed."
+ "member.pack_dropped": "✅ Package removed.",
+ "cmd.donate": "Give to the team fund (any amount)",
+ "btn.donate": "💝 Donate",
+ "donate.ask": "💝 <b>Give to the team fund</b>\nPick an amount, or type another (a multiple of 1,000đ, e.g. <code>30k</code>, <code>150000</code>).",
+ "donate.qr_caption": "💝 <b>Donation:</b> {amount}\n🏦 {bank} · <code>{account}</code>\n👤 {holder}\n📝 <b>Transfer message:</b> <code>{code}</code>\n\nScan the QR in your bank app and keep the message as it is. The money goes into the fund by itself, usually within 5 minutes.\n⏳ Valid until {expires}.",
+ "donate.receipt": "💝 Received <b>{amount}</b> for the fund. Thank you!",
+ "group.donated": "💝 <b>{donor}</b> gave {amount} to the fund. Thank you!",
+ "err.donation_amount": "The amount must be a multiple of 1,000đ, from 1,000đ to 50,000,000đ. Type it again, e.g. <code>50k</code>.",
+ "history.donation": "donation"
 }

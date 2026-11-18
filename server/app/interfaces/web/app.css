@@ -65,6 +65,10 @@ ul.people { list-style: none; margin: 0; padding: 0 0 120px; display: grid; gap:
 .btn.ghost { background: transparent; color: var(--brand); border: 1px solid var(--line); }
 .btn.block { width: 100%; }
 
+.donate { margin: 0 0 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 12px; }
+.card label { display: block; margin: 8px 0 4px; }
+.card h2 { margin: 0 0 4px; font-size: 18px; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
 .qr { display: block; width: 100%; max-width: 320px; aspect-ratio: 1; margin: 4px auto 12px; border-radius: 10px;
       background: #fff; object-fit: contain; }

@@ -3,7 +3,7 @@ from datetime import date, timedelta
 
 from ..domain.entities import Bill, IncomingTransfer, Member, Payment, PaymentIntent, Team
 from ..domain.errors import DomainError
-from ..domain.rules import (CYCLES, add_months, covers, cycle_bill, cycle_start, due_date, find_payment_codes, late_days,
+from ..domain.rules import (DONOR_NAME_MAX, donation_ok, CYCLES, add_months, covers, cycle_bill, cycle_start, due_date, find_payment_codes, late_days,
                             member_fee, new_payment_code, notify_date, on_plan, period_label, split_share, terms,
                             transfer_content)
 from .ports import Conflict, Deps, UnitOfWork
@@ -276,6 +276,29 @@ def create_intent(uow: UnitOfWork, d: Deps, team: Team, member_ids: list[int], p
             "members": intent.member_names, "expires_at": d.clock.fmt(intent.expires_at)}
 
 
+def create_donation(uow: UnitOfWork, d: Deps, team: Team, amount, donor: str | None,
+                    payer_tg_id: int | None) -> dict:
+    """A QR code to give `amount` (a multiple of 1.000đ) to the fund. Anyone may; no bills involved."""
+    if not team.has_bank():
+        raise DomainError(400, "bank_not_set")
+    if not donation_ok(amount):
+        raise DomainError(400, "donation_amount")
+    donor = " ".join(str(donor or "").split())[:DONOR_NAME_MAX] or ("Anonymous" if team.lang == "en" else "Ẩn danh")
+    code = new_payment_code()
+    while uow.intents.code_exists(code):
+        code = new_payment_code()
+    now = d.clock.now()
+    intent = PaymentIntent(team_id=team.id, code=code, amount=amount, payer_tg_id=payer_tg_id, bill_ids=[],
+                           member_names=[donor], kind="donation", created_at=now, expires_at=now + INTENT_TTL)
+    uow.intents.add(intent)
+    uow.commit()
+    content = transfer_content(team.bank_name, code)
+    return {"code": code, "content": content, "amount": amount, "donation": True,
+            "qr_url": d.qr.url(team.bank_name, team.pay_to(), amount, content),
+            "bank_name": team.bank_name, "bank_account": team.pay_to(), "bank_holder": team.bank_holder,
+            "members": [donor], "expires_at": d.clock.fmt(intent.expires_at)}
+
+
 def _mark_paid(bills: list[Bill], payment: Payment, d: Deps) -> None:
     now = d.clock.now()
     for b in bills:
@@ -301,6 +324,15 @@ def record_transfer(uow: UnitOfWork, d: Deps, team: Team, transfer: IncomingTran
     except Conflict:  # the same webhook delivered twice at the same moment
         uow.rollback()
         return None
+
+    if intent and intent.kind == "donation":  # whatever arrived is given to the fund
+        donor = (intent.member_names or [""])[0]
+        payment.intent_id, payment.payer_tg_id = intent.id, intent.payer_tg_id
+        payment.source, payment.status, payment.note = "donation", "matched", donor
+        intent.status, intent.payment_id = "paid", payment.id
+        uow.commit()
+        return {"type": "donation_received", "team_id": team.id, "payer_tg_id": intent.payer_tg_id, "donor": donor,
+                "amount": transfer.amount, "to": uow.followers.active_ids(team.id)}
 
     needed, reason, names = 0, "no_code", []
     if intent:

@@ -108,7 +108,8 @@ def picker_keyboard(lang, st):
     n = len(st["selected"])
     if st["kind"] == "pay":
         total = sum(o["amount"] for o in st["options"] if o["id"] in st["selected"])
-        rows += [[(t(lang, "pay.button", count=n, amount=money(total, lang)), "k:ok")], [("🔄", "k:r")]]
+        rows += [[(t(lang, "pay.button", count=n, amount=money(total, lang)), "k:ok")],
+                 [("🔄", "k:r"), (t(lang, "btn.donate"), "dn:a")]]
     else:
         rows += [[(t(lang, "btn.all"), "k:a"), (t(lang, "btn.confirm", n=n), "k:ok")],
                  [(t(lang, "btn.cancel"), "k:x")]]
@@ -128,7 +129,7 @@ def unpaid_options(lang, unpaid):
 async def open_pay_menu(ev, entry, lang) -> None:
     unpaid = await call(S.money.unpaid, tid(entry))
     if not unpaid:
-        await say(ev, t(lang, "pay.none"))
+        await say(ev, t(lang, "pay.none"), reply_markup=kb([(t(lang, "btn.donate"), "dn:a")]))
         return
     await open_picker(ev, lang, {"kind": "pay", "title": t(lang, "pay.title", team=esc(entry.team["name"])),
                                  "options": unpaid_options(lang, unpaid), "selected": []})
@@ -621,6 +622,62 @@ async def cmd_start(message: Message, entry, lang, new_follower: bool = False):
     await open_pay_menu(message, entry, lang)
 
 
+DONATE_CHOICES = (20000, 50000, 100000, 200000)
+
+
+async def ask_donation(ev, lang) -> None:
+    """How much to give: a few amounts to tap, or type any multiple of 1.000đ."""
+    set_state(input_key(ev.bot.id, ev.message.chat.id if isinstance(ev, CallbackQuery) else ev.chat.id),
+              {"type": "donate"}, 600)
+    buttons = [(money(a, lang), f"dn:{a}") for a in DONATE_CHOICES]
+    await say(ev, t(lang, "donate.ask"), reply_markup=kb(buttons[:2], buttons[2:]))
+
+
+async def send_donation_qr(ev, entry, lang, amount: int) -> None:
+    user = ev.from_user
+    try:
+        r = await call(S.money.donate, tid(entry), user.id, amount, user.full_name)
+    except DomainError as e:
+        if e.code != "donation_amount":
+            raise
+        set_state(input_key(ev.bot.id, ev.message.chat.id if isinstance(ev, CallbackQuery) else ev.chat.id),
+                  {"type": "donate"}, 600)
+        await say(ev, t(lang, "err.donation_amount"))
+        return
+    del_state(input_key(ev.bot.id, ev.message.chat.id if isinstance(ev, CallbackQuery) else ev.chat.id))
+    caption = t(lang, "donate.qr_caption", amount=money(r["amount"], lang), bank=esc(r["bank_name"]),
+                account=esc(r["bank_account"]), holder=esc(r["bank_holder"] or ""), code=esc(r["content"]),
+                expires=r["expires_at"])
+    chat_id = ev.message.chat.id if isinstance(ev, CallbackQuery) else ev.chat.id
+    try:
+        await ev.bot.send_photo(chat_id, r["qr_url"], caption=caption)
+    except Exception:
+        await say(ev, f"{caption}\n\n{t(lang, 'pay.qr_failed')}")
+
+
+@router.message(Command("donate"))
+async def cmd_donate(message: Message, command: CommandObject, entry, lang):
+    """Give money to the fund: `/donate` asks how much, `/donate 50k` makes the QR at once."""
+    if not is_private(message):
+        return
+    args = (command.args or "").strip()
+    if args:
+        amount = parse_amount(args)
+        if amount:
+            await send_donation_qr(message, entry, lang, amount)
+            return
+    await ask_donation(message, lang)
+
+
+@router.callback_query(F.data.regexp(r"^dn:(a|\d+)$").as_("m"))
+async def on_donate(cq: CallbackQuery, m: re.Match, entry, lang):
+    await cq.answer()
+    if m.group(1) == "a":
+        await ask_donation(cq, lang)
+    else:
+        await send_donation_qr(cq, entry, lang, int(m.group(1)))
+
+
 @router.message(Command("notify"))
 async def cmd_notify(message: Message, entry, lang):
     """Turn the team's announcements off or on for yourself."""
@@ -679,7 +736,7 @@ async def cmd_history(message: Message, command: CommandObject, entry, lang):
         await message.answer(t(lang, "history.month_empty", period=label) if period else t(lang, "history.empty"))
         return
     lines = [f"{'➕' if i['type'] == 'in' else '➖'} {i['at']} · <b>{money(i['amount'], lang)}</b> · {esc(i['title'])}"
-             f"{' (' + t(lang, 'history.' + i['source']) + ')' if i['source'] in ('cash', 'other') else ''}"
+             f"{' (' + t(lang, 'history.' + i['source']) + ')' if i['source'] in ('cash', 'other', 'donation') else ''}"
              for i in items]
     head = t(lang, "history.month_title", period=label, n=len(items),
              income=money(sum(i["amount"] for i in items if i["type"] == "in"), lang),
@@ -1698,6 +1755,14 @@ async def on_text(message: Message, entry, lang):
     if not st:
         return
     del_state(key)
+    if st["type"] == "donate":  # open to everyone
+        amount = parse_amount(message.text.strip())
+        if not amount:
+            set_state(key, st, 600)
+            await message.answer(t(lang, "err.donation_amount"))
+            return
+        await send_donation_qr(message, entry, lang, amount)
+        return
     if not await allow(message, entry, lang, "manager"):
         return
     text = message.text.strip()

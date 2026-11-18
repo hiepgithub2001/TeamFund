@@ -23,6 +23,13 @@ def is_owner(role: str | None) -> bool:
 # ---- fees and bills ---------------------------------------------------------------------------
 
 MAX_FEE = 100_000_000
+MAX_DONATION = 50_000_000  # one donation QR: any multiple of 1.000đ up to this
+DONOR_NAME_MAX = 60
+
+
+def donation_ok(amount) -> bool:
+    return isinstance(amount, int) and not isinstance(amount, bool) and 1000 <= amount <= MAX_DONATION \
+        and amount % 1000 == 0
 MAX_AMOUNT = 1_000_000_000
 
 

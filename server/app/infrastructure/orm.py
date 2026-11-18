@@ -116,6 +116,7 @@ payment_intents = Table(
     Column("team_id", ForeignKey("teams.id"), index=True, nullable=False), Column("code", String(16), unique=True),
     Column("amount", Integer, nullable=False), Column("payer_tg_id", BigInteger), Column("bill_ids", JSON),
     Column("member_names", JSON), Column("status", String(16), nullable=False), Column("payment_id", Integer),
+    Column("kind", String(16)),
     Column("created_at", DateTime, nullable=False), Column("expires_at", DateTime, nullable=False),
 )
 

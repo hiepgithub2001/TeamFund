@@ -156,6 +156,15 @@ class WebUseCases:
             return {k: r[k] for k in ("code", "content", "amount", "qr_url", "bank_name", "bank_account",
                                       "bank_holder", "members", "expires_at")}
 
+    def donate(self, token: str, amount, name) -> dict:
+        """A donation QR from the pay page: any multiple of 1.000đ, an optional name."""
+        if name is not None and not isinstance(name, str):
+            raise invalid()
+        with self.d.uow() as uow:
+            r = billing.create_donation(uow, self.d, _team(uow, token), amount, name, None)
+            return {k: r[k] for k in ("code", "content", "amount", "qr_url", "bank_name", "bank_account",
+                                      "bank_holder", "members", "expires_at", "donation")}
+
     def intent_status(self, token: str, code: str) -> dict:
         """pending | paid | expired, for the page to poll while the payer transfers."""
         with self.d.uow() as uow:
@@ -166,4 +175,5 @@ class WebUseCases:
             status = intent.status
             if status == "pending" and intent.expires_at and intent.expires_at < self.d.clock.now():
                 status = "expired"
-            return {"code": intent.code, "status": status, "amount": intent.amount, "members": intent.member_names}
+            return {"code": intent.code, "status": status, "amount": intent.amount, "members": intent.member_names,
+                    "donation": intent.kind == "donation"}
