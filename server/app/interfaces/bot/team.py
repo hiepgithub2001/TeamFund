@@ -981,10 +981,13 @@ async def on_window(cq: CallbackQuery, m: re.Match, entry, lang):
     p = await call(S.plans.get_plan, tid(entry), cq.from_user.id, st["plan_id"])
     n, cur = p["months"], cycle_start(p["period"], p["months"])
     inp = input_key(cq.bot.id, cq.message.chat.id)
-    if choice == "in":  # pick the first period, or type the whole range
+    if choice == "in":  # pick the first period, or type the whole range in the reply box that opens
         set_state(inp, {"type": "plan_window", **st}, 600)
-        await edit(cq, t(lang, "window.pick_start") + "\n\n" + type_guide(lang, p),
+        await edit(cq, t(lang, "window.pick_start"),
                    kb(*range_rows(p, cur, "w:s", end=False), [(t(lang, "btn.cancel"), "w:x")]))
+        a, b = (period_name(add_months(cur, k * n), n) for k in (1, 2))
+        await say(cq, type_guide(lang, p),
+                  reply_markup=ForceReply(force_reply=True, input_field_placeholder=f"{a} - {b}"))
         return
     if choice.startswith("s"):  # then the last one, or no end (typed or tapped)
         start = f"{choice[1:5]}-{choice[5:]}"
@@ -1527,6 +1530,9 @@ async def on_text(message: Message, entry, lang):
         return
     key = input_key(message.bot.id, message.chat.id)
     st = get_state(key)
+    if not st:  # a months menu is open: typed periods still count
+        win = get_state(window_key(message.bot.id, message.chat.id))
+        st = {"type": "plan_window", **win} if win else None
     if not st:
         return
     del_state(key)

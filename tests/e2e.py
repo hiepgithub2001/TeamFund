@@ -637,7 +637,9 @@ async def main():
                 await T(cb_update(OWNER, d, pick["message_id"]))
                 shown = await until(lambda: next((c for c in calls[mark:] if c["method"] == "editMessageText"), None), d)
                 if d == "w:in":
-                    assert "first period" in shown["params"]["text"] and "Type quarters" in shown["params"]["text"]
+                    assert "first period" in shown["params"]["text"]
+                    guide = await wait_sent(to(OWNER, "Or type the range in quarters"), "typing guide")
+                    assert guide["params"]["reply_markup"].get("force_reply"), guide["params"]
                     assert buttons(shown)[0] == qm(today.year, cur_q).format("s")
                     labels = [b["text"] for row in shown["params"]["reply_markup"]["inline_keyboard"] for b in row]
                     assert labels[:2] == [this_q, next_q], labels
