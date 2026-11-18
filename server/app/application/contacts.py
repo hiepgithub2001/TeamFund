@@ -1,4 +1,5 @@
-"""Use cases: contacts of opposing teams. Other people's phone numbers, so managers only."""
+"""Use cases: contacts of opposing teams: a name and a free note (phone, fb, zalo… as written).
+The notes hold other people's phone numbers, so managers only."""
 from ..domain.entities import Contact, Team
 from ..domain.errors import DomainError, invalid
 from ..domain.rules import fold
@@ -6,7 +7,7 @@ from .access import manager_team
 from .people import audit
 from .ports import Deps, UnitOfWork
 
-LIMITS = {"name": 100, "phone": 32, "note": 255}
+LIMITS = {"name": 100, "note": 500}
 MAX_AT_ONCE = 60
 
 
@@ -22,7 +23,7 @@ def _clean(field: str, v) -> str | None:
 
 
 def contact_dict(c: Contact) -> dict:
-    return {"id": c.id, "name": c.name, "phone": c.phone, "note": c.note}
+    return {"id": c.id, "name": c.name, "note": c.note}
 
 
 def _by_name(uow: UnitOfWork, team: Team) -> dict[str, Contact]:
@@ -40,13 +41,13 @@ class ContactUseCases:
         return c
 
     def search(self, team_id: int, actor: int, query: str | None = None) -> list[dict]:
-        """All contacts A–Z, or those whose name, phone or note has the words (accents ignored)."""
+        """All contacts A–Z, or those whose name or note has the words (accents ignored)."""
         with self.d.uow() as uow:
             team = manager_team(uow, team_id, actor)
             items = sorted(uow.contacts.of_team(team.id), key=lambda c: fold(c.name))
             if query:
                 words = fold(query).split()
-                items = [c for c in items if all(w in fold(f"{c.name} {c.phone or ''} {c.note or ''}") for w in words)]
+                items = [c for c in items if all(w in fold(f"{c.name} {c.note or ''}") for w in words)]
             return [contact_dict(c) for c in items]
 
     def get(self, team_id: int, actor: int, contact_id: int) -> dict:
@@ -78,13 +79,12 @@ class ContactUseCases:
         for it in items:
             if not isinstance(it, dict) or not _clean("name", it.get("name")):
                 raise invalid()
-            out.append({"name": _clean("name", it["name"]), "phone": _clean("phone", it.get("phone")),
-                        "note": _clean("note", it.get("note"))})
+            out.append({"name": _clean("name", it["name"]), "note": _clean("note", it.get("note"))})
         return out
 
     def save_many(self, team_id: int, actor: int, items: list) -> dict:
-        """Add contacts; one with the same name (accents and case ignored) is updated instead. A missing phone
-        or note keeps the one already saved."""
+        """Add contacts; one with the same name (accents and case ignored) is updated instead. A missing note
+        keeps the one already saved."""
         items = self._valid(items)
         with self.d.uow() as uow:
             team = manager_team(uow, team_id, actor)
@@ -93,13 +93,13 @@ class ContactUseCases:
             for it in items:
                 c = have.get(fold(it["name"]))
                 if c is None:
-                    c = Contact(team_id=team.id, name=it["name"], phone=it["phone"], note=it["note"],
+                    c = Contact(team_id=team.id, name=it["name"], note=it["note"],
                                 created_at=self.d.clock.now())
                     uow.contacts.add(c)
                     have[fold(c.name)] = c
                     added += 1
                 else:
-                    c.name, c.phone, c.note = it["name"], it["phone"] or c.phone, it["note"] or c.note
+                    c.name, c.note = it["name"], it["note"] or c.note
                     updated += 1
             audit(uow, self.d.clock, team.id, actor, "contact.save",
                   target=items[0]["name"] if len(items) == 1 else str(len(items)),

@@ -414,7 +414,7 @@ async def cmd_contacts(message: Message, command: CommandObject, entry, lang):
     if not await allow(message, entry, lang, "manager"):
         return
     args = (command.args or "").strip()
-    if args and ("\n" in args or parse_contact(args) and parse_contact(args)["phone"]):
+    if args and ("\n" in args or "(" in args or re.search(r"\d{4}", args)):
         await contacts_preview(message, entry, lang, args)
         return
     items = await call(S.contacts.search, tid(entry), message.from_user.id, args or None)
@@ -432,15 +432,12 @@ async def contacts_preview(message: Message, entry, lang, text: str) -> None:
     lines = [t(lang, "ct.read", n=len(items))]
     for c in marked:
         tag = t(lang, "ct.tag_update") if c["update"] else t(lang, "ct.tag_new")
-        lines.append(f"• {tag} <b>{esc(c['name'])}</b>" + (f" · 📞 {esc(c['phone'])}" if c["phone"] else "")
-                     + (f" · {esc(c['note'])}" if c["note"] else ""))
+        lines.append(f"• {tag} <b>{esc(c['name'])}</b>" + (f" · {esc(c['note'])}" if c["note"] else ""))
     await message.answer("\n".join(lines), reply_markup=kb([(t(lang, "mt.btn_save"), "ct:ok"), (t(lang, "btn.cancel"), "ct:x")]))
 
 
 def contact_view(lang: str, c: dict):
     lines = [f"📇 <b>{esc(c['name'])}</b>"]
-    if c.get("phone"):
-        lines.append(f"📞 {esc(c['phone'])}")
     if c.get("note"):
         lines.append(f"📝 {esc(c['note'])}")
     hist = t(lang, "ct.history", played=c["played"], cancelled=c["cancelled"])
@@ -450,8 +447,8 @@ def contact_view(lang: str, c: dict):
         hist += t(lang, "ct.next", day=day_label(lang, date.fromisoformat(c["next"])))
     lines.append("⚽ " + hist)
     i = c["id"]
-    return "\n".join(lines), kb([(t(lang, "ct.btn_edit"), f"ct:e:{i}"), (t(lang, "mt.btn_delete"), f"ct:d:{i}")],
-                                [(t(lang, "ct.btn_list"), "ct:l")])
+    return "\n".join(lines), kb([(t(lang, "ct.btn_name"), f"ct:en:{i}"), (t(lang, "ct.btn_note"), f"ct:nt:{i}")],
+                                [(t(lang, "mt.btn_delete"), f"ct:d:{i}"), (t(lang, "ct.btn_list"), "ct:l")])
 
 
 @router.callback_query(F.data.regexp(r"^ct:(\w+)(?::(\d+))?$").as_("m"))
@@ -471,8 +468,10 @@ async def on_contacts(cq: CallbackQuery, m: re.Match, entry, lang):
         await edit(cq, text, markup)
     elif action == "a":
         await ask(cq, lang, {"type": "ct_add"}, t(lang, "ct.ask_add"), "FC Moreh (0912 345 678, fb: Dũng)")
-    elif action == "e" and a:
-        await ask(cq, lang, {"type": "ct_edit", "id": int(a)}, t(lang, "ct.ask_edit"), "FC Moreh (0912 345 678, fb: Dũng)")
+    elif action == "en" and a:
+        await ask(cq, lang, {"type": "ct_name", "id": int(a)}, t(lang, "ct.ask_name"), "FC Moreh")
+    elif action == "nt" and a:
+        await ask(cq, lang, {"type": "ct_note", "id": int(a)}, t(lang, "ct.ask_note"), "0912 345 678, fb: Dũng")
     elif action == "d" and a:
         c = await call(S.contacts.get, team, user, int(a))
         await edit(cq, t(lang, "ct.confirm_delete", name=esc(c["name"])),
@@ -560,12 +559,12 @@ async def on_reply(message: Message, entry, lang):
         await sched_save(message, entry, lang, st, p["at"], p["place"] or p["opponent"])
     elif kind == "ct_add":
         await contacts_preview(message, entry, lang, text)
-    elif kind == "ct_edit":
-        p = parse_contact(text)
-        if not p:
-            await again("ct.ask_edit", "FC Moreh (0912 345 678, fb: Dũng)")
-            return
-        await call(S.contacts.update, team, user, st["id"], p)
+    elif kind in ("ct_name", "ct_note"):
+        if kind == "ct_name":
+            changes = {"name": text}
+        else:
+            changes = {"note": None if text == "-" else text}
+        await call(S.contacts.update, team, user, st["id"], changes)
         c = await call(S.contacts.get, team, user, st["id"])
         text_, markup = contact_view(lang, c)
         await message.answer(t(lang, "ct.updated") + "\n\n" + text_, reply_markup=markup)

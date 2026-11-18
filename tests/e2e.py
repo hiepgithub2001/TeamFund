@@ -715,15 +715,20 @@ async def main():
         # 18. contacts: paste, search, open one with its match history
         await T(text_update(OWNER, "/contacts\nFC Moreh (0912 345 678, fb: Dung)\nFC Soc Son"))
         prev = await wait_sent(to(OWNER, "Read <b>2</b> teams"), "contacts preview")
-        assert "📞 0912345678" in prev["params"]["text"]
+        assert "FC Moreh</b> · 0912 345 678, fb: Dung" in prev["params"]["text"]
         await T(cb_update(OWNER, "ct:ok", prev["message_id"]))
         await wait_sent(to(OWNER, "Saved: 2 new, 0 updated"), "contacts saved")
         await T(text_update(OWNER, "/contacts moreh"))
         found = await wait_sent(to(OWNER, '"moreh": 1 found'), "search")
         cid = next(d for d in buttons(found) if d.startswith("ct:v:"))
         await T(cb_update(OWNER, cid, found["message_id"]))
-        await wait_sent(lambda c: c["method"] == "editMessageText" and "Played 0 · cancelled 1" in c["params"]["text"],
-                        "contact with history")
+        card = await wait_sent(lambda c: c["method"] == "editMessageText" and "Played 0 · cancelled 1" in c["params"]["text"],
+                               "contact with history")
+        assert [d.split(":")[1] for d in buttons(card)] == ["en", "nt", "d", "l"], buttons(card)
+        await T(cb_update(OWNER, cid.replace("ct:v:", "ct:nt:"), found["message_id"]))
+        await wait_sent(to(OWNER, "Send the note"), "note asked")
+        await T(text_update(OWNER, "zalo: Dung, sân Mỹ Đình"))
+        await wait_sent(lambda c: to(OWNER, "Updated")(c) and "📝 zalo: Dung, sân Mỹ Đình" in c["params"]["text"], "note saved")
         await T(text_update(FAN, "/contacts"))
         await wait_sent(to(FAN, "manager"), "contacts are managers only")
 

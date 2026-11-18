@@ -269,10 +269,10 @@ class MatchSchedule:
 
 @dataclass(eq=False)
 class Contact:
-    """An opposing team's contact. Other people's phone numbers: managers only."""
+    """An opposing team's contact: a name and a free note (phone, fb, zalo… as written). Managers only."""
     team_id: int
     name: str
-    phone: str | None = None
+    phone: str | None = None  # no longer used: phone numbers live in the note
     note: str | None = None
     created_at: datetime | None = None
     id: int | None = None

@@ -157,7 +157,7 @@ match_schedules = Table(
 contacts = Table(
     "contacts", metadata, _id(),
     Column("team_id", ForeignKey("teams.id"), index=True, nullable=False), Column("name", String(100), nullable=False),
-    Column("phone", String(32)), Column("note", String(255)), Column("created_at", DateTime, nullable=False),
+    Column("phone", String(32)), Column("note", String(500)), Column("created_at", DateTime, nullable=False),
 )
 
 _MAPPINGS = [
