@@ -1530,8 +1530,13 @@ async def cmd_teamlang(message: Message, command: CommandObject, entry, lang):
 
 @router.message(Command("weblink"))
 async def cmd_weblink(message: Message, entry, lang):
-    """The pay page link for members without Telegram. Managers share it (Zalo, Messenger, a printed QR…)."""
-    if not await allow(message, entry, lang, "manager"):
+    """The pay page link. Members see it (if a manager has made one); only managers make or change it."""
+    if not is_private(message):
+        return
+    if not await role(entry, message.from_user):
+        url = await call(S.teams.public_link, tid(entry))
+        await message.answer(t(lang, "weblink.text", url=esc(url)) if url else t(lang, "weblink.none"),
+                             disable_web_page_preview=True)
         return
     r = await call(S.teams.web_link, tid(entry), message.from_user.id)
     await message.answer(t(lang, "weblink.text", url=esc(r["url"])), disable_web_page_preview=True,

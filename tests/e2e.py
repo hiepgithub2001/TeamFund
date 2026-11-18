@@ -392,6 +392,11 @@ async def main():
         await T(text_update(OWNER, "/weblink"))
         link_msg = await wait_sent(to(OWNER, "Pay page"), "web link")
         page = re.search(r"https://teamfund\.test(/p/[\w-]+/)", link_msg["params"]["text"]).group(1)
+        await T(text_update(555, "/weblink"))  # a plain member: sees the link, no button to change it
+        seen = await wait_sent(lambda c: to(555, "Pay page")(c), "member sees the link")
+        assert page in seen["params"]["text"] and "w:reset" not in buttons(seen)
+        await T(text_update(555, "/notify"))  # keep the follower counts below as they were
+        await wait_sent(to(555, "announcements are off"), "extra member muted")
         base = f"http://127.0.0.1:{PORT}{page}"
         async with http.get(base) as r:
             assert r.status == 200 and "app.js" in await r.text()
