@@ -306,11 +306,18 @@ def test_web_pay_page(world):
     other = web.create_intent(token, [page["unpaid"][1]["member_id"]])
     clock.advance(hours=25)
     assert web.intent_status(token, other["code"])["status"] == "expired"
-    # paid late with the expired QR anyway: the code still names the bills, so it still counts
+    # paid late with the expired QR anyway: the code matches, but a manager confirms whose it is
     svc.jobs.clean_up()
-    assert svc.money.record_transfer(tid, key, IncomingTransfer("tx-late-qr", 200000, other["content"])) == "payment_confirmed"
+    assert svc.money.record_transfer(tid, key, IncomingTransfer("tx-late-qr", 200000, other["content"])) == "unmatched_payment"
+    ev = notifier.events[-1]
+    binh = page["unpaid"][1]["member_id"]
+    assert ev["reason"] == "expired" and ev["qr_for"] == ["Bình"] and ev["member_ids"] == [binh] and ev["qr_amount"] == 200000
+    assert [u["name"] for u in web.page(token)["unpaid"]] == ["Bình"]  # not paid until a manager says so
+    item = next(u for u in svc.money.unmatched(tid, OWNER) if u["reason"] == "expired")
+    assert item["qr_for"] == ["Bình"] and item["member_ids"] == [binh]
+    assert svc.money.assign(tid, OWNER, item["payment_id"], item["member_ids"])["members"] == ["Bình"]
     assert web.page(token)["unpaid"] == []
-    # the same old QR paid a second time: nothing left to pay, so managers are asked
+    # the same old QR paid a second time: nothing left to pay
     assert svc.money.record_transfer(tid, key, IncomingTransfer("tx-twice", 200000, other["content"])) == "unmatched_payment"
     assert notifier.events[-1]["reason"] == "already_paid"
 

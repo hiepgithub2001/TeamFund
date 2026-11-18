@@ -614,11 +614,16 @@ def unmatched_card(lang, p):
     reason = t(lang, f"reason.{p.get('reason') or 'no_code'}", needed=money(p.get("needed") or 0, lang))
     text = t(lang, "unmatched.card", amount=money(p["amount"], lang), content=esc(p.get("content") or "—"),
              at=p["at"], reason=reason)
-    return text, kb([(t(lang, "btn.assign"), f"u:a:{p['payment_id']}")],
-                    [(t(lang, "btn.dismiss"), f"u:d:{p['payment_id']}")])
+    if p.get("reason") == "expired":
+        text += "\n" + t(lang, "unmatched.expired_for", members=esc(", ".join(p.get("qr_for") or [])) or "—",
+                         made=p.get("qr_made") or "—", amount=money(p.get("qr_amount") or 0, lang))
+    rows = [[(t(lang, "btn.assign"), f"u:a:{p['payment_id']}")], [(t(lang, "btn.dismiss"), f"u:d:{p['payment_id']}")]]
+    if p.get("reason") == "expired" and p.get("member_ids"):
+        rows.insert(0, [(t(lang, "btn.assign_qr", members=", ".join(p.get("qr_for") or [])), f"u:q:{p['payment_id']}")])
+    return text, kb(*rows)
 
 
-@router.callback_query(F.data.regexp(r"^u:(a|d):(\d+)$").as_("m"))
+@router.callback_query(F.data.regexp(r"^u:(a|d|q):(\d+)$").as_("m"))
 async def on_unmatched(cq: CallbackQuery, m: re.Match, entry, lang):
     if not await allow(cq, entry, lang, "manager"):
         return
@@ -632,13 +637,23 @@ async def on_unmatched(cq: CallbackQuery, m: re.Match, entry, lang):
     if not p:
         await cq.answer(t(lang, "err.already_resolved"), show_alert=True)
         return
+    if action == "q" and p.get("member_ids"):  # an expired QR: it was theirs, so it pays their bills
+        G = group_lang(entry)
+        r = await call(S.money.assign, tid(entry), cq.from_user.id, p["payment_id"], p["member_ids"])
+        await cq.answer()
+        members = esc(", ".join(r["members"]))
+        await edit(cq, f"{esc(cq.message.text or '')}\n\n{t(lang, 'assign.done', members=members)}")
+        await broadcast(entry, t(G, "group.paid", members=members, amount=money(r["amount"], G)))
+        return
     unpaid = await call(S.money.unpaid, tid(entry))
     if not unpaid:
         await cq.answer(t(lang, "pick.markpaid_none"), show_alert=True)
         return
     await cq.answer()
+    options = unpaid_options(lang, unpaid)
+    ticked = [o["id"] for o in options if o["id"] in set(p.get("member_ids") or [])]  # an expired QR's people
     await open_picker(cq, lang, {"kind": "assign", "title": t(lang, "pick.assign", amount=money(p["amount"], lang)),
-                                 "options": unpaid_options(lang, unpaid), "selected": [],
+                                 "options": options, "selected": ticked,
                                  "data": {"payment_id": p["payment_id"]}})
 
 

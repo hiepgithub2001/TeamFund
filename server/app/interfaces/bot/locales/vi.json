@@ -588,5 +588,9 @@
  "mt.fee_line": "💵 Phí trận: {n} người, {paid} đã đóng",
  "mt.fee_each": "{amount}/người",
  "group.match_fee": "💵 <b>{title}</b>: {amount}/người cho {names}. Đóng bằng /start.",
- "err.match_fee_amount": "Số tiền mỗi người phải là bội số của 1.000đ, ví dụ 50k."
+ "err.match_fee_amount": "Số tiền mỗi người phải là bội số của 1.000đ, ví dụ 50k.",
+ "reason.expired": "đúng mã, nhưng mã QR đã hết hạn",
+ "unmatched.expired_for": "QR của: <b>{members}</b> · {amount} · tạo lúc {made}",
+ "btn.assign_qr": "✅ Ghi đã đóng: {members}",
+ "pay.expired_received": "⏳ Đã nhận {amount}, nhưng mã QR này đã hết hạn. Quản lý sẽ xác nhận sớm. Lần sau hãy tạo mã mới bằng /start."
 }

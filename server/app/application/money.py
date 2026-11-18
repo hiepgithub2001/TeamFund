@@ -170,8 +170,15 @@ class MoneyUseCases:
     def unmatched(self, team_id: int, actor: int) -> list[dict]:
         with self.d.uow() as uow:
             team = manager_team(uow, team_id, actor)
-            return [{"payment_id": p.id, "amount": p.amount, "content": p.content, "reason": p.reason,
-                     "at": self.d.clock.fmt(p.created_at)} for p in uow.payments.unmatched(team.id)]
+            out = []
+            for p in uow.payments.unmatched(team.id):
+                item = {"payment_id": p.id, "amount": p.amount, "content": p.content, "reason": p.reason,
+                        "at": self.d.clock.fmt(p.created_at)}
+                intent = uow.intents.get(p.intent_id) if p.reason == "expired" and p.intent_id else None
+                if intent:
+                    item.update(billing.expired_details(uow, self.d, intent))
+                out.append(item)
+            return out
 
     def assign(self, team_id: int, actor: int, payment_id: int, member_ids: list[int]) -> dict:
         with self.d.uow() as uow:

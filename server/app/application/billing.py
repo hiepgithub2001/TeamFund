@@ -343,7 +343,9 @@ def record_transfer(uow: UnitOfWork, d: Deps, team: Team, transfer: IncomingTran
         payment.intent_id, payment.payer_tg_id = intent.id, intent.payer_tg_id
         bills = uow.bills.get_many(intent.bill_ids, unpaid_only=True)
         needed = sum(b.amount for b in bills)
-        if bills and intent.amount <= transfer.amount < needed:
+        if bills and intent_expired(intent, d):
+            reason = "expired"  # its bills may have changed since: a manager says who this was for
+        elif bills and intent.amount <= transfer.amount < needed:
             # a late fee grew after the QR was made: the day they made it is the day that counts
             short = needed - transfer.amount
             for lb in sorted((b for b in bills if b.kind == "late"), key=lambda b: -b.id):
@@ -352,7 +354,9 @@ def record_transfer(uow: UnitOfWork, d: Deps, team: Team, transfer: IncomingTran
             if short == 0:
                 bills = [b for b in bills if b.amount > 0]
                 needed = transfer.amount
-        if not bills:
+        if reason == "expired":
+            pass
+        elif not bills:
             reason = "already_paid"
         elif transfer.amount < needed:
             reason = "amount_low"
@@ -368,9 +372,24 @@ def record_transfer(uow: UnitOfWork, d: Deps, team: Team, transfer: IncomingTran
     if reason is None:
         return {"type": "payment_confirmed", "team_id": team.id, "payer_tg_id": intent.payer_tg_id,
                 "members": names, "amount": transfer.amount, "to": uow.followers.active_ids(team.id)}
-    return {"type": "unmatched_payment", "team_id": team.id, "payment_id": payment.id, "amount": transfer.amount,
-            "content": transfer.content[:200], "reason": reason, "needed": needed,
-            "at": d.clock.fmt(payment.created_at), "admins": [a.tg_id for a in uow.admins.of_team(team.id)]}
+    ev = {"type": "unmatched_payment", "team_id": team.id, "payment_id": payment.id, "amount": transfer.amount,
+          "content": transfer.content[:200], "reason": reason, "needed": needed,
+          "at": d.clock.fmt(payment.created_at), "admins": [a.tg_id for a in uow.admins.of_team(team.id)]}
+    if reason == "expired":
+        ev.update(expired_details(uow, d, intent))
+        ev["payer_tg_id"] = intent.payer_tg_id
+    return ev
+
+
+def intent_expired(intent: PaymentIntent, d: Deps) -> bool:
+    return intent.status == "expired" or (intent.expires_at is not None and intent.expires_at < d.clock.now())
+
+
+def expired_details(uow: UnitOfWork, d: Deps, intent: PaymentIntent) -> dict:
+    """Who an expired QR was made for, and which of them still owe: the manager's starting point."""
+    owing = sorted({b.member_id for b in uow.bills.get_many(intent.bill_ids, unpaid_only=True)})
+    return {"qr_for": list(intent.member_names or []), "qr_made": d.clock.fmt(intent.created_at),
+            "qr_amount": intent.amount, "member_ids": owing}
 
 
 def cash_payments(uow: UnitOfWork, d: Deps, team: Team, member_ids: list[int], actor: int) -> dict:

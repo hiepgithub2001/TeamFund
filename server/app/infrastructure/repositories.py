@@ -205,6 +205,9 @@ class SqlPlanMembers(_Repo):
 
 
 class SqlIntents(_Repo):
+    def get(self, intent_id: int) -> PaymentIntent | None:
+        return self.s.get(PaymentIntent, intent_id)
+
     def code_exists(self, code: str) -> bool:
         return self.s.scalar(select(PaymentIntent.id).where(PaymentIntent.code == code)) is not None
 

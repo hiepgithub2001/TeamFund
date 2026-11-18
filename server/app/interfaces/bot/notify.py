@@ -51,6 +51,9 @@ async def deliver(ev: dict) -> bool:
         await _tell(entry, to, t(G, "group.donated", donor=donor, amount=money(ev["amount"], G)),
                     skip=ev.get("payer_tg_id"))
     elif kind == "unmatched_payment":
+        if ev.get("reason") == "expired" and ev.get("payer_tg_id"):
+            L = await lang_for(ev["payer_tg_id"], G)
+            await _send(bot, ev["payer_tg_id"], t(L, "pay.expired_received", amount=money(ev["amount"], L)))
         for admin_id in ev["admins"]:
             text, markup = unmatched_card(await lang_for(admin_id, G), ev)
             await _send(bot, admin_id, text, markup)

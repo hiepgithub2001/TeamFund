@@ -112,3 +112,16 @@ def test_charge_one_screen():
     assert texts()[-4:] == ["👥 Cả đội (3 người)", "👤 Mỗi người đóng 15.000đ", "➗ Chia đều 15.000đ", "Huỷ"]
     st["selected"] = [0, 2]
     assert texts()[-3:-1] == ["👤 Mỗi người đóng 15.000đ · tổng 30.000đ", "➗ Chia đều 15.000đ · 8.000đ/người"]
+
+
+def test_expired_qr_card():
+    from app.interfaces.bot.team import unmatched_card
+    p = {"payment_id": 7, "amount": 200000, "content": "TFABCD1234", "reason": "expired", "at": "18/11 10:00",
+         "qr_for": ["Bình"], "qr_made": "17/11 09:00", "qr_amount": 200000, "member_ids": [3]}
+    text, markup = unmatched_card("en", p)
+    assert "the QR had expired" in text and "QR for: <b>Bình</b>" in text
+    data = [b.callback_data for row in markup.inline_keyboard for b in row]
+    assert data == ["u:q:7", "u:a:7", "u:d:7"]
+    assert "Bình" in markup.inline_keyboard[0][0].text
+    _, plain = unmatched_card("en", {**p, "reason": "no_code", "member_ids": None})
+    assert [b.callback_data for row in plain.inline_keyboard for b in row] == ["u:a:7", "u:d:7"]

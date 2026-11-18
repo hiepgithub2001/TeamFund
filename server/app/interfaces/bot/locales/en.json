@@ -588,5 +588,9 @@
  "mt.fee_line": "💵 Match fee: {n} players, {paid} paid",
  "mt.fee_each": "{amount} each",
  "group.match_fee": "💵 <b>{title}</b>: {amount} each for {names}. Pay with /start.",
- "err.match_fee_amount": "Each player's amount must be a multiple of 1,000đ, e.g. 50k."
+ "err.match_fee_amount": "Each player's amount must be a multiple of 1,000đ, e.g. 50k.",
+ "reason.expired": "the code matches, but the QR had expired",
+ "unmatched.expired_for": "QR for: <b>{members}</b> · {amount} · made {made}",
+ "btn.assign_qr": "✅ Mark paid: {members}",
+ "pay.expired_received": "⏳ We got your {amount}, but that QR code had expired. A manager will confirm it soon. Next time make a fresh QR with /start."
 }
