@@ -250,3 +250,41 @@ def test_every_tip_exists_in_both_languages():
     en, vi = (json.loads((d / f).read_text()) for f in ("en.json", "vi.json"))
     tips = {k for k in en if k.startswith(("tip.", "mtip."))}
     assert len(tips) >= 25 and tips == {k for k in vi if k.startswith(("tip.", "mtip."))}
+
+
+def test_a_bot_that_fails_at_startup_is_retried(monkeypatch):
+    import asyncio
+    from app.interfaces.bot import ops, registry
+    tries = []
+
+    async def register(t):
+        tries.append(1)
+        if len(tries) < 3:
+            raise OSError("Connection reset by peer")
+        registry.by_team[int(t["team_id"])] = object()
+        registry.down.pop(int(t["team_id"]), None)
+
+    async def no_teams(*a, **k):
+        return [{"team_id": 77, "bot_username": "wq_bot"}]
+    monkeypatch.setattr(registry, "register_team", register)
+    monkeypatch.setattr(registry, "RETRY_DELAYS", (0, 0))
+    monkeypatch.setattr(registry, "call", no_teams)
+    from types import SimpleNamespace
+    monkeypatch.setattr(registry, "S", SimpleNamespace(registration=SimpleNamespace(active_bots=None)))
+    monkeypatch.setattr(registry.settings, "master_token", "")
+    monkeypatch.setattr(registry.settings, "telegram_mode", "polling")
+
+    async def run():
+        await registry.start()
+        assert 77 in registry.down
+        assert any(b["name"] == "@wq_bot" and not b["ok"] for b in await ops.webhooks()), "/ops shows it"
+        for _ in range(50):
+            if 77 in registry.by_team:
+                break
+            await asyncio.sleep(0.01)
+    try:
+        asyncio.run(run())
+        assert len(tries) == 3 and 77 in registry.by_team and 77 not in registry.down
+    finally:
+        registry.by_team.pop(77, None)
+        registry.down.pop(77, None)

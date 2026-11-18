@@ -112,6 +112,9 @@ async def webhooks() -> list[dict]:
             except Exception as e:
                 row["ok"], row["error"] = False, str(e)[:120]
         out.append(row)
+    for username in registry.down.values():  # failed at startup, still retrying
+        out.append({"name": f"@{username}", "ok": False, "pending": 0, "error": "not running (retrying)",
+                    "error_at": None, "old_error_at": None})
     return out
 
 

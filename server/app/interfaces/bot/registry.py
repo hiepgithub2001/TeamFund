@@ -126,7 +126,11 @@ async def register_team(t: dict) -> Entry:
             old.poller.cancel()
         await old.bot.session.close()
     bot = make_bot(t["token"])
-    me = await bot.get_me()
+    try:
+        me = await bot.get_me()
+    except Exception:
+        await bot.session.close()
+        raise
     entry = Entry(bot=bot, team={k: v for k, v in t.items() if k != "token"}, username=me.username,
                   secret=t["webhook_secret"])
     by_bot[me.id] = entry
@@ -137,8 +141,26 @@ async def register_team(t: dict) -> Entry:
         await sync_admin_commands(bot, t["team_id"])
     except Exception as e:
         log.warning("commands for @%s: %s", me.username, e)
+    down.pop(int(t["team_id"]), None)
     log.info("team %s ready: @%s", t["team_id"], me.username)
     return entry
+
+
+RETRY_DELAYS = (5, 15, 60, 300)  # then every 10 minutes until it works
+_retries: set[asyncio.Task] = set()
+down: dict[int, str] = {}  # team_id -> bot username, for bots that couldn't start yet (shown in /ops)
+
+
+async def _retry(t: dict) -> None:
+    """A bot that failed at startup (Telegram unreachable for a moment) keeps trying in the background."""
+    n = 0
+    while int(t["team_id"]) not in by_team:
+        await asyncio.sleep(RETRY_DELAYS[n] if n < len(RETRY_DELAYS) else 600)
+        n += 1
+        try:
+            await register_team(t)
+        except Exception as e:
+            log.warning("bot for team %s (@%s), try %s: %s", t["team_id"], t["bot_username"], n + 1, e)
 
 
 async def start() -> None:
@@ -149,7 +171,11 @@ async def start() -> None:
         try:
             await register_team(t)
         except Exception as e:
-            log.error("could not start bot for team %s (@%s): %s", t["team_id"], t["bot_username"], e)
+            log.error("could not start bot for team %s (@%s): %s; retrying", t["team_id"], t["bot_username"], e)
+            down[int(t["team_id"])] = t["bot_username"]
+            task = asyncio.create_task(_retry(t))
+            _retries.add(task)
+            task.add_done_callback(_retries.discard)
     if not settings.master_token:
         log.warning("MASTER_BOT_TOKEN is not set; the master bot is off")
         return
@@ -166,6 +192,8 @@ async def start() -> None:
 
 
 async def stop() -> None:
+    for task in _retries:
+        task.cancel()
     for e in list(by_bot.values()):
         if e.poller:
             e.poller.cancel()
