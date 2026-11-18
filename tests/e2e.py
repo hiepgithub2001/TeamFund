@@ -572,8 +572,7 @@ async def main():
         await wait_sent(to(MEMBER, r"Giang</b> paid 100,000đ"), "followers see the real amount")
         # /remind goes to followers; /notify turns them off
         await T(text_update(OWNER, "/remind"))
-        rm = await wait_sent(to(OWNER, "Sent the unpaid list to 1 people"), "remind sent to followers")
-        assert "Not paid" in rm["params"]["text"] or "owe" in rm["params"]["text"].lower(), rm["params"]["text"]
+        await wait_sent(to(OWNER, "Sent the unpaid list to 1 people"), "remind sent to followers")
         await T(text_update(MEMBER, "/notify"))
         await wait_sent(to(MEMBER, "announcements are off"), "notify off")
         await T(text_update(OWNER, "/remind"))

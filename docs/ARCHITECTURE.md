@@ -174,7 +174,7 @@ _One bill per cycle: a quarterly bill covers its three months, so Cường count
 
 ### Followers instead of a group
 
-Team bots don't work in groups. Everyone who opens a team bot privately **follows** the team (a new follower is welcomed once). Whatever used to be posted in a team group now goes to each follower privately: the fee is open, reminders, who paid (except to the payer, who gets the receipt), expenses, income, charges, a bank change, and undos of those. The person who caused an announcement doesn't get it again. `/notify` turns announcements off or on for yourself; someone who blocks the bot is muted. `/remind` sends the unpaid list to all followers and shows the manager the same list, with how many got it.
+Team bots don't work in groups. Everyone who opens a team bot privately **follows** the team (a new follower is welcomed once). Whatever used to be posted in a team group now goes to each follower privately: the fee is open, reminders, who paid (except to the payer, who gets the receipt), expenses, income, charges, a bank change, and undos of those. The person who caused an announcement doesn't get it again. `/notify` turns announcements off or on for yourself; someone who blocks the bot is muted. `/remind` sends the unpaid list to all followers and says how many got it.
 
 ### Undo
 
