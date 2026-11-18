@@ -19,7 +19,9 @@ def user_info(uow: UnitOfWork, tg_id: int) -> dict:
 # database or decide who may act, so undo stops at them.
 UNDOABLE = {"expense.add", "income.add", "payment.cash", "payment.assign", "payment.other_income", "bill.charge",
             "bill.split", "bill.waive", "plan.save", "plan.window", "plan.delete", "plan.terms", "team.settings", "member.add",
-            "member.update", "member.remove"}
+            "member.update", "member.remove",
+            "match.add", "match.update", "match.delete", "match.cancel", "match.restore", "schedule.add",
+            "schedule.stop", "contact.save", "contact.update", "contact.delete"}
 
 
 def audit(uow: UnitOfWork, clock: Clock, team_id, actor, action, target=None, before=None, after=None) -> None:

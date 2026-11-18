@@ -662,6 +662,71 @@ async def main():
         await wait_sent(lambda c: saved(f"Dũng (until {this_q})")(c) and f"Months set: {this_q}." in c["params"]["text"],
                         "this quarter only")
 
+        # 17. the match calendar: paste lines, cancel with a reason (followers told), a weekly calendar, show more
+        from datetime import timedelta as _td
+        soon = today + _td(days=10)
+        await T(text_update(OWNER, f"/matches\n26/10: Tăng High (600k)\n{soon:%d/%m/%Y} 19h FC Moreh @Pitch A\nhello"))
+        prev = await wait_sent(to(OWNER, "Read <b>2</b> matches"), "paste preview")
+        assert "Skipped (no date)" in prev["params"]["text"] and "FC Moreh · @Pitch A" in prev["params"]["text"]
+        await T(cb_update(OWNER, "mt:ok", prev["message_id"]))
+        await wait_sent(to(OWNER, "Saved 2 matches"), "matches saved")
+        lst = await wait_sent(to(OWNER, "Upcoming matches"), "match list")
+        assert "FC Moreh" in lst["params"]["text"] and "Tăng High" not in lst["params"]["text"], "past ones aren't upcoming"
+        assert "mt:a" in buttons(lst)
+        await T(text_update(OWNER, f"/matches cancel {soon:%d/%m} rain"))
+        await wait_sent(to(OWNER, "Match cancelled. Everyone was told"), "cancelled")
+        await wait_sent(lambda c: to(MEMBER, "Match cancelled")(c) and "Reason: rain" in c["params"]["text"],
+                        "followers told about the cancellation")
+        await T(text_update(OWNER, "/matches"))
+        lst = await wait_sent(to(OWNER, "Upcoming matches"), "list again")
+        assert "<s>" in lst["params"]["text"] and "🚫 rain" in lst["params"]["text"]
+        await T(cb_update(OWNER, "mt:s", lst["message_id"]))
+        await wait_sent(lambda c: c["method"] == "editMessageText" and "Repeating calendars" in c["params"]["text"], "calendars")
+        for d in ("mt:sn", "mt:sf:weekly", "mt:sw:weekly:6"):
+            await T(cb_update(OWNER, d, lst["message_id"]))
+        await wait_sent(to(OWNER, "Send them, e.g."), "usual time asked")
+        await T(text_update(OWNER, "19h @Pitch A"))
+        await wait_sent(to(OWNER, "Repeating calendar set"), "calendar saved")
+        lst = await wait_sent(lambda c: to(OWNER, "Upcoming matches")(c) and "every Sunday, 19:00 @Pitch A" in c["params"]["text"],
+                              "calendar listed")
+        assert lst["params"]["text"].count("• ") >= 5 and "mt:l:10" in buttons(lst)
+        await T(cb_update(OWNER, "mt:l:10", lst["message_id"]))
+        await wait_sent(lambda c: c["method"] == "editMessageText" and "(next 10)" in c["params"]["text"], "show 10")
+        # add one match step by step: a suggested day, the usual time and pitch, an opponent typed
+        await T(cb_update(OWNER, "mt:a", lst["message_id"]))
+        days = await wait_sent(to(OWNER, "Add a match"), "day buttons")
+        await T(cb_update(OWNER, buttons(days)[0], days["message_id"]))
+        tm = await wait_sent(to(OWNER, "time and pitch\\?"), "time step")
+        assert "mt:at:d" in buttons(tm), "the calendar's usual time is offered"
+        await T(cb_update(OWNER, "mt:at:d", tm["message_id"]))
+        await wait_sent(to(OWNER, "Against which team"), "opponent step")
+        await wait_sent(to(OWNER, "Or type the team's name"), "opponent prompt")
+        await T(text_update(OWNER, "FC Moreh"))
+        added = await wait_sent(to(OWNER, "Match added"), "added step by step")
+        assert "FC Moreh · @Pitch A" in added["params"]["text"] and "19:00" in added["params"]["text"]
+        assert any(d.startswith("ct:v:") for d in buttons(added)) is False  # not in contacts yet: offer to save
+        assert any(d.startswith("mt:sc:") for d in buttons(added))
+
+        FAN = 777001  # someone who just opened the bot
+        await T(text_update(FAN, "/matches"))
+        mem = await wait_sent(to(FAN, "Upcoming matches"), "everyone sees the calendar")
+        assert "mt:a" not in buttons(mem)
+
+        # 18. contacts: paste, search, open one with its match history
+        await T(text_update(OWNER, "/contacts\nFC Moreh (0912 345 678, fb: Dung)\nFC Soc Son"))
+        prev = await wait_sent(to(OWNER, "Read <b>2</b> teams"), "contacts preview")
+        assert "📞 0912345678" in prev["params"]["text"]
+        await T(cb_update(OWNER, "ct:ok", prev["message_id"]))
+        await wait_sent(to(OWNER, "Saved: 2 new, 0 updated"), "contacts saved")
+        await T(text_update(OWNER, "/contacts moreh"))
+        found = await wait_sent(to(OWNER, '"moreh": 1 found'), "search")
+        cid = next(d for d in buttons(found) if d.startswith("ct:v:"))
+        await T(cb_update(OWNER, cid, found["message_id"]))
+        await wait_sent(lambda c: c["method"] == "editMessageText" and "Played 0 · cancelled 1" in c["params"]["text"],
+                        "contact with history")
+        await T(text_update(FAN, "/contacts"))
+        await wait_sent(to(FAN, "manager"), "contacts are managers only")
+
         print(f"e2e passed ({len(calls)} Telegram API calls)")
     finally:
         await http.close()

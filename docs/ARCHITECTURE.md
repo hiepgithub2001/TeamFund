@@ -183,6 +183,24 @@ Team bots don't work in groups. Everyone who opens a team bot privately **follow
 - Not undoable, so never offered: anything about the bank, SePay, managers, the owner, the pay page link, and SePay payments themselves (the money really arrived). The undo itself is logged in `/log` (as `undo`) and can't be undone; undone actions show ↩️ there.
 - A manager sees and undoes only their own actions; the owner can undo anyone's.
 
+## Matches and contacts
+
+Two tools for running the team that never touch money: pitch costs still go through `/expense`. Use cases live in `application/matches.py` and `application/contacts.py`; the screens in `interfaces/bot/matches.py`, a router placed before the team router so its typed replies are seen first.
+
+| Command | Who | What it does |
+|---|---|---|
+| `/matches` | everyone who opened the bot (managers edit) | The next 5 matches still on; cancelled ones stay listed between them, struck through with their reason, and don't count. Buttons show 10, 15 or all (`/matches 10` works too). Managers get ➕ Add match (day from buttons or typed → time and pitch, "as usual" from the calendar → opponent from contacts or typed), 🔁 Repeating, ✏️ Edit, 🕘 Played. |
+| `/matches` + lines | managers | Paste notes as written, one match per line: `7/12 19h FC Moreh @Sân A (áo trắng)`. Date first (any `/expense` form, optionally after a weekday like `CN`); then time (`19h`, `19h30`, `19:30`), opponent, `@pitch`, and anything in brackets as the note. A date alone is a day with no opponent yet. The bot shows what it read, and lines without a date as skipped, before saving. |
+| `/matches cancel 30/11 mưa` | managers | Cancels the one match on that day; the rest of the line is the reason. |
+| `/contacts` | managers only (other people's phone numbers) | Opposing teams A–Z; `/contacts moreh` searches name, phone and note, accents ignored. Paste lines to add: `FC Moreh (0912 345 678, fb: Dũng)`. The name is what comes before the first bracket, dash or colon, the phone any Vietnamese number on the line, the rest the note. A team with the same name (accents and case ignored) is updated, not duplicated. A contact shows how many matches were played and cancelled against it, the last and the next. |
+
+- **A match** (`matches`) is a day, and optionally a time, pitch, opponent and note. Status: scheduled, cancelled (with an optional reason), or deleted (hidden; a repeating calendar won't bring the day back).
+- **Cancelling** from ✏️ Edit offers reasons (🌧 Mưa, 🙅 Đối huỷ, 👥 Thiếu người, 🎉 Nghỉ lễ, 🏟 Hết sân), a typed reason, or none. Followers are told at once. ↩️ Restore brings it back and tells them too. Cancelled matches get no reminder.
+- **Repeating calendars** (`match_schedules`, at most 5): every week on a weekday, every 2 weeks from a first date, or every month (week 1–4 or the last week on a weekday, or a fixed day, clamped to short months). Each has a usual time and pitch. Their match days are filled 8 weeks ahead, without opponents, and never on a day that already has a match. Stopping one drops its future days that have no opponent or note; the others stay.
+- **Reminders** (the `matches` job): from 18:00, followers get tomorrow's matches; from 09:00, managers are told about a match 7 days away with no opponent yet. Once a day each.
+- **The pay page** has a fourth tab, Lịch đá, with the next 10 matches. Contacts never appear there.
+- Every change is logged and can be undone with `/undo` (match.add, match.update, match.delete, match.cancel, match.restore, schedule.add, schedule.stop, contact.save, contact.update, contact.delete).
+
 ## Scheduled jobs
 
 The app runs its own scheduler: APScheduler inside the FastAPI process, started by `main.py` through `interfaces/scheduler.py`. It only says when; each job is a use case in `application/jobs.py` and runs in a worker thread, so the bots and webhooks never wait for it. A failure for one team is logged and the others carry on.
@@ -196,6 +214,7 @@ _All times are team time (`TEAM_TIMEZONE`, Asia/Ho_Chi_Minh). The jobs run insid
 | `open_month` | every hour at :05, and once at start | Creates the fee bills each active member needs for this month (standard periods: a quarter's bill opens in Jan/Apr/Jul/Oct). On each package's announcement day, tells the followers its new bills, due date and late fee. | Bills: one per member per period (`monthly_key`). Posts: a `job_log` key per team, package and period. |
 | `late_fees` | 00:05 every day, and once at start | Sets each overdue fee bill's "Phạt trễ N ngày" line to the days past its real due date × its package's rate. Paid bills stop; paused members freeze; a rate of 0 waives what's left. Also runs right after a package's deadline or late fee changes in `/plans`. | It recomputes from dates, so running it again the same day changes nothing. |
 | `remind` | 09:00 every day | If any package is 3 days before its due date, on it, or a multiple of 3 days past it (and announced), sends followers one message listing everyone who still owes, with a pay button. | `job_log` key per team per day. |
+| `matches` | every hour at :10, and once at start | Fills each repeating calendar's match days 8 weeks ahead. From 09:00, tells managers about a match in 7 days with no opponent; from 18:00, reminds followers of tomorrow's matches. | Days: one match per calendar date, none on a busy day. Messages: `job_log` keys per team per day. |
 | `clean_up` | every hour at :30 | Expires QR codes older than 24 hours and manager requests older than 7 days. | Only changes what's still pending. |
 
 - Nothing about fines changes on reads: opening the bot or the pay page shows what the last `late_fees` run set. A QR made one day and paid after the next run is accepted at the QR's amount.

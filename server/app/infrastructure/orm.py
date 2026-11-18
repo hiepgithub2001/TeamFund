@@ -138,10 +138,33 @@ job_runs = Table(
     Column("key", String(100), primary_key=True), Column("created_at", DateTime),
 )
 
+matches = Table(
+    "matches", metadata, _id(),
+    Column("team_id", ForeignKey("teams.id"), index=True, nullable=False), Column("day", Date, nullable=False),
+    Column("at", String(5)), Column("place", String(100)), Column("opponent", String(100)), Column("note", String(255)),
+    Column("status", String(16), nullable=False), Column("reason", String(255)), Column("schedule_id", Integer),
+    Column("created_at", DateTime, nullable=False),
+)
+
+match_schedules = Table(
+    "match_schedules", metadata, _id(),
+    Column("team_id", ForeignKey("teams.id"), index=True, nullable=False), Column("every", String(16), nullable=False),
+    Column("weekday", Integer), Column("nth", Integer), Column("mday", Integer), Column("anchor", Date),
+    Column("at", String(5)), Column("place", String(100)), Column("active", Boolean, nullable=False),
+    Column("created_at", DateTime, nullable=False),
+)
+
+contacts = Table(
+    "contacts", metadata, _id(),
+    Column("team_id", ForeignKey("teams.id"), index=True, nullable=False), Column("name", String(100), nullable=False),
+    Column("phone", String(32)), Column("note", String(255)), Column("created_at", DateTime, nullable=False),
+)
+
 _MAPPINGS = [
     (e.User, users), (e.TeamRequest, team_requests), (e.Team, teams), (e.TeamAdmin, team_admins),
     (e.ManagerRequest, manager_requests), (e.Member, members), (e.FeePlan, fee_plans), (e.Follower, followers), (e.Payment, payments), (e.Bill, bills),
     (e.PaymentIntent, payment_intents), (e.Expense, expenses), (e.AuditEntry, audit_log), (e.JobRun, job_runs),
+    (e.Match, matches), (e.MatchSchedule, match_schedules), (e.Contact, contacts),
 ]
 _started = False
 

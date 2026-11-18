@@ -11,6 +11,7 @@ from ..domain.entities import Team
 from ..domain.errors import DomainError, invalid
 from ..domain.rules import months_between, period_label
 from . import billing
+from .matches import match_dict
 from .ports import Deps, UnitOfWork
 
 MAX_MEMBERS_PER_PAYMENT = 50
@@ -57,7 +58,17 @@ class WebUseCases:
                     "fund": {k: fund[k] for k in ("income", "other_income", "expense", "balance")},
                     "months": self._months(uow, team, period),
                     "history": self._history(uow, team, 30),
-                    "members": self._members(uow, team)}
+                    "members": self._members(uow, team),
+                    "matches": self._matches(uow, team)}
+
+    def _matches(self, uow: UnitOfWork, team: Team) -> list[dict]:
+        """The next 10 matches still on (and cancelled ones between them), for the Calendar tab."""
+        from .matches import fill, upcoming
+        today = self.d.clock.local_now().date()
+        if fill(uow, team, today, self.d.clock.now()):
+            uow.commit()
+        return [{k: m[k] for k in ("day", "weekday", "at", "place", "opponent", "note", "status", "reason")}
+                for m in (match_dict(x) for x in upcoming(uow, team, today, 10))]
 
     def _months(self, uow: UnitOfWork, team: Team, period: str) -> list[dict]:
         """Money in and out per month, newest first, from the month of the first record (backdated ones

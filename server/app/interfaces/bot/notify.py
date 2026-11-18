@@ -57,6 +57,15 @@ async def deliver(ev: dict) -> bool:
         if ev.get("overdue") and ev.get("late_fee"):
             head += "\n" + t(G, "late.rule", fee=money(ev["late_fee"], G))
         await _tell(entry, to, f"{head}\n{owes_lines(G, ev['unpaid'])}", pay_keyboard(G, name))
+    elif kind == "match_tomorrow":
+        from .matches import match_line
+        lines = "\n".join("• " + match_line(G, x) for x in ev["matches"])
+        await _tell(entry, to, t(G, "mt.ev_tomorrow", matches=lines))
+    elif kind == "match_no_opponent":
+        from .matches import match_line
+        for admin_id in to:
+            L = await lang_for(admin_id, G)
+            await _send(bot, admin_id, t(L, "mt.ev_open", matches="\n".join("• " + match_line(L, x) for x in ev["matches"])))
     elif kind not in ("bills_created", "reminder"):
         log.warning("unknown event %s", kind)
     return True

@@ -43,7 +43,7 @@ def _add_missing_columns(engine) -> None:
 
 # what /undo can put back; the log, job marks, users and followers are never undone
 _TRACKED = {c.__name__: c for c in (e.Team, e.TeamAdmin, e.Member, e.FeePlan, e.Bill, e.Payment, e.PaymentIntent,
-                                    e.Expense)}
+                                    e.Expense, e.Match, e.MatchSchedule, e.Contact)}
 
 
 def _plain(v):
@@ -79,6 +79,7 @@ class SqlUnitOfWork:
         self.bills, self.intents, self.payments = r.SqlBills(s), r.SqlIntents(s), r.SqlPayments(s)
         self.plans, self.followers = r.SqlFeePlans(s), r.SqlFollowers(s)
         self.expenses, self.audit, self.job_runs = r.SqlExpenses(s), r.SqlAudit(s), r.SqlJobRuns(s)
+        self.matches, self.schedules, self.contacts = r.SqlMatches(s), r.SqlMatchSchedules(s), r.SqlContacts(s)
         self._changes: list = []
         event.listen(s, "after_flush", self._record)
         return self

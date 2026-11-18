@@ -4,7 +4,8 @@ from datetime import datetime
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from ..domain.entities import (AuditEntry, Bill, Expense, FeePlan, Follower, JobRun, ManagerRequest, Member, Payment, PaymentIntent,
+from ..domain.entities import (AuditEntry, Bill, Contact, Expense, FeePlan, Follower, JobRun, ManagerRequest, Match,
+                               MatchSchedule, Member, Payment, PaymentIntent,
                                Team, TeamAdmin, TeamRequest, User)
 
 
@@ -276,3 +277,53 @@ class SqlAudit(_Repo):
 class SqlJobRuns(_Repo):
     def exists(self, key: str) -> bool:
         return self.s.get(JobRun, key) is not None
+
+
+class SqlMatches(_Repo):
+    def get(self, match_id: int) -> Match | None:
+        return self.s.get(Match, match_id)
+
+    def between(self, team_id: int, start, end, statuses: tuple = ("scheduled", "cancelled")) -> list[Match]:
+        q = select(Match).where(Match.team_id == team_id, Match.day >= start, Match.day <= end,
+                                Match.status.in_(statuses))
+        return list(self.s.scalars(q.order_by(Match.day, Match.at, Match.id)))
+
+    def from_day(self, team_id: int, start, limit: int) -> list[Match]:
+        q = select(Match).where(Match.team_id == team_id, Match.day >= start, Match.status != "deleted")
+        return list(self.s.scalars(q.order_by(Match.day, Match.at, Match.id).limit(limit)))
+
+    def before(self, team_id: int, day, limit: int) -> list[Match]:
+        q = select(Match).where(Match.team_id == team_id, Match.day < day, Match.status != "deleted")
+        return list(self.s.scalars(q.order_by(Match.day.desc(), Match.at.desc(), Match.id.desc()).limit(limit)))
+
+    def of_schedule(self, schedule_id: int) -> list[Match]:
+        return list(self.s.scalars(select(Match).where(Match.schedule_id == schedule_id)))
+
+    def all_of_team(self, team_id: int) -> list[Match]:
+        q = select(Match).where(Match.team_id == team_id, Match.status != "deleted")
+        return list(self.s.scalars(q.order_by(Match.day)))
+
+    def remove(self, m: Match) -> None:
+        self.s.delete(m)
+
+
+class SqlMatchSchedules(_Repo):
+    def get(self, schedule_id: int) -> MatchSchedule | None:
+        return self.s.get(MatchSchedule, schedule_id)
+
+    def of_team(self, team_id: int, active_only: bool = True) -> list[MatchSchedule]:
+        q = select(MatchSchedule).where(MatchSchedule.team_id == team_id)
+        if active_only:
+            q = q.where(MatchSchedule.active.is_(True))
+        return list(self.s.scalars(q.order_by(MatchSchedule.id)))
+
+
+class SqlContacts(_Repo):
+    def get(self, contact_id: int) -> Contact | None:
+        return self.s.get(Contact, contact_id)
+
+    def of_team(self, team_id: int) -> list[Contact]:
+        return list(self.s.scalars(select(Contact).where(Contact.team_id == team_id).order_by(Contact.id)))
+
+    def remove(self, c: Contact) -> None:
+        self.s.delete(c)

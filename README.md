@@ -55,12 +55,15 @@ Port 443 must be reachable from the internet; Telegram and SePay both call it. P
 5. In the new team bot: `/sepaytoken <token>`, then tap the team's account in the list. The bot saves it and creates the SePay webhook. The account can't be typed in; `/setbank` shows the list again to change it.
 6. Share the bot's link with members: everyone who taps Start gets the team's announcements (`/notify` turns them off).
 7. `/members` → ➕ to add members (one per line, `Name | shirt | phone`), `/plans` → 💰 Default fee for the monthly fee, ➕ New plan for other amounts or cycles (e.g. 300k per quarter), then, in `/plans`, 📅 Deadline (e.g. `15 5`: announced on the 15th, due 5 days later) and ⏰ Late fee for each package. Money that isn't a fee (prizes, the old balance): `/income 2tr Thưởng 15-10-2026`.
+8. Optional: `/matches` for the match calendar (paste `7/12 19h FC Moreh @Sân A` lines, or 🔁 a weekly/monthly calendar) and `/contacts` for opposing teams' phone numbers (managers only).
 
 ## Schedule (Asia/Ho_Chi_Minh)
 
 - Every hour: create this month's bills; announce each package once, on its announcement day, to the followers.
+- Every hour: fill repeating match calendars 8 weeks ahead.
 - 00:05: update every overdue bill's late fee (days past its due date × the package's rate).
-- 09:00: reminder to the followers 3 days before a package's due date, on it, then every 3 days while someone owes.
+- 09:00: reminder to the followers 3 days before a package's due date, on it, then every 3 days while someone owes; managers hear about a match in 7 days with no opponent.
+- 18:00: followers are reminded of tomorrow's matches.
 
 ## Tests
 

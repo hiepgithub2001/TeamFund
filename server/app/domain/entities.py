@@ -233,3 +233,46 @@ class IncomingTransfer:
     amount: int
     content: str
     incoming: bool = True
+
+
+@dataclass(eq=False)
+class Match:
+    """A match on the team's calendar. Nothing to do with money: pitch costs go through /expense."""
+    team_id: int
+    day: date
+    at: str | None = None        # "19:00"
+    place: str | None = None
+    opponent: str | None = None  # None: no opponent yet
+    note: str | None = None
+    status: str = "scheduled"    # scheduled|cancelled|deleted
+    reason: str | None = None    # why it was cancelled
+    schedule_id: int | None = None  # made by a repeating calendar
+    created_at: datetime | None = None
+    id: int | None = None
+
+
+@dataclass(eq=False)
+class MatchSchedule:
+    """A repeating calendar: every week, every 2 weeks, or every month; it fills matches ahead of time."""
+    team_id: int
+    every: str                   # weekly|biweekly|monthly
+    weekday: int | None = None   # 0 Monday … 6 Sunday
+    nth: int | None = None       # monthly: 1–4, or -1 for the last such weekday
+    mday: int | None = None      # monthly on a fixed day of the month
+    anchor: date | None = None   # biweekly: a first date
+    at: str | None = None
+    place: str | None = None
+    active: bool = True
+    created_at: datetime | None = None
+    id: int | None = None
+
+
+@dataclass(eq=False)
+class Contact:
+    """An opposing team's contact. Other people's phone numbers: managers only."""
+    team_id: int
+    name: str
+    phone: str | None = None
+    note: str | None = None
+    created_at: datetime | None = None
+    id: int | None = None

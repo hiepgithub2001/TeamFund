@@ -12,7 +12,7 @@ from aiogram.types import Update
 
 from ...config import settings
 from ..deps import S
-from . import team
+from . import matches, team
 from .commands import set_master_commands, set_team_default_commands, sync_admin_commands
 from .lang import lang_of
 from .render import report_error
@@ -72,6 +72,7 @@ async def team_context(handler, update: Update, data: dict):
 
 team_dp = Dispatcher()
 team_dp.update.outer_middleware(team_context)
+team_dp.include_router(matches.router)  # before team's catch-all text and button handlers
 team_dp.include_router(team.router)
 
 

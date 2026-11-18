@@ -247,3 +247,53 @@ MEMBER_STATUSES = ("active", "paused", "left")
 def valid_bank(bank_name: str, bank_account: str, bank_holder: str) -> bool:
     return (2 <= len(bank_name) <= 64 and re.fullmatch(r"[0-9A-Za-z]{4,32}", bank_account) is not None
             and 2 <= len(bank_holder) <= 128)
+
+
+# ---- matches ----------------------------------------------------------------------------------
+
+MATCH_FILL_DAYS = 56  # a repeating calendar fills matches 8 weeks ahead
+MAX_MATCHES_AT_ONCE = 60
+
+
+def fold(text: str | None) -> str:
+    """For searching and comparing names: "FC Sóc Sơn" -> "fc soc son"."""
+    text = unicodedata.normalize("NFKD", (text or "").replace("đ", "d").replace("Đ", "D"))
+    return " ".join("".join(c for c in text if not unicodedata.combining(c)).lower().split())
+
+
+def nth_weekday(year: int, month: int, weekday: int, nth: int) -> date | None:
+    """The nth weekday of a month (nth -1: the last one); None if the month has no such day."""
+    days = [d for d in range(1, calendar.monthrange(year, month)[1] + 1) if date(year, month, d).weekday() == weekday]
+    if nth == -1:
+        return date(year, month, days[-1])
+    return date(year, month, days[nth - 1]) if 1 <= nth <= len(days) else None
+
+
+def schedule_dates(s, start: date, end: date) -> list[date]:
+    """The days a repeating calendar has matches, from start to end (both included)."""
+    out: list[date] = []
+    if s.every == "weekly" and s.weekday is not None:
+        d = start + timedelta(days=(s.weekday - start.weekday()) % 7)
+        while d <= end:
+            out.append(d)
+            d += timedelta(days=7)
+    elif s.every == "biweekly" and s.anchor is not None:
+        d = s.anchor
+        if d < start:
+            d += timedelta(days=14 * -(-(start - d).days // 14))
+        while d <= end:
+            out.append(d)
+            d += timedelta(days=14)
+    elif s.every == "monthly":
+        y, m = start.year, start.month
+        while date(y, m, 1) <= end:
+            if s.mday:
+                d = date(y, m, min(s.mday, calendar.monthrange(y, m)[1]))
+            elif s.weekday is not None and s.nth:
+                d = nth_weekday(y, m, s.weekday, s.nth)
+            else:
+                d = None
+            if d and start <= d <= end:
+                out.append(d)
+            y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+    return out

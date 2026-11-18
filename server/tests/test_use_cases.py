@@ -745,3 +745,93 @@ def test_moving_package_after_a_later_start():
     svc.plans.set_window(tid, OWNER, small["id"], [kh], "2026-10", "2026-12")
     bills = svc.money.unpaid(tid)[0]["bills"]
     assert [(b["kind"], b["period_label"], b["amount"]) for b in bills] == [("monthly", "10/2026–12/2026", 200000)]
+
+
+def test_matches():
+    """Matches one by one, a weekly calendar filling 8 weeks, the next 5 still on, cancelling and restoring."""
+    from datetime import date
+    from app.domain.rules import schedule_dates
+    from app.domain.entities import MatchSchedule
+    svc, clock, notifier = make_services(datetime(2026, 11, 18, 10, 0))  # a Wednesday
+    tid = setup_team(svc)
+    m = svc.matches
+    assert code(m.add, tid, MEMBER, [{"day": date(2026, 11, 22)}]) == "not_manager"
+    m.add(tid, OWNER, [{"day": date(2026, 11, 22), "at": "19:00", "opponent": "FC Tăng High", "place": "Sân A"},
+                       {"day": date(2026, 11, 29)}])
+    assert code(m.add, tid, OWNER, [{"day": date(2026, 11, 22), "at": "25:00"}]) == "invalid"
+    s = m.add_schedule(tid, OWNER, "weekly", weekday=6, at="19:00", place="Sân Mỹ Đình")
+    v = m.show(tid, MEMBER)
+    assert not v["can_edit"] and len(v["matches"]) == 5 and v["more"]
+    days = [x["day"] for x in v["matches"]]
+    assert days == ["2026-11-22", "2026-11-29", "2026-12-06", "2026-12-13", "2026-12-20"], "no second match a day"
+    assert len([x for x in m.show(tid, OWNER, limit=200)["matches"] if x["schedule_id"] == s["id"]]) == 6
+
+    first = v["matches"][0]["id"]
+    m.cancel(tid, OWNER, first, "Mưa")
+    v = m.show(tid, OWNER)
+    on = [x for x in v["matches"] if x["status"] == "scheduled"]
+    assert len(on) == 5 and v["matches"][0]["status"] == "cancelled" and v["matches"][0]["reason"] == "Mưa"
+    assert code(m.cancel, tid, OWNER, first) == "already_resolved"
+    m.restore(tid, OWNER, first)
+    assert m.show(tid, OWNER)["matches"][0]["status"] == "scheduled"
+    assert m.cancel_on(tid, OWNER, date(2026, 11, 29), "Đối huỷ")["status"] == "cancelled"
+    m.add(tid, OWNER, [{"day": date(2026, 11, 22), "at": "07:00"}])
+    assert code(m.cancel_on, tid, OWNER, date(2026, 11, 22)) == "match_ambiguous"
+
+    dec6 = next(x for x in m.show(tid, OWNER)["matches"] if x["day"] == "2026-12-06")
+    upd = m.update(tid, OWNER, dec6["id"], {"opponent": "FC Moreh", "note": "áo trắng"})
+    assert (upd["opponent"], upd["note"]) == ("FC Moreh", "áo trắng")
+    stopped = m.stop_schedule(tid, OWNER, s["id"])
+    assert stopped["dropped"] == 5, "the empty calendar dates go, the one with an opponent stays"
+    assert m.suggest_days(tid, OWNER)[0] == "2026-11-21", "no calendar: the next weekend days"
+
+    # monthly and every-2-weeks calendars
+    last_sat = MatchSchedule(team_id=tid, every="monthly", weekday=5, nth=-1)
+    assert schedule_dates(last_sat, date(2026, 11, 1), date(2027, 1, 31)) == \
+        [date(2026, 11, 28), date(2026, 12, 26), date(2027, 1, 30)]
+    fixed = MatchSchedule(team_id=tid, every="monthly", mday=31)
+    assert schedule_dates(fixed, date(2026, 11, 1), date(2026, 12, 31)) == [date(2026, 11, 30), date(2026, 12, 31)]
+    two = MatchSchedule(team_id=tid, every="biweekly", anchor=date(2026, 11, 7))
+    assert schedule_dates(two, date(2026, 11, 18), date(2026, 12, 20)) == \
+        [date(2026, 11, 21), date(2026, 12, 5), date(2026, 12, 19)]
+
+    # reminders: managers 7 days before an open date, followers the evening before
+    svc.teams.follow(tid, MEMBER)
+    m.add(tid, OWNER, [{"day": date(2026, 11, 25)}, {"day": date(2026, 11, 19), "opponent": "FC Moreh"}])
+    svc.jobs.matches()
+    assert [e["type"] for e in notifier.events if e["type"].startswith("match_")] == ["match_no_opponent"]
+    clock.local = clock.local.replace(hour=18)
+    svc.jobs.matches()
+    svc.jobs.matches()
+    kinds = [e["type"] for e in notifier.events if e["type"].startswith("match_")]
+    assert kinds == ["match_no_opponent", "match_tomorrow"], "once a day each"
+
+    # undo
+    entry = next(x for x in svc.undo.recent(tid, OWNER) if x["action"] == "match.add")
+    svc.undo.undo(tid, OWNER, entry["id"])
+    assert not [x for x in m.show(tid, OWNER, 50)["matches"] if x["day"] == "2026-11-25"]
+
+
+def test_contacts():
+    svc, clock, _ = make_services(datetime(2026, 11, 18, 10, 0))
+    tid = setup_team(svc)
+    c = svc.contacts
+    items = [{"name": "FC Moreh", "phone": "0367000000", "note": "fb: Dũng Minh"}, {"name": "FC Sóc Sơn"}]
+    assert code(c.search, tid, MEMBER) == "not_manager"
+    assert [p["update"] for p in c.preview(tid, OWNER, items)] == [False, False]
+    assert c.save_many(tid, OWNER, items) == {"added": 2, "updated": 0}
+    assert [p["update"] for p in c.preview(tid, OWNER, [{"name": "fc soc son", "phone": "0584000000"}])] == [True]
+    assert c.save_many(tid, OWNER, [{"name": "FC Soc Son", "phone": "0584000000"}]) == {"added": 0, "updated": 1}
+    found = c.search(tid, OWNER, "soc son")
+    assert len(found) == 1 and found[0]["phone"] == "0584000000"
+    assert [x["name"] for x in c.search(tid, OWNER, "dung minh")] == ["FC Moreh"]
+    from datetime import date
+    svc.matches.add(tid, OWNER, [{"day": date(2026, 11, 8), "opponent": "fc moreh"},
+                                 {"day": date(2026, 12, 6), "opponent": "FC Moreh"}])
+    moreh = next(x for x in c.search(tid, OWNER) if x["name"] == "FC Moreh")
+    info = c.get(tid, OWNER, moreh["id"])
+    assert (info["played"], info["last"], info["next"]) == (1, "2026-11-08", "2026-12-06")
+    mid = svc.matches.show(tid, OWNER)["matches"][0]["id"]
+    assert svc.matches.get(tid, OWNER, mid)["contact_id"] == moreh["id"]
+    c.delete(tid, OWNER, moreh["id"])
+    assert [x["name"] for x in c.search(tid, OWNER)] == ["FC Soc Son"]

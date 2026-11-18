@@ -28,6 +28,8 @@ const T = {
     history: "Giao dịch gần đây", noHistory: "Chưa có giao dịch.", feeFrom: "Đóng quỹ: {n}", cashFrom: "Tiền mặt: {n}",
     unassigned: "Chuyển khoản chưa gán", owes: "Còn nợ {a}", allClear: "Đã đóng đủ", paused: "Tạm nghỉ",
     shirt: "Áo số {n}", noMembers: "Đội chưa có thành viên.", readOnly: "Chỉ xem. Quản lý đội trong bot Telegram.",
+    tabMatches: "Lịch đá", upcoming: "Trận sắp tới", noMatches: "Chưa có trận nào.", noOpp: "Chưa có đối",
+    cancelled: "Huỷ", wd: ["T2", "T3", "T4", "T5", "T6", "T7", "CN"],
   },
   en: {
     title: "Team fund", month: "Month {p}", owing: "Still to pay", people: "{n} people", total: "Total owed",
@@ -54,6 +56,8 @@ const T = {
     history: "Recent transactions", noHistory: "No transactions yet.", feeFrom: "Fee: {n}", cashFrom: "Cash: {n}",
     unassigned: "Transfer not assigned yet", owes: "Owes {a}", allClear: "All paid", paused: "On break",
     shirt: "Shirt {n}", noMembers: "The team has no members yet.", readOnly: "Read-only. The team is managed in the Telegram bot.",
+    tabMatches: "Matches", upcoming: "Upcoming matches", noMatches: "No matches yet.", noOpp: "No opponent yet",
+    cancelled: "Cancelled", wd: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
   },
 };
 
@@ -62,7 +66,7 @@ const store = {  // per-device conveniences only; the page works without them
   get(k) { try { return JSON.parse(localStorage.getItem("tf." + k)); } catch { return null; } },
   set(k, v) { try { v == null ? localStorage.removeItem("tf." + k) : localStorage.setItem("tf." + k, JSON.stringify(v)); } catch { /* private mode */ } },
 };
-const S = { data: null, lang: store.get("lang"), tab: ["pay", "fund", "members"].includes(store.get("tab")) ? store.get("tab") : "pay", open: null, months: {}, selected: new Set(), query: "", intent: null, timer: null, install: null };
+const S = { data: null, lang: store.get("lang"), tab: ["pay", "fund", "members", "matches"].includes(store.get("tab")) ? store.get("tab") : "pay", open: null, months: {}, selected: new Set(), query: "", intent: null, timer: null, install: null };
 
 const t = (k, p = {}) => (T[S.lang] || T.vi)[k].replace(/\{(\w+)\}/g, (_, x) => p[x] ?? "");
 const money = (n) => Number(n).toLocaleString(S.lang === "en" ? "en-US" : "vi-VN") + "đ";
@@ -142,7 +146,7 @@ function teamFees(d) {  // "200.000đ/tháng · hạn 20/11", or each package wi
   return fs.map((f) => t("feeN", { f: feeOf(f.amount, f.months), n: f.count }) + feeTerms(f)).join("\n");
 }
 
-const TABS = [["pay", "tabPay"], ["fund", "tabFund"], ["members", "tabMembers"]];
+const TABS = [["pay", "tabPay"], ["fund", "tabFund"], ["members", "tabMembers"], ["matches", "tabMatches"]];
 function tabs() {
   return h("nav", { class: "tabs", role: "tablist" }, TABS.map(([id, key]) =>
     h("button", { role: "tab", "aria-selected": S.tab === id ? "true" : "false", class: "tab", onclick: () => {
@@ -226,6 +230,21 @@ function membersView() {
        [m.shirt_number ? t("shirt", { n: m.shirt_number }) : null, m.status === "paused" ? t("paused") : null,
         m.fee ? t("feeIs", { f: feeOf(m.fee, m.months) }) : null].filter(Boolean).join(" · ")].filter(Boolean).join("\n"),
       m.owes ? t("owes", { a: money(m.owes) }) : t("allClear"), m.owes ? "owe" : "ok"))) : h("p", { class: "muted" }, t("noMembers"))),
+    footer());
+}
+
+function matchesView() {
+  // the next matches still on; a cancelled one stays listed, marked, with its reason
+  const ms = S.data.matches || [];
+  show(header(), tabs(),
+    section(t("upcoming"), ms.length ? h("ul", { class: "list" }, ms.map((m) => {
+      const [, mo, dd] = m.day.split("-");
+      const when = `${(T[S.lang] || T.vi).wd[m.weekday]} ${dd}/${mo}` + (m.at ? ` ${m.at}` : "");
+      const off = m.status === "cancelled";
+      return item(m.opponent || t("noOpp"), [when, m.place ? "@" + m.place : null, m.note ? "📝 " + m.note : null,
+        off && m.reason ? m.reason : null].filter(Boolean).join(" · "), off ? t("cancelled") : null,
+        off ? "owe struck" : m.opponent ? "" : "owe");
+    })) : h("p", { class: "muted" }, t("noMatches"))),
     footer());
 }
 
@@ -326,7 +345,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden && S.
 function render() {
   if (S.intent) return qrView();
   if (!S.data) return;
-  ({ fund: fundView, members: membersView }[S.tab] || listView)();
+  ({ fund: fundView, members: membersView, matches: matchesView }[S.tab] || listView)();
 }
 async function load() {
   stop();

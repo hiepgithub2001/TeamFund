@@ -92,6 +92,33 @@ class JobUseCases:
                     uow.rollback()
                     log.exception("late_fees failed for team %s", team.id)
 
+    def matches(self) -> None:
+        """Every hour: fill the repeating calendars 8 weeks ahead; from 09:00 tell managers about a match in
+        7 days with no opponent yet; from 18:00 remind followers of tomorrow's matches. Once a day each."""
+        from .matches import MatchUseCases, fill
+        mu, now = MatchUseCases(self.d), self.d.clock.local_now()
+        with self.d.uow() as uow:
+            for team in uow.teams.active():
+                try:
+                    if fill(uow, team, now.date(), self.d.clock.now()):
+                        uow.commit()
+                    due = mu.due_reminders(team, uow)
+                    key = f"match_open:{team.id}:{now:%Y-%m-%d}"
+                    if now.hour >= 9 and due["open"] and not self._ran(uow, key):
+                        admins = [a.tg_id for a in uow.admins.of_team(team.id)]
+                        if self.d.notifier.deliver({"type": "match_no_opponent", "team_id": team.id,
+                                                    "matches": due["open"], "to": admins}):
+                            self._mark(uow, key)
+                    key = f"match_eve:{team.id}:{now:%Y-%m-%d}"
+                    to = uow.followers.active_ids(team.id)
+                    if now.hour >= 18 and due["tomorrow"] and to and not self._ran(uow, key):
+                        if self.d.notifier.deliver({"type": "match_tomorrow", "team_id": team.id,
+                                                    "matches": due["tomorrow"], "to": to}):
+                            self._mark(uow, key)
+                except Exception:
+                    uow.rollback()
+                    log.exception("matches failed for team %s", team.id)
+
     def clean_up(self) -> None:
         """Expire payment intents after 24 hours and manager requests after 7 days."""
         now = self.d.clock.now()

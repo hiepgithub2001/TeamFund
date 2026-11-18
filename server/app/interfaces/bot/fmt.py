@@ -127,3 +127,61 @@ def parse_periods(text: str, months: int, default_start: str) -> tuple[str, str 
     else:
         return None
     return (start, until) if until is None or until >= start else None
+
+
+# ---- matches and contacts, as people note them ---------------------------------------------------------
+
+_MATCH_DATE = re.compile(r"^\s*(?:(?:t[2-7]|cn|chủ nhật|thứ\s*\w+)\s*[,.]?\s*)?(\d{1,2})[/-](\d{1,2})(?:[/-](\d{4}|\d{2}))?(?!\d)"
+                         r"\s*[:\-–,]?\s*", re.I)
+_MATCH_TIME = re.compile(r"(?<![\w])(\d{1,2})(?:h(\d{2})?|:(\d{2}))(?![\w])", re.I)
+
+
+def parse_match(text: str, today: date) -> dict | None:
+    """"7/12 19h FC Moreh @Sân Mỹ Đình (áo trắng)" -> day, at, opponent, place, note. Only the date is needed:
+    "30/11" is a date with no opponent yet. None if the line doesn't start with a date."""
+    m = _MATCH_DATE.match(text or "")
+    if not m:
+        return None
+    d, mo, y = int(m.group(1)), int(m.group(2)), m.group(3)
+    year = (int(y) + (2000 if len(y) == 2 else 0)) if y else today.year
+    try:
+        day = date(year, mo, d)
+    except ValueError:
+        return None
+    rest, place = text[m.end():], None
+    if "@" in rest:
+        rest, place = rest.split("@", 1)
+    notes = re.findall(r"\(([^)]*)\)", rest)
+    rest = re.sub(r"\([^)]*\)", " ", rest)
+    at = None
+    tm = _MATCH_TIME.search(rest)
+    if tm and int(tm.group(1)) < 24 and int(tm.group(2) or tm.group(3) or 0) < 60:
+        at = f"{int(tm.group(1)):02d}:{int(tm.group(2) or tm.group(3) or 0):02d}"
+        rest = rest[:tm.start()] + " " + rest[tm.end():]
+    clean = lambda s: " ".join((s or "").strip(" :-–,·.\t").split()) or None  # noqa: E731
+    return {"day": day, "at": at, "opponent": clean(rest), "place": clean(place),
+            "note": clean(", ".join(n for n in notes if n.strip()))}
+
+
+_PHONE = re.compile(r"(?<!\d)(\+84|84|0)((?:[ .\-]?\d){9})(?!\d)")
+
+
+def parse_contact(text: str) -> dict | None:
+    """"FC Moreh (0367 774 669, fb: Dũng Minh)" -> name, phone, note. The name is what comes before the first
+    bracket, dash or colon; the phone is any Vietnamese number on the line; the rest is the note."""
+    text = " ".join((text or "").split()).lstrip("-–•* ")
+    if not text:
+        return None
+    phone = None
+    pm = _PHONE.search(text)
+    if pm:
+        phone = "0" + re.sub(r"\D", "", pm.group(2))
+        text = text[:pm.start()] + text[pm.end():]
+    cut = re.search(r"\s*(\(|\s-\s|\s–\s|:)", text)
+    name, rest = (text[:cut.start()], text[cut.start():]) if cut else (text, "")
+    rest = re.sub(r"(?i)\b(sđt|sdt|số điện thoại|so dien thoai|phone|tel)\b\s*(là|la)?\s*:?", " ", rest)
+    rest = re.sub(r"[()]", " ", rest)
+    rest = re.sub(r"\s*,\s*(,\s*)+", ", ", rest)
+    note = " ".join(rest.strip(" :-–,").split()) or None
+    name = " ".join(name.strip(" :-–,").split())
+    return {"name": name, "phone": phone, "note": note} if name else None

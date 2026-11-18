@@ -1,7 +1,9 @@
 """All use cases, grouped. The controllers (bots, webhooks, scheduler) talk to this and nothing deeper."""
 from dataclasses import dataclass
 
+from .contacts import ContactUseCases
 from .jobs import JobUseCases
+from .matches import MatchUseCases
 from .members import MemberUseCases
 from .money import MoneyUseCases
 from .plans import PlanUseCases
@@ -24,9 +26,12 @@ class Services:
     jobs: JobUseCases
     web: WebUseCases
     undo: UndoUseCases
+    matches: MatchUseCases
+    contacts: ContactUseCases
 
 
 def build_services(d: Deps) -> Services:
     return Services(users=UserUseCases(d), registration=RegistrationUseCases(d), teams=TeamUseCases(d),
                     members=MemberUseCases(d), money=MoneyUseCases(d), plans=PlanUseCases(d), jobs=JobUseCases(d),
-                    web=WebUseCases(d), undo=UndoUseCases(d))
+                    web=WebUseCases(d), undo=UndoUseCases(d),
+                    matches=MatchUseCases(d), contacts=ContactUseCases(d))
