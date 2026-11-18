@@ -510,6 +510,7 @@ async def main():
         assert "other income" not in fund["params"]["text"].lower(), "one kind of income only"
         await T(text_update(OWNER, "/history"))
         await wait_sent(to(OWNER, r"Championship prize \(income\)"), "history labels income")
+        await wait_sent(to(OWNER, r"Every transaction of one month: <code>/history \d\d/\d{4}</code>"), "history shows how to pick a month")
         await T(text_update(OWNER, "/expense 50k Water 03-02-2026"))
         await wait_sent(to(OWNER, "Expense recorded on 03/02/2026"), "dd-mm-yyyy date")
         await T(text_update(OWNER, "/history 02/2026"))

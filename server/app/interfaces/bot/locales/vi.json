@@ -52,6 +52,7 @@
  "fund.unmatched": "⚠️ {n} khoản cần kiểm tra: /unmatched",
  "history.title": "🧾 <b>Giao dịch gần đây</b>",
  "history.empty": "Chưa có giao dịch nào.",
+ "history.hint": "📅 Xem mọi giao dịch của một tháng: <code>/history {month}</code> (bấm để sao chép, đổi tháng tuỳ ý)",
  "history.cash": "tiền mặt",
  "mr.sent": "⏳ Đã gửi yêu cầu. Bạn sẽ nhận được tin nhắn khi chủ đội quyết định.",
  "mr.card": "👤 <b>Yêu cầu làm quản lý</b>\nTên: {name}{username}\nTelegram ID: <code>{id}</code>\nThời gian: {at}",

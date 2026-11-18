@@ -779,8 +779,9 @@ async def cmd_history(message: Message, command: CommandObject, entry, lang):
         period = f"{m.group(2)}-{int(m.group(1)):02d}"
     items = await call(S.money.history, tid(entry), 10, period)
     label = f"{period[5:]}/{period[:4]}" if period else None
+    hint = "" if period else "\n\n" + t(lang, "history.hint", month=_this_month())
     if not items:
-        await message.answer(t(lang, "history.month_empty", period=label) if period else t(lang, "history.empty"))
+        await message.answer((t(lang, "history.month_empty", period=label) if period else t(lang, "history.empty")) + hint)
         return
     lines = [f"{'➕' if i['type'] == 'in' else '➖'} {i['at']} · <b>{money(i['amount'], lang)}</b> · {esc(i['title'])}"
              f"{' (' + t(lang, 'history.' + i['source']) + ')' if i['source'] in ('cash', 'other', 'donation') else ''}"
@@ -791,11 +792,18 @@ async def cmd_history(message: Message, command: CommandObject, entry, lang):
         else t(lang, "history.title")
     chunk = head
     for line in lines:  # a month can outgrow one Telegram message (4096 characters)
-        if len(chunk) + len(line) > 3800:
+        if len(chunk) + len(line) > 3600:
             await message.answer(chunk)
             chunk = ""
         chunk += ("\n" if chunk else "") + line
-    await message.answer(chunk)
+    await message.answer(chunk + hint)
+
+
+def _this_month() -> str:
+    from zoneinfo import ZoneInfo
+    from datetime import datetime
+    from ...config import settings
+    return datetime.now(ZoneInfo(settings.timezone)).strftime("%m/%Y")
 
 
 @router.message(Command("lang"))

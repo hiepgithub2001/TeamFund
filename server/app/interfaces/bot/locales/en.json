@@ -52,6 +52,7 @@
  "fund.unmatched": "⚠️ {n} payment(s) need checking: /unmatched",
  "history.title": "🧾 <b>Latest transactions</b>",
  "history.empty": "No transactions yet.",
+ "history.hint": "📅 Every transaction of one month: <code>/history {month}</code> (tap to copy, change the month as you like)",
  "history.cash": "cash",
  "mr.sent": "⏳ Request sent. You will get a message when the owner decides.",
  "mr.card": "👤 <b>Manager request</b>\nName: {name}{username}\nTelegram ID: <code>{id}</code>\nRequested: {at}",
