@@ -201,6 +201,11 @@ class SqlIntents(_Repo):
         return self.s.scalar(select(PaymentIntent).where(PaymentIntent.team_id == team_id,
                                                          PaymentIntent.code.in_(codes)))
 
+    def other_team_has(self, team_id: int, codes: list[str]) -> bool:
+        """One of these codes is another team's (two teams sharing one bank account both hear each transfer)."""
+        return self.s.scalar(select(PaymentIntent.id).where(PaymentIntent.team_id != team_id,
+                                                            PaymentIntent.code.in_(codes)).limit(1)) is not None
+
     def members_of(self, intent_ids: list[int]) -> dict[int, list[str]]:
         if not intent_ids:
             return {}

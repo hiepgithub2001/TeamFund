@@ -973,3 +973,22 @@ def test_donation(world):
     assert st["status"] == "paid" and st["donation"]
     assert ("in", "donation", "Ẩn danh", 20000) in {(x["type"], x["kind"], x["title"], x["amount"])
                                                      for x in svc.web.page(token)["history"]}
+
+
+def test_two_teams_on_one_bank_account(world):
+    """Two teams linked to the same bank account both hear every transfer. A transfer with the other team's
+    code is that team's: ignored here, not flagged. One with no code at all still needs checking."""
+    svc, clock, notifier = world
+    a = setup_team(svc)
+    req = svc.registration.request_team(OWNER, "FC Two")
+    svc.registration.decide_team_request(SUPER, req["id"], True)
+    b = svc.registration.create_team(OWNER, "2:secret", 556, "two_bot", None)["team_id"]
+    link_bank(svc, a)
+    link_bank(svc, b)
+    ka, kb = sepay_key(svc, a), sepay_key(svc, b)
+    q = svc.money.donate(a, MEMBER, 40000, "X")
+    tx = IncomingTransfer("100517447", 40000, f"CT DEN:124 {q['content']} BankAPINotify")
+    assert svc.money.record_transfer(a, ka, tx) == "donation_received"
+    assert svc.money.record_transfer(b, kb, tx) is None, "the other team's code: not this team's money"
+    assert svc.money.fund(b) == {"income": 0, "other_income": 0, "expense": 0, "balance": 0, "unmatched": 0}
+    assert svc.money.record_transfer(b, kb, IncomingTransfer("100517448", 30000, "chuyen tien")) == "unmatched_payment"

@@ -316,6 +316,8 @@ def record_transfer(uow: UnitOfWork, d: Deps, team: Team, transfer: IncomingTran
         return None
     codes = find_payment_codes(transfer.content)
     intent = uow.intents.find_by_codes(team.id, codes) if codes else None
+    if intent is None and codes and uow.intents.other_team_has(team.id, codes):
+        return None  # another team's QR paid into a bank account both teams use: that team records it
     payment = Payment(team_id=team.id, source="sepay", amount=transfer.amount, sepay_tx_id=tx_id,
                       content=transfer.content[:500], created_at=d.clock.now())
     uow.payments.add(payment)
