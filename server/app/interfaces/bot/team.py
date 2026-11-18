@@ -12,7 +12,7 @@ from aiogram.types import BufferedInputFile, CallbackQuery, ChatMemberUpdated, F
 
 from ..deps import S
 from .commands import clear_admin_commands, set_admin_commands
-from .fmt import amount_and_title, esc, money, parse_amount, parse_periods, split_date, strip_tags
+from .fmt import amount_and_title, esc, money, parse_amount, split_date, strip_tags
 from .i18n import has, t
 from .lang import lang_for, set_lang
 from ...domain.errors import DomainError
@@ -913,7 +913,7 @@ def cycle_keyboard(lang: str, prefix: str, back: str):
 
 def window_choices(p: dict) -> dict[str, tuple[str, str | None]]:
     """The quick choices for a plan's months, as (from, until): from next period (the usual for newcomers)
-    or this period, each for good. Other months (a mid-period start, an end month) are typed."""
+    or this period, each for good. Other ranges are picked period by period."""
     start = cycle_start(p["period"], p["months"])
     return {"next": (add_months(start, p["months"]), None), "cur": (start, None)}
 
@@ -950,8 +950,23 @@ async def apply_window(ev, entry, lang, st: dict, start: str, until: str | None,
         await say(ev, out, reply_markup=markup)
 
 
-@router.callback_query(F.data.regexp(r"^w:(next|cur|in|x)$").as_("m"))
+# how many periods the range picker offers, per cycle (months, quarters, half-years, years)
+RANGE_COUNT = {1: 12, 3: 8, 6: 6, 12: 4}
+RANGE_ROW = {1: 4, 3: 4, 6: 3, 12: 4}
+
+
+def range_rows(p: dict, first: str, prefix: str, end: bool) -> list:
+    """Buttons for the plan's own periods from `first` on (quarters for a quarterly plan, months for a
+    monthly one...). For an end, each button carries the period's last month."""
+    n = p["months"]
+    periods = [add_months(first, i * n) for i in range(RANGE_COUNT[n])]
+    buttons = [(period_name(x, n), f"{prefix}{add_months(x, n - 1) if end else x}".replace("-", "")) for x in periods]
+    return [buttons[i:i + RANGE_ROW[n]] for i in range(0, len(buttons), RANGE_ROW[n])]
+
+
+@router.callback_query(F.data.regexp(r"^w:(next|cur|in|x|s\d{6}|e\d{6}|e0)$").as_("m"))
 async def on_window(cq: CallbackQuery, m: re.Match, entry, lang):
+    """The months menu: from next / this period, or a range picked period by period (start, then end)."""
     if not await allow(cq, entry, lang, "manager"):
         return
     key, choice = window_key(cq.bot.id, cq.message.chat.id), m.group(1)
@@ -962,34 +977,27 @@ async def on_window(cq: CallbackQuery, m: re.Match, entry, lang):
         await edit(cq, t(lang, "window.kept" if st else "err.menu_expired"))
         return
     p = await call(S.plans.get_plan, tid(entry), cq.from_user.id, st["plan_id"])
-    if choice == "in":
-        set_state(input_key(cq.bot.id, cq.message.chat.id), {"type": "plan_window", **st}, 600)
-        await say(cq, ask_periods(lang, p), reply_markup=FORCE)
-        return
-    c = window_choices(p)
-    if choice not in c:
-        await edit(cq, t(lang, "err.menu_expired"))
-        return
-    del_state(key)
-    await apply_window(cq, entry, lang, st, *c[choice], edit_in_place=True)
-
-
-def ask_periods(lang: str, p: dict) -> str:
-    """"Send the first and last period, e.g. 2027Q1 - 2027Q2", in the plan's own cycle."""
     n, cur = p["months"], cycle_start(p["period"], p["months"])
-    a, b = period_name(add_months(cur, n), n), period_name(add_months(cur, 2 * n), n)
-    return t(lang, "window.ask_in", a=a, b=b, cur=period_name(cur, n))
-
-
-async def plan_window_reply(message: Message, entry, lang, st: dict, text: str) -> None:
-    p = await call(S.plans.get_plan, tid(entry), message.from_user.id, st["plan_id"])
-    w = parse_periods(text, p["months"], cycle_start(p["period"], p["months"]))
-    if w is None:
-        set_state(input_key(message.bot.id, message.chat.id), st, 600)
-        await message.answer(t(lang, "err.invalid") + "\n\n" + ask_periods(lang, p), reply_markup=FORCE)
+    if choice == "in":  # pick the first period
+        await edit(cq, t(lang, "window.pick_start"),
+                   kb(*range_rows(p, cur, "w:s", end=False), [(t(lang, "btn.cancel"), "w:x")]))
         return
-    del_state(window_key(message.bot.id, message.chat.id))
-    await apply_window(message, entry, lang, {"plan_id": st["plan_id"], "ids": st["ids"]}, *w, edit_in_place=False)
+    if choice.startswith("s"):  # then the last one, or no end
+        start = f"{choice[1:5]}-{choice[5:]}"
+        set_state(key, {**st, "start": start}, 600)
+        await edit(cq, t(lang, "window.pick_end", start=period_name(start, n)),
+                   kb([(t(lang, "btn.window_forever"), "w:e0")], *range_rows(p, start, "w:e", end=True),
+                      [(t(lang, "btn.cancel"), "w:x")]))
+        return
+    if choice.startswith("e"):
+        if not st.get("start"):
+            await edit(cq, t(lang, "err.menu_expired"))
+            return
+        start, until = st["start"], (None if choice == "e0" else f"{choice[1:5]}-{choice[5:]}")
+    else:
+        start, until = window_choices(p)[choice]
+    del_state(key)
+    await apply_window(cq, entry, lang, st, start, until, edit_in_place=True)
 
 
 async def plans_view(ev, entry, lang, edit_in_place: bool = False) -> None:
@@ -1514,8 +1522,6 @@ async def on_text(message: Message, entry, lang):
         await plan_terms_reply(message, entry, lang, st, text)
     elif st["type"] == "plan_amount":
         await plan_amount_reply(message, entry, lang, st, text)
-    elif st["type"] == "plan_window":
-        await plan_window_reply(message, entry, lang, st, text)
     elif st["type"] == "add":
         await add_members(message, entry, lang, text)
     elif st["type"] == "edit":

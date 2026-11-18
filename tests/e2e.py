@@ -618,7 +618,9 @@ async def main():
                                "quarter plan view")
         win = next(d for d in buttons(view) if d.startswith("p:w:"))
 
-        async def set_window(index, choice, reply=None):
+        qm = lambda y, q: f"w:{{}}{y + (q - 1) // 4}{((q - 1) % 4) * 3 + 1:02d}"  # noqa: E731  (first month)
+
+        async def set_window(index, *steps):
             await T(cb_update(OWNER, win, view["message_id"]))
             pick = await wait_sent(to(OWNER, "set the months it applies"), "window picker")
             await T(cb_update(OWNER, f"k:t:{index}", pick["message_id"]))
@@ -627,19 +629,26 @@ async def main():
             menu = await until(lambda: next((c for c in calls[mark:] if c["method"] == "editMessageText"
                                              and "From which period" in c["params"]["text"]), None), "window menu")
             assert buttons(menu) == ["w:next", "w:cur", "w:in", "w:x"], buttons(menu)
-            await T(cb_update(OWNER, choice, pick["message_id"]))
-            if reply:
-                await wait_sent(to(OWNER, "Send the first and last period"), "periods asked")
-                await T(text_update(OWNER, reply))
+            for d in steps:
+                mark = len(calls)
+                await T(cb_update(OWNER, d, pick["message_id"]))
+                shown = await until(lambda: next((c for c in calls[mark:] if c["method"] == "editMessageText"), None), d)
+                if d == "w:in":
+                    assert "first period" in shown["params"]["text"] and buttons(shown)[0] == qm(today.year, cur_q).format("s")
+                    labels = [b["text"] for row in shown["params"]["reply_markup"]["inline_keyboard"] for b in row]
+                    assert labels[:2] == [this_q, next_q], labels
+                elif d.startswith("w:s"):
+                    assert "last period" in shown["params"]["text"] and buttons(shown)[0] == "w:e0"
 
         def saved(text):
             return lambda c: "Months set: " in (c["params"].get("text") or "") and text in c["params"]["text"]
 
-        await set_window(0, "w:in", f"{next_q} - {after_q}")
+        end_of = lambda y, q: f"w:e{y + (q - 1) // 4}{((q - 1) % 4) * 3 + 3:02d}"  # noqa: E731
+        await set_window(0, "w:in", qm(today.year, cur_q + 1).format("s"), end_of(today.year, cur_q + 2))
         await wait_sent(saved(f"Cường ({next_q}–{after_q})"), "two quarters")
         await set_window(1, "w:next")
         await wait_sent(saved(f"Dũng (from {next_q})"), "from next quarter")
-        await set_window(1, "w:in", f"- {this_q}")
+        await set_window(1, "w:in", qm(today.year, cur_q).format("s"), end_of(today.year, cur_q))
         await wait_sent(lambda c: saved(f"Dũng (until {this_q})")(c) and f"Months set: {this_q}." in c["params"]["text"],
                         "this quarter only")
 
