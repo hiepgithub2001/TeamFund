@@ -488,18 +488,23 @@ def test_cash_less_than_owed():
     assert (r["amount"], r["let_go"], r["still_owed"]) == (300000, 300000, 0)
     r = svc.money.markpaid_amount(tid, OWNER, binh, 200000, settle=False)
     assert (r["amount"], r["let_go"], r["still_owed"]) == (200000, 0, 400000)
-    assert code(svc.money.markpaid_amount, tid, OWNER, cuong, 700000, True) == "more_than_owed"
     assert code(svc.money.markpaid_amount, tid, MEMBER, cuong, 1000, True) == "not_manager"
+    assert code(svc.money.markpaid_amount, tid, OWNER, cuong, 0, True) == "cash_amount"
+    assert code(svc.money.markpaid_amount, tid, OWNER, cuong, 600000 + 50_000_001, True) == "cash_amount"
     owed = {g["name"]: g["total"] for g in svc.money.unpaid(tid)}
     assert owed == {"Bình": 400000, "Cường": 600000}
     assert svc.money.fund(tid)["income"] == 500000, "the fund grows by what came in only"
     s = svc.money.status(tid)
     assert s["paid"] == ["An"], "settled counts as paid; Bình still owes part of the quarter"
+    # paid more than owed: the quarter is paid and the extra stays in the fund
+    r = svc.money.markpaid_amount(tid, OWNER, cuong, 700000, settle=True)
+    assert (r["amount"], r["extra"], r["let_go"], r["still_owed"]) == (700000, 100000, 0, 0)
+    assert svc.money.fund(tid)["income"] == 1200000
     # December: An's settled quarter still covers him; Bình's remainder is the only thing he owes
     clock.local = clock.local.replace(month=12)
-    assert {g["name"]: g["total"] for g in svc.money.unpaid(tid)} == {"Bình": 400000, "Cường": 600000}
+    assert {g["name"]: g["total"] for g in svc.money.unpaid(tid)} == {"Bình": 400000}
     svc.money.markpaid(tid, OWNER, [binh])
-    assert svc.money.fund(tid)["income"] == 900000
+    assert svc.money.fund(tid)["income"] == 1600000
 
 
 def test_schedule_and_late_fee():

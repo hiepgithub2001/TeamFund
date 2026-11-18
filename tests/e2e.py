@@ -561,8 +561,8 @@ async def main():
                         "how much was received")
         await T(cb_update(OWNER, "mp:other", mp["message_id"]))
         await wait_sent(to(OWNER, "Send the amount received from Giang"), "amount asked")
-        await T(text_update(OWNER, "400k"))
-        await wait_sent(to(OWNER, "at most 250,000đ"), "more than owed refused")
+        await T(text_update(OWNER, "abc"))
+        await wait_sent(to(OWNER, "That amount doesn't work"), "not an amount refused")
         await T(text_update(OWNER, "100k"))
         rest = await wait_sent(to(OWNER, "paid 100,000đ of 250,000đ"), "what about the rest")
         assert buttons(rest) == ["mp:settle", "mp:owe", "mp:x"]

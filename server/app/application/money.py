@@ -68,15 +68,17 @@ class MoneyUseCases:
             return result
 
     def markpaid_amount(self, team_id: int, actor: int, member_id: int, amount: int, settle: bool) -> dict:
-        """One member paid less in cash than they owe: record what came in. settle=True lets the rest of
-        that bill go; settle=False keeps the rest as a new unpaid bill."""
+        """One member paid in cash a sum other than what they owe: record what came in. Less: settle=True
+        lets the rest of that bill go, settle=False keeps the rest as a new unpaid bill. More: all paid,
+        the extra stays in the fund."""
         if not isinstance(member_id, int) or not isinstance(amount, int) or isinstance(amount, bool):
             raise invalid()
         with self.d.uow() as uow:
             team = manager_team(uow, team_id, actor)
             r = billing.partial_cash(uow, self.d, team, member_id, amount, settle, actor)
             audit(uow, self.d.clock, team.id, actor, "payment.cash", target=r["members"][0],
-                  after={"amount": amount, "owed": r["owed"], "let_go": r["let_go"], "still_owed": r["still_owed"]})
+                  after={"amount": amount, "owed": r["owed"], "let_go": r["let_go"], "still_owed": r["still_owed"],
+                         "extra": r["extra"]})
             uow.commit()
             return r
 

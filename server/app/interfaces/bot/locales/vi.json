@@ -300,8 +300,8 @@
  "cash.how_much": "<b>{name}</b> đang nợ {owed}. Đã nhận bao nhiêu?",
  "btn.cash_full": "✅ Đủ {amount}",
  "btn.cash_other": "✏️ Số khác",
- "cash.ask_amount": "Gửi số tiền đã nhận từ {name} (tối đa {owed}), ví dụ <code>300k</code>.",
- "cash.bad_amount": "⚠️ Số tiền phải lớn hơn 0 và không quá {owed}. Gửi lại, ví dụ <code>300k</code>.\n(Tiền nhiều hơn số nợ: ghi phần dư bằng /income.)",
+ "cash.ask_amount": "Gửi số tiền đã nhận từ {name} (đang nợ {owed}), ví dụ <code>300k</code>. Đóng dư thì phần dư vào quỹ.",
+ "cash.bad_amount": "⚠️ Số tiền không hợp lệ. Gửi lại, ví dụ <code>300k</code>.",
  "cash.rest": "<b>{name}</b> đóng {amount} trên {owed}. Phần còn lại {rest} thì sao?",
  "btn.cash_settle": "✔️ Xong, miễn {rest}",
  "btn.cash_owe": "⏳ Còn nợ {rest}",
@@ -592,5 +592,7 @@
  "reason.expired": "đúng mã, nhưng mã QR đã hết hạn",
  "unmatched.expired_for": "QR của: <b>{members}</b> · {amount} · tạo lúc {made}",
  "btn.assign_qr": "✅ Ghi đã đóng: {members}",
- "pay.expired_received": "⏳ Đã nhận {amount}, nhưng mã QR này đã hết hạn. Quản lý sẽ xác nhận sớm. Lần sau hãy tạo mã mới bằng /start."
+ "pay.expired_received": "⏳ Đã nhận {amount}, nhưng mã QR này đã hết hạn. Quản lý sẽ xác nhận sớm. Lần sau hãy tạo mã mới bằng /start.",
+ "cash.extra": "Trả hết {owed} đang nợ; dư {amount} vào quỹ.",
+ "err.cash_amount": "Số tiền không hợp lệ."
 }

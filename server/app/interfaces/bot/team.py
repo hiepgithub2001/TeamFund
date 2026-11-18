@@ -16,7 +16,7 @@ from .fmt import amount_and_title, esc, money, parse_amount, parse_periods, spli
 from .i18n import has, t
 from .lang import lang_for, set_lang
 from ...domain.errors import DomainError
-from ...domain.rules import add_months, cycle_start, period_end, period_name, split_share
+from ...domain.rules import MAX_DONATION, add_months, cycle_start, period_end, period_name, split_share
 from .render import (bill_label, edit, error_text, fee_text, is_private, kb, owes_lines, pay_keyboard, say,
                      status_text)
 from .run import call
@@ -928,6 +928,8 @@ async def record_cash(ev, entry, lang, member_id: int, amount: int | None, settl
             text += "\n" + t(lang, "cash.let_go", amount=money(r["let_go"], lang))
         if r["still_owed"]:
             text += "\n" + t(lang, "cash.still_owed", amount=money(r["still_owed"], lang))
+        if r.get("extra"):
+            text += "\n" + t(lang, "cash.extra", amount=money(r["extra"], lang), owed=money(r["owed"], lang))
     G = group_lang(entry)
     await broadcast(entry, t(G, "group.paid", members=esc(", ".join(r["members"])), amount=money(r["amount"], G)))
     return text
@@ -956,14 +958,18 @@ async def on_cash(cq: CallbackQuery, m: re.Match, entry, lang):
 
 
 async def cash_amount_reply(message: Message, entry, lang, st: dict, text: str) -> None:
-    """The manager typed how much came in. Equal to what's owed: done. Less: ask what happens to the rest."""
+    """The manager typed how much came in. Equal to what's owed: done. More: all paid, the extra goes into
+    the fund. Less: ask what happens to the rest."""
     amount = parse_amount(text)
-    if not amount or amount > st["owed"]:
+    if not amount or amount > st["owed"] + MAX_DONATION:
         set_state(input_key(message.bot.id, message.chat.id), st, 600)
         await message.answer(t(lang, "cash.bad_amount", owed=money(st["owed"], lang)), reply_markup=FORCE)
         return
     if amount == st["owed"]:
         await message.answer(await record_cash(message, entry, lang, st["member_id"], None))
+        return
+    if amount > st["owed"]:
+        await message.answer(await record_cash(message, entry, lang, st["member_id"], amount))
         return
     rest = money(st["owed"] - amount, lang)
     msg = await message.answer(

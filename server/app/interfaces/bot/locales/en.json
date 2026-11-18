@@ -300,8 +300,8 @@
  "cash.how_much": "<b>{name}</b> owes {owed}. How much was received?",
  "btn.cash_full": "✅ All of it, {amount}",
  "btn.cash_other": "✏️ Another amount",
- "cash.ask_amount": "Send the amount received from {name} (at most {owed}), e.g. <code>300k</code>.",
- "cash.bad_amount": "⚠️ The amount must be above 0 and at most {owed}. Send it again, e.g. <code>300k</code>.\n(More than owed: record the extra with /income.)",
+ "cash.ask_amount": "Send the amount received from {name} (owes {owed}), e.g. <code>300k</code>. Anything over goes into the fund.",
+ "cash.bad_amount": "⚠️ That amount doesn't work. Send it again, e.g. <code>300k</code>.",
  "cash.rest": "<b>{name}</b> paid {amount} of {owed}. What about the remaining {rest}?",
  "btn.cash_settle": "✔️ Done, let {rest} go",
  "btn.cash_owe": "⏳ Still owes {rest}",
@@ -592,5 +592,7 @@
  "reason.expired": "the code matches, but the QR had expired",
  "unmatched.expired_for": "QR for: <b>{members}</b> · {amount} · made {made}",
  "btn.assign_qr": "✅ Mark paid: {members}",
- "pay.expired_received": "⏳ We got your {amount}, but that QR code had expired. A manager will confirm it soon. Next time make a fresh QR with /start."
+ "pay.expired_received": "⏳ We got your {amount}, but that QR code had expired. A manager will confirm it soon. Next time make a fresh QR with /start.",
+ "cash.extra": "All {owed} owed is paid; the extra {amount} goes into the fund.",
+ "err.cash_amount": "That amount doesn't work."
 }

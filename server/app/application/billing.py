@@ -3,7 +3,7 @@ from datetime import date, timedelta
 
 from ..domain.entities import Bill, IncomingTransfer, Member, Payment, PaymentIntent, Team
 from ..domain.errors import DomainError
-from ..domain.rules import (DONOR_NAME_MAX, donation_ok, CYCLES, add_months, covers, cycle_bill, cycle_start, due_date, find_payment_codes, late_days,
+from ..domain.rules import (DONOR_NAME_MAX, MAX_DONATION, donation_ok, CYCLES, add_months, covers, cycle_bill, cycle_start, due_date, find_payment_codes, late_days,
                             member_fee, new_payment_code, notify_date, on_plan, period_label, split_share, terms,
                             transfer_content)
 from .ports import Conflict, Deps, UnitOfWork
@@ -409,16 +409,17 @@ def cash_payments(uow: UnitOfWork, d: Deps, team: Team, member_ids: list[int], a
 
 def partial_cash(uow: UnitOfWork, d: Deps, team: Team, member_id: int, amount: int, settle: bool,
                  actor: int) -> dict:
-    """A member paid `amount` in cash, less than they owe. The money goes to their oldest bills first.
-    The bill where it runs out is either settled at what was paid (settle=True: the rest is let go, e.g.
-    someone who joined mid-quarter) or split into a paid part and a new unpaid bill for the rest.
-    Bills the money doesn't reach stay unpaid. The fund grows by `amount` only."""
+    """A member paid `amount` in cash. The money goes to their oldest bills first.
+    Less than they owe: the bill where it runs out is either settled at what was paid (settle=True: the rest
+    is let go, e.g. someone who joined mid-quarter) or split into a paid part and a new unpaid bill for the
+    rest; bills the money doesn't reach stay unpaid. More than they owe: every bill is paid and the extra
+    stays in the fund as part of the same payment. The fund grows by `amount` either way."""
     groups = unpaid_by_member(uow, team, [member_id])
     if not groups:
         raise DomainError(400, "nothing_to_pay")
     g = groups[0]
-    if not 0 < amount <= g["total"]:
-        raise DomainError(400, "more_than_owed", owed=g["total"])
+    if not 0 < amount <= g["total"] + MAX_DONATION:
+        raise DomainError(400, "cash_amount")
     p = Payment(team_id=team.id, source="cash", amount=amount, status="matched", recorded_by=actor,
                 note=g["name"], created_at=d.clock.now())
     uow.payments.add(p)
@@ -437,8 +438,11 @@ def partial_cash(uow: UnitOfWork, d: Deps, team: Team, member_id: int, amount: i
             b.amount = left
         left -= b.amount
         b.mark_paid(p.id, now)
-    return {"members": [g["name"]], "amount": amount, "owed": g["total"], "let_go": let_go,
-            "still_owed": g["total"] - amount - let_go}  # the split-off rest plus bills the money didn't reach
+    extra = max(0, amount - g["total"])
+    if extra:
+        p.note = f"{g['name']} (+{extra})"
+    return {"members": [g["name"]], "amount": amount, "owed": g["total"], "let_go": let_go, "extra": extra,
+            "still_owed": max(0, g["total"] - amount - let_go)}  # the split-off rest plus bills the money didn't reach
 
 
 def unmatched_payment(uow: UnitOfWork, team: Team, payment_id: int) -> Payment:
