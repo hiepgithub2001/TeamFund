@@ -112,12 +112,24 @@ class Member:
     phone: str | None = None
     note: str | None = None
     fee_override: int | None = None
-    plan_id: int | None = None   # a fee plan (amount + cycle); None: the team fee, or fee_override, every month
-    # the months the plan applies, YYYY-MM, both inclusive; None: since always / for good. Outside them the
-    # member pays the default package.
+    # no longer used: plans are in PlanMember (a member can be on several, one at a time); kept for old rows
+    plan_id: int | None = None
     plan_from: str | None = None
     plan_until: str | None = None
     status: str = "active"  # active|paused|left
+    created_at: datetime | None = None
+    id: int | None = None
+
+
+@dataclass(eq=False)
+class PlanMember:
+    """A member on a plan for whole periods: from `start` to `until` (YYYY-MM, both included; None: since
+    always / for good). A member can be on several plans, never two at the same time."""
+    team_id: int
+    plan_id: int
+    member_id: int
+    start: str | None = None
+    until: str | None = None
     created_at: datetime | None = None
     id: int | None = None
 

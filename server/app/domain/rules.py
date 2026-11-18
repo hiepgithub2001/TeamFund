@@ -87,10 +87,14 @@ def period_end(period: str, months: int) -> str:
     return add_months(cycle_start(period, months), months - 1)
 
 
-def on_plan(member, period: str) -> bool:
-    """Does the member's plan apply in `period` (inside its from/until months)?"""
-    return ((member.plan_from is None or member.plan_from <= period)
-            and (member.plan_until is None or period <= member.plan_until))
+def on_plan(x, period: str) -> bool:
+    """Does a plan membership apply in `period` (inside its start/until months)?"""
+    return (x.start is None or x.start <= period) and (x.until is None or period <= x.until)
+
+
+def overlaps(a_start: str | None, a_until: str | None, b_start: str | None, b_until: str | None) -> bool:
+    """Do two spans of months share a month? None: open on that side."""
+    return (a_start or "0000-00") <= (b_until or "9999-99") and (b_start or "0000-00") <= (a_until or "9999-99")
 
 
 def is_period(v) -> bool:

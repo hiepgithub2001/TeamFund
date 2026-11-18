@@ -19,7 +19,20 @@ def make_session_factory(database_url: str):
         event.listen(engine, "connect", lambda conn, _rec: conn.execute("PRAGMA foreign_keys=ON"))
     metadata.create_all(engine)
     _add_missing_columns(engine)
+    _copy_old_plan_members(engine)
     return sessionmaker(bind=engine, expire_on_commit=False)
+
+
+def _copy_old_plan_members(engine) -> None:
+    """Members used to hold one plan (members.plan_id/plan_from/plan_until). Move those into plan_members and
+    clear the old columns, so this happens once (old undo records that touch them are then refused)."""
+    with engine.begin() as conn:
+        conn.execute(text(
+            "INSERT INTO plan_members (team_id, plan_id, member_id, start, until, created_at) "
+            "SELECT m.team_id, m.plan_id, m.id, m.plan_from, m.plan_until, m.created_at FROM members m "
+            "JOIN fee_plans p ON p.id = m.plan_id AND p.team_id = m.team_id WHERE m.plan_id IS NOT NULL"))
+        conn.execute(text("UPDATE members SET plan_id = NULL, plan_from = NULL, plan_until = NULL "
+                          "WHERE plan_id IS NOT NULL OR plan_from IS NOT NULL OR plan_until IS NOT NULL"))
 
 
 def _add_missing_columns(engine) -> None:
@@ -42,7 +55,7 @@ def _add_missing_columns(engine) -> None:
 
 
 # what /undo can put back; the log, job marks, users and followers are never undone
-_TRACKED = {c.__name__: c for c in (e.Team, e.TeamAdmin, e.Member, e.FeePlan, e.Bill, e.Payment, e.PaymentIntent,
+_TRACKED = {c.__name__: c for c in (e.Team, e.TeamAdmin, e.Member, e.FeePlan, e.PlanMember, e.Bill, e.Payment, e.PaymentIntent,
                                     e.Expense, e.Match, e.MatchSchedule, e.Contact)}
 
 
@@ -77,7 +90,7 @@ class SqlUnitOfWork:
         self.users, self.team_requests, self.teams = r.SqlUsers(s), r.SqlTeamRequests(s), r.SqlTeams(s)
         self.admins, self.manager_requests, self.members = r.SqlAdmins(s), r.SqlManagerRequests(s), r.SqlMembers(s)
         self.bills, self.intents, self.payments = r.SqlBills(s), r.SqlIntents(s), r.SqlPayments(s)
-        self.plans, self.followers = r.SqlFeePlans(s), r.SqlFollowers(s)
+        self.plans, self.followers, self.memberships = r.SqlFeePlans(s), r.SqlFollowers(s), r.SqlPlanMembers(s)
         self.expenses, self.audit, self.job_runs = r.SqlExpenses(s), r.SqlAudit(s), r.SqlJobRuns(s)
         self.matches, self.schedules, self.contacts = r.SqlMatches(s), r.SqlMatchSchedules(s), r.SqlContacts(s)
         self._changes: list = []

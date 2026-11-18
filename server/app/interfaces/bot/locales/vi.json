@@ -256,7 +256,7 @@
  "plans.none": "Chưa có gói nào: mọi người đóng mức mặc định mỗi tháng.",
  "plans.choose_cycle": "Gói mới: đóng theo chu kỳ nào?",
  "plans.ask_amount": "Gửi số tiền mỗi {cycle}, ví dụ <code>300k</code>.",
- "plans.pick": "Chọn thành viên đóng <b>{fee}</b>.\nNgười đang ở gói khác sẽ chuyển sang gói này.",
+ "plans.pick": "Chọn thành viên đóng <b>{fee}</b>.\nMột người có thể ở nhiều gói, nhưng không trùng thời gian: nếu trùng, bot sẽ báo và hỏi thời gian khác.",
  "plans.view": "<b>{fee}</b>\nThành viên ({n}): {names}",
  "plans.saved": "✅ Đã lưu gói. Khoản chưa đóng mở trong tháng này đã được cập nhật theo gói.",
  "plans.confirm_delete": "Xoá gói <b>{fee}</b>? {n} người sẽ về mức mặc định.",
@@ -538,5 +538,9 @@
  "mt.paid_line": "➖ Đã chi: {amount}",
  "mt.received_line": "➕ Đã thu: {amount}",
  "act.match.money": "Ghi thu/chi trận",
- "plans.default_cycle": "🔁 Gói mặc định đóng theo chu kỳ nào?"
+ "plans.default_cycle": "🔁 Gói mặc định đóng theo chu kỳ nào?",
+ "plans.overlap": "⚠️ <b>Trùng thời gian với gói khác</b> (mỗi người chỉ ở một gói tại một thời điểm), chưa áp dụng:",
+ "plans.overlap_hint": "Chọn thời gian không trùng cho gói này (ví dụ Từ kỳ sau), hoặc rút ngắn gói kia trong 📅 Thời gian áp dụng.",
+ "window.open_end": "không thời hạn",
+ "err.plan_overlap": "Trùng thời gian với gói khác: {names}."
 }

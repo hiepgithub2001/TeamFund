@@ -77,7 +77,8 @@ class MemberUseCases:
             for k, v in clean.items():
                 setattr(m, k, v)
             if "fee_override" in clean:
-                m.plan_id = m.plan_from = m.plan_until = None  # an own monthly fee takes the member off their plan
+                for x in uow.memberships.of_member(m.id):  # an own monthly fee takes the member off their plans
+                    uow.memberships.remove(x)
                 uow.flush()
                 billing.reprice_current_month(uow, self.d, team)
             audit(uow, self.d.clock, team.id, actor, "member.update", target=m.name, before=before, after=clean)

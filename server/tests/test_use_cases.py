@@ -900,3 +900,41 @@ def test_default_package_cycle():
     entry = next(x for x in svc.undo.recent(tid, OWNER) if x["action"] == "team.settings")
     svc.undo.undo(tid, OWNER, entry["id"])
     assert {g["name"]: g["bills"][0]["period_label"] for g in svc.money.unpaid(tid)}["An"] == "11/2026"
+
+
+def test_several_plans_without_overlap():
+    """A member can be on several plans, one at a time: 600k for 2026Q4, then 200k from 2027Q1. An overlap is
+    refused with the clashing plan named; months no plan covers fall back to the default package."""
+    svc, clock, _ = make_services(datetime(2026, 11, 18, 10, 0))
+    tid = setup_team(svc)
+    kh, an = [m["id"] for m in svc.members.add_members(tid, OWNER, [{"name": "Khải"}, {"name": "An"}])]
+    big = svc.plans.save_plan(tid, OWNER, 600000, 3, [kh])
+    assert big["conflicts"] == []
+    small = svc.plans.save_plan(tid, OWNER, 200000, 3, [kh, an])
+    assert [c["member"] for c in small["conflicts"]] == ["Khải"], "Khải is on 600k for good: not added"
+    assert [m["name"] for m in small["members"]] == ["An"]
+    with pytest.raises(DomainError) as e:
+        svc.plans.set_window(tid, OWNER, small["id"], [kh], "2026-10", None)
+    assert e.value.code == "plan_overlap" and e.value.extra["names"] == "Khải"
+    assert e.value.extra["clashes"][0]["amount"] == 600000
+
+    svc.plans.set_window(tid, OWNER, big["id"], [kh], "2026-10", "2026-12")  # 600k: this quarter only
+    svc.plans.set_window(tid, OWNER, small["id"], [kh], "2027-01", None)     # then 200k
+    view = svc.plans.list_plans(tid, OWNER)
+    on = {p["amount"]: [(m["name"], m["from"], m["until"]) for m in p["members"]] for p in view["plans"]}
+    assert on == {200000: [("An", "2026-10", None), ("Khải", "2027-01", None)], 600000: [("Khải", "2026-10", "2026-12")]}
+    assert code(svc.plans.set_window, tid, OWNER, big["id"], [kh], "2026-10", "2027-03") == "plan_overlap"
+
+    fee = lambda name: [(b["period_label"], b["amount"]) for g in svc.money.unpaid(tid) if g["name"] == name  # noqa: E731
+                        for b in g["bills"]]
+    assert fee("Khải") == [("10/2026–12/2026", 600000)]
+    clock.local = clock.local.replace(year=2027, month=1, day=2)
+    svc.jobs.open_month()
+    assert fee("Khải")[-1] == ("01/2027–03/2027", 200000)
+
+    # off one plan, the other stays; a plan nobody is on goes
+    svc.plans.remove_members(tid, OWNER, big["id"], [kh])
+    assert [p["amount"] for p in svc.plans.list_plans(tid, OWNER)["plans"]] == [200000]
+    entry = next(x for x in svc.undo.recent(tid, OWNER) if x["action"] == "plan.save")
+    svc.undo.undo(tid, OWNER, entry["id"])
+    assert sorted(p["amount"] for p in svc.plans.list_plans(tid, OWNER)["plans"]) == [200000, 600000]

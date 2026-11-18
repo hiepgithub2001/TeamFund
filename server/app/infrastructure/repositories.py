@@ -5,7 +5,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from ..domain.entities import (AuditEntry, Bill, Contact, Expense, FeePlan, Follower, JobRun, ManagerRequest, Match,
-                               MatchSchedule, Member, Payment, PaymentIntent,
+                               MatchSchedule, Member, Payment, PaymentIntent, PlanMember,
                                Team, TeamAdmin, TeamRequest, User)
 
 
@@ -175,6 +175,22 @@ class SqlFeePlans(_Repo):
 
     def remove(self, p: FeePlan) -> None:
         self.s.delete(p)
+
+
+class SqlPlanMembers(_Repo):
+    def of_team(self, team_id: int) -> list[PlanMember]:
+        q = select(PlanMember).where(PlanMember.team_id == team_id)
+        return list(self.s.scalars(q.order_by(PlanMember.member_id, PlanMember.start, PlanMember.id)))
+
+    def of_plan(self, plan_id: int) -> list[PlanMember]:
+        return list(self.s.scalars(select(PlanMember).where(PlanMember.plan_id == plan_id).order_by(PlanMember.id)))
+
+    def of_member(self, member_id: int) -> list[PlanMember]:
+        return list(self.s.scalars(select(PlanMember).where(PlanMember.member_id == member_id)
+                                   .order_by(PlanMember.start, PlanMember.id)))
+
+    def remove(self, x: PlanMember) -> None:
+        self.s.delete(x)
 
 
 class SqlIntents(_Repo):

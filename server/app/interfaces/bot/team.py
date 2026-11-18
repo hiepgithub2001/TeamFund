@@ -197,6 +197,12 @@ async def on_picker_confirm(cq: CallbackQuery, entry, lang, st, key) -> None:
         joined = [m for m in plan["members"] if m["id"] not in dt.get("before", [])]
         if joined:
             await open_window_menu(cq, lang, plan, joined)
+        if plan.get("conflicts"):  # overlapping another plan of theirs: not added; ask for other periods
+            await say(cq, clash_text(lang, plan["conflicts"]) + "\n\n" + t(lang, "plans.overlap_hint"))
+            seen = {}
+            for c in plan["conflicts"]:
+                seen.setdefault(c["member_id"], {"id": c["member_id"], "name": c["member"]})
+            await open_window_menu(cq, lang, plan, list(seen.values()))
     elif st["kind"] == "window":
         plan = await call(S.plans.get_plan, tid(entry), cq.from_user.id, st["data"]["plan_id"])
         del_state(key)
@@ -938,8 +944,30 @@ async def open_window_menu(ev, lang, p: dict, members: list[dict], edit_in_place
         await say(ev, text, reply_markup=kb(*rows))
 
 
+def clash_text(lang: str, clashes: list[dict]) -> str:
+    """"⚠️ Overlaps another package: • Khải: 600.000đ/quý (2026Q4 → không thời hạn)"."""
+    lines = [t(lang, "plans.overlap")]
+    for c in clashes:
+        n = c["months"]
+        a = period_name(c["from"], n) if c.get("from") else "…"
+        b = period_name(c["until"], n) if c.get("until") else t(lang, "window.open_end")
+        lines.append(f"• {esc(c['member'])}: {fee_text(lang, c['amount'], n)} ({a} → {b})")
+    return "\n".join(lines)
+
+
 async def apply_window(ev, entry, lang, st: dict, start: str, until: str | None, edit_in_place: bool) -> None:
-    p = await call(S.plans.set_window, tid(entry), ev.from_user.id, st["plan_id"], st["ids"], start, until)
+    try:
+        p = await call(S.plans.set_window, tid(entry), ev.from_user.id, st["plan_id"], st["ids"], start, until)
+    except DomainError as e:
+        if e.code != "plan_overlap":
+            raise
+        # say which plans clash, then ask again for the same members
+        plan = await call(S.plans.get_plan, tid(entry), ev.from_user.id, st["plan_id"])
+        names = {c["member_id"]: c["member"] for c in e.extra["clashes"]}
+        names.update({m["id"]: m["name"] for m in plan["members"]})
+        await say(ev, clash_text(lang, e.extra["clashes"]) + "\n\n" + t(lang, "plans.overlap_hint"))
+        await open_window_menu(ev, lang, plan, [{"id": i, "name": names.get(i, "?")} for i in st["ids"]])
+        return
     text, markup = plan_view(lang, p)
     n = p["months"]
     a, b = period_name(start, n), until and period_name(until, n)

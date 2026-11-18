@@ -74,6 +74,14 @@ members = Table(
     Column("plan_from", String(7)), Column("plan_until", String(7)),
 )
 
+plan_members = Table(
+    "plan_members", metadata, _id(),
+    Column("team_id", ForeignKey("teams.id"), index=True, nullable=False),
+    Column("plan_id", ForeignKey("fee_plans.id"), index=True, nullable=False),
+    Column("member_id", ForeignKey("members.id"), index=True, nullable=False),
+    Column("start", String(7)), Column("until", String(7)), Column("created_at", DateTime, nullable=False),
+)
+
 fee_plans = Table(
     "fee_plans", metadata, _id(),
     Column("team_id", ForeignKey("teams.id"), index=True, nullable=False), Column("amount", Integer, nullable=False),
@@ -162,7 +170,7 @@ contacts = Table(
 
 _MAPPINGS = [
     (e.User, users), (e.TeamRequest, team_requests), (e.Team, teams), (e.TeamAdmin, team_admins),
-    (e.ManagerRequest, manager_requests), (e.Member, members), (e.FeePlan, fee_plans), (e.Follower, followers), (e.Payment, payments), (e.Bill, bills),
+    (e.ManagerRequest, manager_requests), (e.Member, members), (e.FeePlan, fee_plans), (e.PlanMember, plan_members), (e.Follower, followers), (e.Payment, payments), (e.Bill, bills),
     (e.PaymentIntent, payment_intents), (e.Expense, expenses), (e.AuditEntry, audit_log), (e.JobRun, job_runs),
     (e.Match, matches), (e.MatchSchedule, match_schedules), (e.Contact, contacts),
 ]

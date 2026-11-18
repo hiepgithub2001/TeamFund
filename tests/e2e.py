@@ -675,6 +675,18 @@ async def main():
         await wait_sent(lambda c: saved(f"Dũng (until {this_q})")(c) and f"Months set: {this_q}." in c["params"]["text"],
                         "this quarter only")
 
+        # 16b. a second package for An overlaps her monthly one: warned, not added, asked again
+        await T(text_update(OWNER, "/plans 100k month"))
+        pick = await wait_sent(to(OWNER, "Choose who pays <b>100,000đ/month"), "second package picker")
+        await T(cb_update(OWNER, "k:t:0", pick["message_id"]))
+        await T(cb_update(OWNER, "k:ok", pick["message_id"]))
+        warn = await wait_sent(lambda c: to(OWNER, "Overlaps another package")(c) and "An: 150,000đ/month" in c["params"]["text"],
+                               "overlap warned")
+        menu = await wait_sent(to(OWNER, "From which period does <b>100,000đ/month</b> apply to <b>An</b>"), "asked for periods")
+        await T(cb_update(OWNER, "w:next", menu["message_id"]))
+        await until(lambda: len(sent(lambda c: to(OWNER, "Overlaps another package")(c))) >= 2, "still overlapping: warned again")
+        await T(cb_update(OWNER, "w:x", menu["message_id"]))
+
         # 17. the match calendar: paste lines, cancel with a reason (followers told), a weekly calendar, show more
         from datetime import timedelta as _td
         soon = today + _td(days=10)

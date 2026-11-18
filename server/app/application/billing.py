@@ -11,8 +11,23 @@ from .ports import Conflict, Deps, UnitOfWork
 INTENT_TTL = timedelta(hours=24)
 
 
-def plans_of(uow: UnitOfWork, team: Team) -> dict:
-    return {p.id: p for p in uow.plans.of_team(team.id)}
+class Plans(dict):
+    """The team's plans by id, and each member's plan memberships (`ms`: member id -> memberships)."""
+
+    def __init__(self, plans, memberships):
+        super().__init__({p.id: p for p in plans})
+        self.ms: dict[int, list] = {}
+        for x in memberships:
+            self.ms.setdefault(x.member_id, []).append(x)
+
+
+def plans_of(uow: UnitOfWork, team: Team) -> Plans:
+    return Plans(uow.plans.of_team(team.id), uow.memberships.of_team(team.id))
+
+
+def membership_for(member: Member, plans: Plans, period: str):
+    """The member's plan membership that applies in `period` (at most one: they never overlap)."""
+    return next((x for x in plans.ms.get(member.id, []) if x.plan_id in plans and on_plan(x, period)), None)
 
 
 def terms_of(team: Team, plans: dict, plan_id: int | None):
@@ -21,9 +36,9 @@ def terms_of(team: Team, plans: dict, plan_id: int | None):
 
 
 def plan_for(member: Member, plans: dict, period: str):
-    """The member's plan if it applies in `period` (it exists and the month is inside its from/until)."""
-    p = plans.get(member.plan_id)
-    return p if p is not None and on_plan(member, period) else None
+    """The member's plan in `period`, if one of their memberships covers it; else None (the default package)."""
+    x = membership_for(member, plans, period)
+    return plans[x.plan_id] if x else None
 
 
 def fee_of(team: Team, member: Member, plans: dict, period: str) -> tuple[int, int]:
@@ -36,20 +51,21 @@ def _shape(team: Team, m: Member, plans: dict, period: str, mine: set, today, ke
     when there's nothing to pay. It starts at the standard period's start, or later: at the plan's first
     month, or past months other bills already cover (then it's priced for the months left). A bill that
     starts late because the member joined then gets its own due date, the deadline counted from today."""
-    plan = plan_for(m, plans, period)
+    x = membership_for(m, plans, period)
+    plan = plans[x.plan_id] if x else None
     amount, months = member_fee(team, m, plan)
     if amount <= 0:
         return None
     start = first = cycle_start(period, months)
-    if plan is not None and m.plan_from and m.plan_from > first:
-        first = m.plan_from
+    if x is not None and x.start and x.start > first:
+        first = x.start
     while first < period and first in mine:
         first = add_months(first, 1)
     if keep_from is not None and months == 1:
         first = min(first, keep_from)
-    k, price = cycle_bill(amount, months, first, m.plan_until if plan is not None else None)
+    k, price = cycle_bill(amount, months, first, x.until if x is not None else None)
     due_on = None
-    if plan is not None and first > start and first == m.plan_from:
+    if x is not None and first > start and first == x.start:
         tm = terms(team, plan)
         due_on = max(due_date(tm, first), today + timedelta(days=tm.due_days))
     return plan, first, k, price, due_on
