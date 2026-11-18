@@ -318,6 +318,16 @@ class TeamUseCases:
         with self.d.uow() as uow:
             return uow.followers.active_ids(team_id)
 
+    def bot_users(self, team_id: int, actor: int) -> dict:
+        """Who has opened the team bot (and so gets reminders), for managers: name, role, muted, since."""
+        with self.d.uow() as uow:
+            team = manager_team(uow, team_id, actor)
+            roles = {a.tg_id: a.role for a in uow.admins.of_team(team.id)}
+            people = [{**user_info(uow, f.tg_id), "role": roles.get(f.tg_id), "muted": f.muted,
+                       "since": self.d.clock.fmt(f.created_at)} for f in uow.followers.of_team(team.id)]
+            return {"people": people, "on": sum(not p["muted"] for p in people),
+                    "members": len(uow.members.of_team(team.id, active_only=True))}
+
     # ---- admins -------------------------------------------------------------------------------
 
     def list_admins(self, team_id: int) -> list[dict]:

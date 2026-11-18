@@ -1047,3 +1047,19 @@ def test_match_fee():
     act = next(a for a in svc.undo.recent(tid, OWNER) if a["action"] == "match.fee")
     svc.undo.undo(tid, OWNER, act["id"])
     assert not any(b["title"] == "Trận 06/12" for g in svc.money.unpaid(tid) for b in g["bills"]), "undo takes it back"
+
+
+def test_who_opened_the_bot(world):
+    svc, _, _ = world
+    tid = setup_team(svc)
+    svc.members.add_members(tid, OWNER, [{"name": "An"}, {"name": "Bình"}])
+    svc.users.upsert_user(MEMBER, "Khải", "Trần", "khai")
+    svc.teams.follow(tid, OWNER)
+    svc.teams.follow(tid, MEMBER)
+    svc.teams.set_muted(tid, MEMBER, True)
+    r = svc.teams.bot_users(tid, OWNER)
+    assert (len(r["people"]), r["on"], r["members"]) == (2, 1, 2)
+    owner, member = r["people"]
+    assert owner["role"] == "owner" and not owner["muted"]
+    assert member["name"] == "Khải Trần" and member["username"] == "khai" and member["role"] is None and member["muted"]
+    assert code(svc.teams.bot_users, tid, MEMBER) == "not_manager"

@@ -111,6 +111,9 @@ class SqlFollowers(_Repo):
         return list(self.s.scalars(select(Follower.tg_id).where(Follower.team_id == team_id,
                                                                 Follower.muted.is_(False)).order_by(Follower.id)))
 
+    def of_team(self, team_id: int) -> list[Follower]:
+        return list(self.s.scalars(select(Follower).where(Follower.team_id == team_id).order_by(Follower.id)))
+
 
 class SqlMembers(_Repo):
     def get(self, member_id: int) -> Member | None:

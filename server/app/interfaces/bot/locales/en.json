@@ -159,7 +159,7 @@
  "lang.choose": "Choose your language:",
  "lang.done": "✅ Language: English",
  "help.everyone": "<b>Commands</b>\n/start Pay the team fee\n/donate Give to the team fund (any amount)\n/status Who has paid this month\n/fund Fund balance\n/history Latest transactions (/history 10/2026: one month)\n/bank Team bank account\n/weblink Pay page link (no Telegram needed)\n/notify Turn team announcements on or off\n/requestmanager Ask to become a manager\n/guide How to use the bot and the web page\n/lang Language",
- "help.manager": "\n\n<b>Manager</b>\n/members View, add and edit members\n/plans Fee packages: amount, cycle, deadline and late fee for groups of people\n/charge One-off charge or shared cost\n/markpaid Record cash payments\n/expense Record an expense\n/income Record income (prizes, sponsors, an old balance)\n/undo Undo a recent action\n/money How to write amounts and dates\n/remind Send the unpaid list to everyone\n/unmatched Payments to check\n/export Excel file\n/settings Team settings\n/teamlang Announcement language",
+ "help.manager": "\n\n<b>Manager</b>\n/members View, add and edit members\n/plans Fee packages: amount, cycle, deadline and late fee for groups of people\n/charge One-off charge or shared cost\n/markpaid Record cash payments\n/expense Record an expense\n/income Record income (prizes, sponsors, an old balance)\n/undo Undo a recent action\n/money How to write amounts and dates\n/followers Who has opened the bot (gets reminders)\n/remind Send the unpaid list to everyone\n/unmatched Payments to check\n/export Excel file\n/settings Team settings\n/teamlang Announcement language",
  "help.owner": "\n\n<b>Owner</b>\n/sepaytoken Connect SePay (API token)\n/setbank Choose the bank account (from SePay)\n/requests Review manager requests\n/managers Managers\n/transferowner Give the team to a manager\n/log Audit log",
  "cmd.start": "Pay the team fee",
  "cmd.status": "Who has paid this month",
@@ -594,5 +594,9 @@
  "btn.assign_qr": "✅ Mark paid: {members}",
  "pay.expired_received": "⏳ We got your {amount}, but that QR code had expired. A manager will confirm it soon. Next time make a fresh QR with /start.",
  "cash.extra": "All {owed} owed is paid; the extra {amount} goes into the fund.",
- "err.cash_amount": "That amount doesn't work."
+ "err.cash_amount": "That amount doesn't work.",
+ "cmd.followers": "Who has opened the bot (gets reminders)",
+ "followers.head": "👥 <b>Opened the bot: {n}</b> · {on} getting announcements · the team has {members} members",
+ "followers.muted": "🔕 announcements off",
+ "followers.hint": "Only people who opened the bot and pressed Start get fee reminders. Send /guide to the team group so everyone opens it."
 }

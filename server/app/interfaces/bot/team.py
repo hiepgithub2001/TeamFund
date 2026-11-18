@@ -1577,6 +1577,27 @@ async def cmd_teamlang(message: Message, command: CommandObject, entry, lang):
     await message.answer(t(new, "teamlang.done"))
 
 
+@router.message(Command("followers"))
+async def cmd_followers(message: Message, entry, lang):
+    """Managers: who has opened the bot, so who the reminders reach."""
+    if not await allow(message, entry, lang, "manager"):
+        return
+    r = await call(S.teams.bot_users, tid(entry), message.from_user.id)
+    lines = []
+    for p in r["people"]:
+        line = "• " + esc(p["name"]) + (f" (@{esc(p['username'])})" if p.get("username") else "")
+        if p.get("role"):
+            line += f" · {t(lang, 'role.' + p['role'])}"
+        if p["muted"]:
+            line += " · " + t(lang, "followers.muted")
+        lines.append(line)
+    text = t(lang, "followers.head", n=len(r["people"]), on=r["on"], members=r["members"])
+    if lines:
+        text += "\n" + "\n".join(lines)
+    text += "\n\n" + t(lang, "followers.hint")
+    await message.answer(text)
+
+
 @router.message(Command("weblink"))
 async def cmd_weblink(message: Message, entry, lang):
     """The pay page link. Members see it (if a manager has made one); only managers make or change it."""

@@ -575,6 +575,11 @@ async def main():
         await wait_sent(to(OWNER, "Sent the unpaid list to 1 people"), "remind sent to followers")
         await T(text_update(MEMBER, "/notify"))
         await wait_sent(to(MEMBER, "announcements are off"), "notify off")
+        await T(text_update(OWNER, "/followers"))
+        fl = await wait_sent(to(OWNER, "Opened the bot"), "managers see who opened the bot")
+        assert "announcements off" in fl["params"]["text"], fl["params"]["text"]
+        await T(text_update(MEMBER, "/followers"))
+        await wait_sent(to(MEMBER, "manager"), "members can't")
         await T(text_update(OWNER, "/remind"))
         await wait_sent(to(OWNER, "Sent the unpaid list to 0 people"), "muted follower skipped")
         await T(text_update(MEMBER, "/notify"))
