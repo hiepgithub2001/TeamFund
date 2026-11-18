@@ -242,9 +242,9 @@ async def main():
         pl = await wait_sent(to(OWNER, "Fee plans"), "plans for the default fee")
         await T(cb_update(OWNER, "p:f", pl["message_id"]))
         await T(cb_update(OWNER, "p:fa", pl["message_id"]))
-        await wait_sent(to(OWNER, "Send the default monthly fee"), "default fee asked")
+        await wait_sent(to(OWNER, "Send the default package's fee"), "default fee asked")
         await T(text_update(OWNER, "200k"))
-        await wait_sent(to(OWNER, "Monthly fee set to 200,000đ"), "fee set")
+        await wait_sent(to(OWNER, "Default package set to 200,000đ/month"), "fee set")
         await T(text_update(OWNER, "/add An | 10\nBình\nCường | 7 | 0901234567"))
         await wait_sent(to(OWNER, "Added 3"), "members added")
         await T(text_update(MEMBER, "/start"))
@@ -421,7 +421,7 @@ async def main():
         # 10. fee plans: Cường and Dũng pay 300k per quarter, An 150k a month, Bình stays on the team fee
         await T(text_update(OWNER, "/plans"))
         plans = await wait_sent(to(OWNER, "Fee plans"), "plans screen")
-        assert "Default: <b>200,000đ</b>/month · 4 people" in plans["params"]["text"]
+        assert "Default: <b>200,000đ/month</b> · 4 people" in plans["params"]["text"]
         await T(cb_update(OWNER, "p:n", plans["message_id"]))
         await wait_sent(lambda c: c["method"] == "editMessageText" and "how often" in c["params"]["text"], "cycles")
         await T(cb_update(OWNER, "p:c:3", plans["message_id"]))
@@ -492,10 +492,22 @@ async def main():
         assert "p:f" in buttons(plans)
         await T(cb_update(OWNER, "p:f", plans["message_id"]))
         await T(cb_update(OWNER, "p:fa", plans["message_id"]))
-        await wait_sent(to(OWNER, "Send the default monthly fee"), "default fee asked")
+        await wait_sent(to(OWNER, "Send the default package's fee"), "default fee asked")
         await T(text_update(OWNER, "250k"))
-        await wait_sent(to(OWNER, "Monthly fee set to 250,000đ"), "default fee set from /plans")
-        await wait_sent(to(OWNER, "Default: <b>250,000đ</b>/month"), "plans shown with the new default")
+        await wait_sent(to(OWNER, "Default package set to 250,000đ/month"), "default fee set from /plans")
+        dp = await wait_sent(to(OWNER, "Default: <b>250,000đ/month</b>"), "plans shown with the new default")
+        # the default package's cycle: quarterly, then back to monthly
+        await T(cb_update(OWNER, "p:f", dp["message_id"]))
+        await T(cb_update(OWNER, "p:fk", dp["message_id"]))
+        await wait_sent(lambda c: c["method"] == "editMessageText" and "How often is the default package paid" in c["params"]["text"],
+                        "cycle asked")
+        await T(cb_update(OWNER, "p:fkc:3", dp["message_id"]))
+        await wait_sent(lambda c: c["method"] == "editMessageText" and "Default package</b>: 250,000đ/quarter" in c["params"]["text"],
+                        "default package per quarter")
+        await T(cb_update(OWNER, "p:fk", dp["message_id"]))
+        await T(cb_update(OWNER, "p:fkc:1", dp["message_id"]))
+        await wait_sent(lambda c: c["method"] == "editMessageText" and "Default package</b>: 250,000đ/month" in c["params"]["text"],
+                        "back to monthly")
         await T(text_update(OWNER, "/charge 100k Jersey"))
         how = await wait_sent(to(OWNER, "how should it be charged"), "charge asks each or split")
         assert buttons(how) == ["c:charge", "c:split", "c:x"]
@@ -553,7 +565,7 @@ async def main():
         await T(cb_update(OWNER, "p:f", pl["message_id"]))
         dv = await wait_sent(lambda c: c["method"] == "editMessageText" and "Default package" in c["params"]["text"],
                              "default package view")
-        assert buttons(dv)[:3] == ["p:fa", "p:ds:0", "p:dl:0"]
+        assert buttons(dv)[:4] == ["p:fa", "p:fk", "p:ds:0", "p:dl:0"]
         await T(cb_update(OWNER, "p:ds:0", pl["message_id"]))
         await wait_sent(to(OWNER, "Send the <b>announcement day</b>"), "deadline asked")
         await T(text_update(OWNER, "15 5"))

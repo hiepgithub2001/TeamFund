@@ -9,7 +9,7 @@ from typing import Callable
 
 from ..domain.entities import MANAGER, OWNER, Follower, ManagerRequest, Team, TeamAdmin
 from ..domain.errors import DomainError, invalid
-from ..domain.rules import (LANGS, MAX_DUE_DAYS, MAX_FEE, MAX_LATE_FEE, due_date, hash_secret, new_public_token,
+from ..domain.rules import (CYCLES, LANGS, MAX_DUE_DAYS, MAX_FEE, MAX_LATE_FEE, due_date, hash_secret, new_public_token,
                             schedule, terms, valid_bank)
 from .access import get_team, is_super, manager_team, owner_team, role_of
 from .billing import reprice_current_month, update_late_fees
@@ -75,18 +75,20 @@ class TeamUseCases:
 
     def update_settings(self, team_id: int, actor: int, fee: int | None = None, lang: str | None = None,
                         notify_day: int | None = None, due_days: int | None = None,
-                        late_fee: int | None = None) -> dict:
-        """Change the default fee, group language, the schedule (announce on notify_day, due due_days later)
-        or the late fee per overdue day (0 turns it off)."""
+                        late_fee: int | None = None, fee_months: int | None = None) -> dict:
+        """Change the default fee and its cycle (1, 3, 6 or 12 months), group language, the schedule (announce on
+        notify_day, due due_days later) or the late fee per overdue day (0 turns it off)."""
         ok = lambda v, lo, hi: v is None or (isinstance(v, int) and not isinstance(v, bool) and lo <= v <= hi)  # noqa: E731
         if not (ok(fee, 0, MAX_FEE) and ok(notify_day, 1, 28) and ok(due_days, 0, MAX_DUE_DAYS)
-                and ok(late_fee, 0, MAX_LATE_FEE)) or (lang is not None and lang not in LANGS):
+                and ok(late_fee, 0, MAX_LATE_FEE)) or (lang is not None and lang not in LANGS) \
+                or (fee_months is not None and fee_months not in CYCLES):
             raise invalid()
         with self.d.uow() as uow:
             team = manager_team(uow, team_id, actor)
-            fields = ("fee", "lang", "notify_day", "due_days", "late_fee")
+            fields = ("fee", "lang", "notify_day", "due_days", "late_fee", "fee_months")
             before = {k: getattr(team, k) for k in fields}
-            changes = {k: v for k, v in zip(fields, (fee, lang, notify_day, due_days, late_fee)) if v is not None}
+            changes = {k: v for k, v in zip(fields, (fee, lang, notify_day, due_days, late_fee, fee_months))
+                       if v is not None}
             if (notify_day is None) != (due_days is None):  # the schedule is set as a pair
                 cur = schedule(team)
                 changes.setdefault("notify_day", cur[0])
@@ -99,14 +101,15 @@ class TeamUseCases:
                     team.late_fee_since = None
             for k, v in changes.items():
                 setattr(team, k, v)
-            if "fee" in changes:
+            if "fee" in changes or "fee_months" in changes:
                 reprice_current_month(uow, self.d, team)
             audit(uow, self.d.clock, team.id, actor, "team.settings", before=before, after=changes)
             uow.commit()
             if {"late_fee", "notify_day", "due_days"} & changes.keys():
                 update_late_fees(uow, self.d, team)
             notify, days = schedule(team)
-            return {"fee": team.fee, "lang": team.lang, "notify_day": notify, "due_days": days,
+            return {"fee": team.fee, "fee_months": team.fee_months or 1, "lang": team.lang, "notify_day": notify,
+                    "due_days": days,
                     "late_fee": team.late_fee or 0,
                     "due": due_date(terms(team), self.d.clock.current_period()).strftime("%d/%m")}
 

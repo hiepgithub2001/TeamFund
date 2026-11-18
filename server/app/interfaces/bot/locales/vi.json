@@ -97,7 +97,7 @@
  "bills.title": "🧾 Các khoản chưa đóng của <b>{name}</b>. Bấm vào một khoản để miễn.",
  "bills.none": "{name} không có khoản nào chưa đóng.",
  "bills.waived": "✅ Đã miễn khoản này.",
- "setfee.done": "✅ Đã đặt quỹ tháng {fee}. Các khoản chưa đóng của tháng này đã được cập nhật.",
+ "setfee.done": "✅ Đã đặt gói mặc định {fee}. Các khoản chưa đóng của kỳ này đã được cập nhật.",
  "bank.text": "🏦 <b>Tài khoản ngân hàng của đội</b>\nNgân hàng: {bank}\nSố tài khoản: <code>{account}</code>\nChủ tài khoản: {holder}\n\nĐể đóng quỹ, dùng /start: mã QR tự điền số tiền và mã chuyển khoản.",
  "bank.not_set": "Đội chưa có tài khoản ngân hàng. Chủ đội cài bằng /setbank.",
  "bank.sepay_on": "SePay: ✅ đã kết nối, thanh toán được xác nhận tự động.",
@@ -248,7 +248,7 @@
  "income.done": "✅ Đã ghi khoản thu{date}. Số dư quỹ: {balance}",
  "on_date": " ngày {date}",
  "plans.title": "💳 <b>Gói phí</b>",
- "plans.default": "Mặc định: <b>{fee}</b>/tháng · {n} người",
+ "plans.default": "Mặc định: <b>{fee}</b> · {n} người",
  "plans.default_none": "Mặc định: chưa đặt · {n} người",
  "plans.line": "• <b>{fee}</b>: {names}",
  "plans.empty_line": "• <b>{fee}</b>: (chưa có ai)",
@@ -297,7 +297,7 @@
  "btn.charge_each": "👤 Mỗi người {amount}",
  "btn.charge_split": "➗ Chia đều {amount}",
  "btn.add_members": "➕ Thêm thành viên",
- "plans.ask_default": "Gửi mức quỹ tháng mặc định, ví dụ <code>200k</code>. Gửi <code>0</code> để bỏ. Áp dụng cho ai không ở gói nào.",
+ "plans.ask_default": "Gửi mức quỹ của gói mặc định (mỗi kỳ, theo chu kỳ của gói), ví dụ <code>200k</code>. Gửi <code>0</code> để bỏ. Áp dụng cho ai không ở gói nào.",
  "cash.how_much": "<b>{name}</b> đang nợ {owed}. Đã nhận bao nhiêu?",
  "btn.cash_full": "✅ Đủ {amount}",
  "btn.cash_other": "✏️ Số khác",
@@ -320,7 +320,7 @@
  "plans.late_on": "⏰ phạt trễ {fee}/ngày",
  "plans.late_off": "⏰ không phạt trễ",
  "plans.inherit": " (như mặc định)",
- "plans.default_view": "⚙️ <b>Gói mặc định</b>: {fee}/tháng\nÁp dụng cho {n} người không ở gói nào.",
+ "plans.default_view": "⚙️ <b>Gói mặc định</b>: {fee}\nÁp dụng cho {n} người không ở gói nào.",
  "plans.ask_schedule": "📅 Gửi <b>ngày thông báo</b> và <b>số ngày tới hạn</b>, ví dụ <code>15 5</code>: thông báo ngày 15 hằng tháng, hạn ngày 20. (Ngày 1–28, số ngày 0–60; hạn có thể sang tháng sau.)",
  "plans.ask_late": "⏰ Gửi tiền phạt mỗi ngày quá hạn, ví dụ <code>1k</code>. Gửi <code>0</code> để không phạt. Tính từ ngày hết hạn của mỗi khoản (kể cả những ngày trước khi bật).",
  "plans.ask_inherit": "\nGửi <code>-</code> để theo gói mặc định.",
@@ -537,5 +537,6 @@
  "mt.recorded_received": "➕ Đã ghi thu {amount}. Số dư quỹ: {balance}",
  "mt.paid_line": "➖ Đã chi: {amount}",
  "mt.received_line": "➕ Đã thu: {amount}",
- "act.match.money": "Ghi thu/chi trận"
+ "act.match.money": "Ghi thu/chi trận",
+ "plans.default_cycle": "🔁 Gói mặc định đóng theo chu kỳ nào?"
 }

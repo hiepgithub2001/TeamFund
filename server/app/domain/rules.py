@@ -37,7 +37,9 @@ def member_fee(team: Team, member: Member, plan: FeePlan | None) -> tuple[int, i
     """(amount, months) a member is billed: their plan, else their own monthly fee, else the team's."""
     if plan is not None:
         return plan.amount, plan.months
-    return effective_fee(team, member), 1
+    if member.fee_override is not None:
+        return member.fee_override, 1  # a member's own fee is monthly
+    return team.fee or 0, team.fee_months or 1  # the default package, on its own cycle
 
 
 def add_months(period: str, n: int) -> str:

@@ -50,6 +50,7 @@ class Team:
     due_days: int | None = None            # days after the announcement until it's due
     late_fee: int | None = None            # đ per day a fee bill is overdue; 0/None: off
     late_fee_since: date | None = None     # the day the late fee was turned on: no fines for days before it
+    fee_months: int | None = None          # the default package's cycle: 1 (None) monthly, 3, 6 or 12
     lang: str = "vi"
     bank_name: str | None = None
     bank_account: str | None = None

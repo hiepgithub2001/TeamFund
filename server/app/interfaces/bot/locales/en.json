@@ -97,7 +97,7 @@
  "bills.title": "🧾 Unpaid bills of <b>{name}</b>. Tap one to waive it.",
  "bills.none": "{name} has no unpaid bills.",
  "bills.waived": "✅ Bill waived.",
- "setfee.done": "✅ Monthly fee set to {fee}. Unpaid bills for this month were updated.",
+ "setfee.done": "✅ Default package set to {fee}. This period's unpaid bills are updated.",
  "bank.text": "🏦 <b>Team bank account</b>\nBank: {bank}\nAccount: <code>{account}</code>\nHolder: {holder}\n\nTo pay, use /start: the QR code fills in the amount and the transfer code for you.",
  "bank.not_set": "The team bank account isn't set yet. The owner sets it with /setbank.",
  "bank.sepay_on": "SePay: ✅ connected, payments are confirmed automatically.",
@@ -248,7 +248,7 @@
  "income.done": "✅ Income recorded{date}. Fund balance: {balance}",
  "on_date": " on {date}",
  "plans.title": "💳 <b>Fee plans</b>",
- "plans.default": "Default: <b>{fee}</b>/month · {n} people",
+ "plans.default": "Default: <b>{fee}</b> · {n} people",
  "plans.default_none": "Default: not set · {n} people",
  "plans.line": "• <b>{fee}</b>: {names}",
  "plans.empty_line": "• <b>{fee}</b>: (nobody yet)",
@@ -297,7 +297,7 @@
  "btn.charge_each": "👤 {amount} each",
  "btn.charge_split": "➗ Split {amount}",
  "btn.add_members": "➕ Add members",
- "plans.ask_default": "Send the default monthly fee, e.g. <code>200k</code>. Send <code>0</code> for none. It applies to everyone not on a plan.",
+ "plans.ask_default": "Send the default package's fee (per period, on the package's cycle), e.g. <code>200k</code>. <code>0</code> removes it. It applies to everyone on no other package.",
  "cash.how_much": "<b>{name}</b> owes {owed}. How much was received?",
  "btn.cash_full": "✅ All of it, {amount}",
  "btn.cash_other": "✏️ Another amount",
@@ -320,7 +320,7 @@
  "plans.late_on": "⏰ late fee {fee}/day",
  "plans.late_off": "⏰ no late fee",
  "plans.inherit": " (as default)",
- "plans.default_view": "⚙️ <b>Default package</b>: {fee}/month\nFor the {n} people not on a plan.",
+ "plans.default_view": "⚙️ <b>Default package</b>: {fee}\nFor the {n} people on no other package.",
  "plans.ask_schedule": "📅 Send the <b>announcement day</b> and the <b>days until due</b>, e.g. <code>15 5</code>: announced on the 15th, due the 20th. (Day 1–28, days 0–60; the due date may fall next month.)",
  "plans.ask_late": "⏰ Send the late fee per overdue day, e.g. <code>1k</code>. Send <code>0</code> for none. It counts from each bill's due date (including days before you turn it on).",
  "plans.ask_inherit": "\nSend <code>-</code> to use the default package's.",
@@ -537,5 +537,6 @@
  "mt.recorded_received": "➕ Recorded {amount} received. Fund balance: {balance}",
  "mt.paid_line": "➖ Spent: {amount}",
  "mt.received_line": "➕ Received: {amount}",
- "act.match.money": "Match money recorded"
+ "act.match.money": "Match money recorded",
+ "plans.default_cycle": "🔁 How often is the default package paid?"
 }

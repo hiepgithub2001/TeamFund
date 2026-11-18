@@ -869,7 +869,8 @@ def member_names(lang: str, p: dict) -> str:
 
 def plans_text(lang: str, v: dict) -> str:
     lines = [t(lang, "plans.title"),
-             (t(lang, "plans.default", fee=money(v["fee"], lang), n=len(v["default_members"])) if v["fee"]
+             (t(lang, "plans.default", fee=fee_text(lang, v["fee"], v.get("fee_months", 1)), n=len(v["default_members"]))
+              if v["fee"]
               else t(lang, "plans.default_none", n=len(v["default_members"])))
              + "\n   " + terms_text(lang, v["default"])]
     for p in v["plans"]:
@@ -894,11 +895,11 @@ def plan_view(lang: str, p: dict):
 
 
 def default_view(lang: str, v: dict):
-    """The default package: the team fee (monthly, for everyone not on a plan) and its terms."""
+    """The default package: the team fee on its cycle (monthly unless set), for everyone not on a plan, and its terms."""
     d = v["default"]
-    fee = money(v["fee"], lang) if v["fee"] else t(lang, "settings.not_set")
+    fee = fee_text(lang, v["fee"], v.get("fee_months", 1)) if v["fee"] else t(lang, "settings.not_set")
     text = t(lang, "plans.default_view", fee=fee, n=len(v["default_members"])) + "\n" + terms_text(lang, d)
-    return text, kb([(t(lang, "btn.plan_amount"), "p:fa")],
+    return text, kb([(t(lang, "btn.plan_amount"), "p:fa"), (t(lang, "btn.plan_cycle"), "p:fk")],
                     [(t(lang, "btn.plan_due"), "p:ds:0"), (t(lang, "btn.plan_late"), "p:dl:0")],
                     [(t(lang, "btn.back"), "p:l")])
 
@@ -1072,7 +1073,7 @@ async def cmd_plans(message: Message, command: CommandObject, entry, lang):
     await open_plan_picker(message, entry, lang, amount, months)
 
 
-@router.callback_query(F.data.regexp(r"^p:(l|n|f|fa|ds|dl|c|v|m|w|a|k|kc|d|dy)(?::(\d+))?(?::(\d+))?$").as_("m"))
+@router.callback_query(F.data.regexp(r"^p:(l|n|f|fa|fk|fkc|ds|dl|c|v|m|w|a|k|kc|d|dy)(?::(\d+))?(?::(\d+))?$").as_("m"))
 async def on_plan(cq: CallbackQuery, m: re.Match, entry, lang):
     if not await allow(cq, entry, lang, "manager"):
         return
@@ -1085,6 +1086,12 @@ async def on_plan(cq: CallbackQuery, m: re.Match, entry, lang):
         await edit(cq, t(lang, "plans.choose_cycle"), cycle_keyboard(lang, "p:c:", "p:l"))
     elif action == "f":  # the default package: the team fee and its terms
         await edit(cq, *default_view(lang, await call(S.plans.list_plans, team, user)))
+    elif action == "fk":  # the default package's cycle
+        await edit(cq, t(lang, "plans.default_cycle"), cycle_keyboard(lang, "p:fkc:", "p:f"))
+    elif action == "fkc" and a:
+        await call(S.teams.update_settings, team, user, fee_months=int(a))
+        text, markup = default_view(lang, await call(S.plans.list_plans, team, user))
+        await edit(cq, f"{t(lang, 'plans.saved')}\n\n{text}", markup)
     elif action == "fa":
         set_state(input_key(cq.bot.id, cq.message.chat.id), {"type": "default_fee"}, 600)
         await say(cq, t(lang, "plans.ask_default"), reply_markup=FORCE)
@@ -1549,7 +1556,7 @@ async def on_text(message: Message, entry, lang):
             await message.answer(t(lang, "err.invalid"))
             return
         r = await call(S.teams.update_settings, tid(entry), message.from_user.id, fee=fee)
-        await message.answer(t(lang, "setfee.done", fee=money(r["fee"], lang)))
+        await message.answer(t(lang, "setfee.done", fee=fee_text(lang, r["fee"], r["fee_months"])))
         await plans_view(message, entry, lang)
     elif st["type"] in ("plan_schedule", "plan_late"):
         await plan_terms_reply(message, entry, lang, st, text)

@@ -52,7 +52,7 @@ class PlanUseCases:
             return {"notify_day": t.notify_day, "due_days": t.due_days, "late_fee": t.late_fee,
                     "own_schedule": plan is None or bool(plan.notify_day),
                     "own_late": plan is None or plan.late_fee is not None}
-        return {"fee": team.fee, "default": tm(), "period": period,
+        return {"fee": team.fee, "fee_months": team.fee_months or 1, "default": tm(), "period": period,
                 "default_members": [{"id": m.id, "name": m.name} for m in members if m.plan_id not in ids],
                 "plans": [{"id": p.id, "amount": p.amount, "months": p.months, "members": on(p.id), "period": period,
                            **tm(p)}

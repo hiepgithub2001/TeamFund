@@ -881,3 +881,22 @@ def test_match_money():
     got = svc.matches.get(tid, OWNER, past)
     assert (got["paid"], got["received"]) == (300000, None), "undo takes back the income and the match's total"
     assert svc.money.fund(tid)["balance"] == -300000
+
+
+def test_default_package_cycle():
+    """The default package can be paid per quarter (or 6 months, a year) like any plan; own fees stay monthly."""
+    svc, clock, _ = make_services(datetime(2026, 11, 18, 10, 0))
+    tid = setup_team(svc)
+    an, binh = [m["id"] for m in svc.members.add_members(tid, OWNER, [{"name": "An"}, {"name": "Bình"}])]
+    svc.members.update_member(tid, OWNER, binh, {"fee_override": 100000})
+    svc.teams.update_settings(tid, OWNER, fee=150000)
+    assert [b["period_label"] for g in svc.money.unpaid(tid) for b in g["bills"]] == ["11/2026", "11/2026"]
+    assert code(svc.teams.update_settings, tid, OWNER, fee_months=2) == "invalid"
+    r = svc.teams.update_settings(tid, OWNER, fee_months=3)
+    assert (r["fee"], r["fee_months"]) == (150000, 3)
+    bills = {g["name"]: [(b["period_label"], b["amount"]) for b in g["bills"]] for g in svc.money.unpaid(tid)}
+    assert bills == {"An": [("10/2026–12/2026", 150000)], "Bình": [("11/2026", 100000)]}, bills
+    assert svc.plans.list_plans(tid, OWNER)["fee_months"] == 3
+    entry = next(x for x in svc.undo.recent(tid, OWNER) if x["action"] == "team.settings")
+    svc.undo.undo(tid, OWNER, entry["id"])
+    assert {g["name"]: g["bills"][0]["period_label"] for g in svc.money.unpaid(tid)}["An"] == "11/2026"
