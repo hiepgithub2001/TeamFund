@@ -75,22 +75,55 @@ def split_date(text: str, today: date) -> tuple[str, date | None, bool]:
         return title, None, False
 
 
-_PERIOD_RE = r"(\d{1,2})[/-](\d{2}|\d{4})"
+
+_TOKEN = {1: r"(?P<m>\d{1,2})[/-](?P<y>\d{4}|\d{2})",
+          3: r"(?P<y>\d{4})\s*[-/ ]?\s*q(?P<n>[1-4])|q(?P<n2>[1-4])\s*[-/ ]?\s*(?P<y2>\d{4})",
+          6: r"(?P<y>\d{4})\s*[-/ ]?\s*h(?P<n>[12])|h(?P<n2>[12])\s*[-/ ]?\s*(?P<y2>\d{4})",
+          12: r"(?P<y>\d{4})"}
+_SEP = r"(?:-|–|đến|den|to)"
 
 
-def _period(mm: str, yy: str) -> str | None:
-    m, y = int(mm), int(yy) + (2000 if len(yy) == 2 else 0)
-    return f"{y:04d}-{m:02d}" if 1 <= m <= 12 and 2000 <= y <= 2099 else None
-
-
-def parse_window(text: str, default_start: str) -> tuple[str, str | None] | None:
-    """The months a plan applies: "11/2026" (from, for good), "11/2026 - 06/2027", "- 06/2027" (from the
-    default start), "11/2026 -". Months as mm/yyyy or mm/yy. None when it doesn't read."""
-    m = re.fullmatch(rf"\s*(?:{_PERIOD_RE})?\s*(?:(-|–|đến|den|to)\s*(?:{_PERIOD_RE})?)?\s*", (text or "").lower())
-    if not m or not (m.group(1) or m.group(4)):
+def _bounds(m: re.Match, months: int) -> tuple[str, str] | None:
+    """A period token -> (first month, last month)."""
+    g = m.groupdict()
+    y = g.get("y") or g.get("y2")
+    y = int(y) + (2000 if len(y) == 2 else 0)
+    if months == 1:
+        first = int(g["m"])
+        if not 1 <= first <= 12:
+            return None
+    elif months == 12:
+        first = 1
+    else:
+        first = (int(g.get("n") or g.get("n2")) - 1) * months + 1
+    if not 2000 <= y <= 2099:
         return None
-    start = _period(m.group(1), m.group(2)) if m.group(1) else default_start
-    until = _period(m.group(4), m.group(5)) if m.group(4) else None
-    if start is None or (m.group(4) and until is None) or (until is not None and until < start):
+    start = f"{y:04d}-{first:02d}"
+    ey, em = divmod(y * 12 + first - 1 + months - 1, 12)
+    return start, f"{ey:04d}-{em + 1:02d}"
+
+
+def parse_periods(text: str, months: int, default_start: str) -> tuple[str, str | None] | None:
+    """Whole periods a plan applies, in the plan's own cycle: "2026Q4 - 2027Q2", "2027Q1" (from, for good),
+    "- 2027Q2" (from default_start), "2026H2", "2027", "11/2026 - 03/2027". None when it doesn't read."""
+    text = (text or "").strip().lower()
+    toks = list(re.finditer(_TOKEN[months], text))
+    rest = re.sub(_TOKEN[months], "#", text)
+    shape = re.fullmatch(rf"\s*(#)?\s*({_SEP})?\s*(#)?\s*", rest)
+    if not toks or len(toks) > 2 or not shape:
         return None
-    return start, until
+    a, sep, b = shape.groups()
+    if len(toks) == 2 and not (a and b):
+        return None
+    parts = [_bounds(t, months) for t in toks]
+    if None in parts:
+        return None
+    if a and b:
+        start, until = parts[0][0], parts[1][1]
+    elif a:
+        start, until = parts[0][0], None
+    elif sep:
+        start, until = default_start, parts[0][1]
+    else:
+        return None
+    return (start, until) if until is None or until >= start else None

@@ -12,11 +12,11 @@ from aiogram.types import BufferedInputFile, CallbackQuery, ChatMemberUpdated, F
 
 from ..deps import S
 from .commands import clear_admin_commands, set_admin_commands
-from .fmt import amount_and_title, esc, money, parse_amount, parse_window, split_date, strip_tags
+from .fmt import amount_and_title, esc, money, parse_amount, parse_periods, split_date, strip_tags
 from .i18n import has, t
 from .lang import lang_for, set_lang
 from ...domain.errors import DomainError
-from ...domain.rules import add_months, cycle_start, period_label
+from ...domain.rules import add_months, cycle_start, period_name
 from .render import (bill_label, edit, error_text, fee_text, is_private, kb, owes_lines, pay_keyboard, say,
                      status_text)
 from .run import call
@@ -852,16 +852,17 @@ def terms_text(lang: str, x: dict) -> str:
 
 def window_text(lang: str, m: dict, months: int, period: str) -> str:
     """How long a member is on a plan, when it isn't simply "from this period, for good":
-    " (từ 11/2026)", " (đến 12/2026)", " (11/2026–06/2027)", " (đã hết 12/2026)"."""
+    " (từ 2027Q1)", " (đến 2026Q4)", " (2027Q1–2027Q2)", " (đã hết 2026Q4)"."""
     f, u = m.get("from"), m.get("until")
+    name = lambda p: period_name(p, months)  # noqa: E731
     late = bool(f) and f > cycle_start(period, months)
     if u and u < period:
-        return t(lang, "window.ended", until=period_label(u))
+        return t(lang, "window.ended", until=name(u))
     if late and u:
-        return f" ({period_label(f)}–{period_label(u)})"
+        return f" ({name(f)}–{name(u)})" if name(f) != name(u) else f" ({name(f)})"
     if late:
-        return t(lang, "window.from", start=period_label(f))
-    return t(lang, "window.until", until=period_label(u)) if u else ""
+        return t(lang, "window.from", start=name(f))
+    return t(lang, "window.until", until=name(u)) if u else ""
 
 
 def member_names(lang: str, p: dict) -> str:
@@ -924,8 +925,8 @@ async def open_window_menu(ev, lang, p: dict, members: list[dict], edit_in_place
     c = window_choices(p)
     set_state(window_key(ev.bot.id, ev.message.chat.id if isinstance(ev, CallbackQuery) else ev.chat.id),
               {"plan_id": p["id"], "ids": [m["id"] for m in members]}, 600)
-    cur = period_label(c["cur"][0], p["months"])
-    rows = [[(t(lang, "btn.window_next", period=period_label(c["next"][0], p["months"])), "w:next")],
+    cur = period_name(c["cur"][0], p["months"])
+    rows = [[(t(lang, "btn.window_next", period=period_name(c["next"][0], p["months"])), "w:next")],
             [(t(lang, "btn.window_cur", period=cur), "w:cur")]]
     rows += [[(t(lang, "btn.window_in"), "w:in")], [(t(lang, "btn.window_keep"), "w:x")]]
     text = t(lang, "window.ask", fee=fee_text(lang, p["amount"], p["months"]),
@@ -939,7 +940,9 @@ async def open_window_menu(ev, lang, p: dict, members: list[dict], edit_in_place
 async def apply_window(ev, entry, lang, st: dict, start: str, until: str | None, edit_in_place: bool) -> None:
     p = await call(S.plans.set_window, tid(entry), ev.from_user.id, st["plan_id"], st["ids"], start, until)
     text, markup = plan_view(lang, p)
-    span = period_label(start) + (f"–{period_label(until)}" if until else t(lang, "window.forever"))
+    n = p["months"]
+    a, b = period_name(start, n), until and period_name(until, n)
+    span = (a if a == b else f"{a}–{b}") if b else a + t(lang, "window.forever")
     out = f"{t(lang, 'window.saved', span=span)}\n\n{text}"
     if edit_in_place:
         await edit(ev, out, markup)
@@ -961,8 +964,7 @@ async def on_window(cq: CallbackQuery, m: re.Match, entry, lang):
     p = await call(S.plans.get_plan, tid(entry), cq.from_user.id, st["plan_id"])
     if choice == "in":
         set_state(input_key(cq.bot.id, cq.message.chat.id), {"type": "plan_window", **st}, 600)
-        await say(cq, t(lang, "window.ask_in", start=period_label(cycle_start(p["period"], p["months"]))),
-                  reply_markup=FORCE)
+        await say(cq, ask_periods(lang, p), reply_markup=FORCE)
         return
     c = window_choices(p)
     if choice not in c:
@@ -972,14 +974,19 @@ async def on_window(cq: CallbackQuery, m: re.Match, entry, lang):
     await apply_window(cq, entry, lang, st, *c[choice], edit_in_place=True)
 
 
+def ask_periods(lang: str, p: dict) -> str:
+    """"Send the first and last period, e.g. 2027Q1 - 2027Q2", in the plan's own cycle."""
+    n, cur = p["months"], cycle_start(p["period"], p["months"])
+    a, b = period_name(add_months(cur, n), n), period_name(add_months(cur, 2 * n), n)
+    return t(lang, "window.ask_in", a=a, b=b, cur=period_name(cur, n))
+
+
 async def plan_window_reply(message: Message, entry, lang, st: dict, text: str) -> None:
     p = await call(S.plans.get_plan, tid(entry), message.from_user.id, st["plan_id"])
-    w = parse_window(text, cycle_start(p["period"], p["months"]))
+    w = parse_periods(text, p["months"], cycle_start(p["period"], p["months"]))
     if w is None:
         set_state(input_key(message.bot.id, message.chat.id), st, 600)
-        await message.answer(t(lang, "err.invalid") + "\n\n" +
-                             t(lang, "window.ask_in", start=period_label(cycle_start(p["period"], p["months"]))),
-                             reply_markup=FORCE)
+        await message.answer(t(lang, "err.invalid") + "\n\n" + ask_periods(lang, p), reply_markup=FORCE)
         return
     del_state(window_key(message.bot.id, message.chat.id))
     await apply_window(message, entry, lang, {"plan_id": st["plan_id"], "ids": st["ids"]}, *w, edit_in_place=False)

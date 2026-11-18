@@ -432,7 +432,7 @@ async def main():
             await T(cb_update(OWNER, d, pick["message_id"]))
         await wait_sent(lambda c: c["method"] == "editMessageText" and "Plan saved" in c["params"]["text"]
                         and "Members (2): Cường, Dũng" in c["params"]["text"], "quarter plan saved")
-        await wait_sent(to(OWNER, "From when does <b>300,000đ/quarter</b> apply to <b>Cường, Dũng</b>"),
+        await wait_sent(to(OWNER, "From which period does <b>300,000đ/quarter</b> apply to <b>Cường, Dũng</b>"),
                         "new members are asked how long")
         await T(text_update(OWNER, "/plans 150k month"))
         pick = await wait_sent(to(OWNER, "Choose who pays <b>150,000đ/month"), "quick plan picker")
@@ -603,11 +603,12 @@ async def main():
         await wait_sent(lambda c: c["method"] == "editMessageText" and "Pick an action to undo" in c["params"]["text"]
                         and "Typo" not in json.dumps(c["params"].get("reply_markup")), "the list without it")
 
-        # 16. how long a package applies: Cường joined this month, Dũng only for this quarter
+        # 16. how long a package applies, in whole periods: Cường for 2027Q1–Q2, Dũng from next quarter, then this one only
         from datetime import date as _date
         today = _date.today()
-        q_start = f"{(today.month - 1) // 3 * 3 + 1:02d}/{today.year}"
-        q_end = f"{(today.month - 1) // 3 * 3 + 3:02d}/{today.year}"
+        qn = lambda y, q: f"{y + (q - 1) // 4}Q{(q - 1) % 4 + 1}"  # noqa: E731
+        cur_q = (today.month - 1) // 3 + 1
+        this_q, next_q, after_q = qn(today.year, cur_q), qn(today.year, cur_q + 1), qn(today.year, cur_q + 2)
         await T(text_update(OWNER, "/plans"))
         plans = await wait_sent(to(OWNER, "Fee plans"), "plans for windows")
         quarter = next(b["callback_data"] for row in plans["params"]["reply_markup"]["inline_keyboard"] for b in row
@@ -624,24 +625,23 @@ async def main():
             mark = len(calls)
             await T(cb_update(OWNER, "k:ok", pick["message_id"]))
             menu = await until(lambda: next((c for c in calls[mark:] if c["method"] == "editMessageText"
-                                             and "From when does" in c["params"]["text"]), None), "window menu")
-            assert choice in buttons(menu), buttons(menu)
+                                             and "From which period" in c["params"]["text"]), None), "window menu")
+            assert buttons(menu) == ["w:next", "w:cur", "w:in", "w:x"], buttons(menu)
             await T(cb_update(OWNER, choice, pick["message_id"]))
             if reply:
-                await wait_sent(to(OWNER, "Send the first and last month"), "months asked")
+                await wait_sent(to(OWNER, "Send the first and last period"), "periods asked")
                 await T(text_update(OWNER, reply))
 
-        if today.month % 3 != 1:  # not the quarter's first month: a mid-quarter start, typed
-            await set_window(0, "w:in", f"{today.month:02d}/{today.year}")
-            await wait_sent(lambda c: "Months set: " in (c["params"].get("text") or "")
-                            and f"Cường (from {today.month:02d}/{today.year})" in c["params"]["text"], "joined mid-quarter")
+        def saved(text):
+            return lambda c: "Months set: " in (c["params"].get("text") or "") and text in c["params"]["text"]
+
+        await set_window(0, "w:in", f"{next_q} - {after_q}")
+        await wait_sent(saved(f"Cường ({next_q}–{after_q})"), "two quarters")
         await set_window(1, "w:next")
-        nq = f"{(today.month - 1) // 3 * 3 + 4:02d}/{today.year}" if today.month < 10 else f"01/{today.year + 1}"
-        await wait_sent(lambda c: "Months set: " in (c["params"].get("text") or "")
-                        and f"Dũng (from {nq})" in c["params"]["text"], "from next quarter")
-        await set_window(1, "w:in", f"- {q_end}")
-        await wait_sent(lambda c: to(OWNER, f"Months set: {q_start}–{q_end}")(c)
-                        and f"Dũng (until {q_end})" in c["params"]["text"], "one quarter only")
+        await wait_sent(saved(f"Dũng (from {next_q})"), "from next quarter")
+        await set_window(1, "w:in", f"- {this_q}")
+        await wait_sent(lambda c: saved(f"Dũng (until {this_q})")(c) and f"Months set: {this_q}." in c["params"]["text"],
+                        "this quarter only")
 
         print(f"e2e passed ({len(calls)} Telegram API calls)")
     finally:

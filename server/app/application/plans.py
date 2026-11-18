@@ -8,7 +8,7 @@ years): one bill covers the period. Months a member already paid aren't billed a
 is priced pro rata. Changing a plan reprices the unpaid bill covering this month (like the default fee)."""
 from ..domain.entities import FeePlan, Team
 from ..domain.errors import DomainError, invalid
-from ..domain.rules import CYCLES, MAX_DUE_DAYS, MAX_FEE, MAX_LATE_FEE, cycle_start, is_period, terms
+from ..domain.rules import CYCLES, MAX_DUE_DAYS, MAX_FEE, MAX_LATE_FEE, cycle_start, is_period, period_end, terms
 from . import billing
 from .access import manager_team
 from .people import audit
@@ -109,9 +109,9 @@ class PlanUseCases:
 
     def set_window(self, team_id: int, actor: int, plan_id: int, member_ids: list, start: str | None,
                    until: str | None) -> dict:
-        """The months a plan applies to these members (YYYY-MM, both inclusive; until None: for good).
-        A start inside a period bills only the months left, due counting from today; before `start` and
-        after `until` they pay the default package. This month's unpaid bill follows at once."""
+        """The whole periods a plan applies to these members: from the period starting `start` to the one
+        ending `until` (YYYY-MM, both inclusive; until None: for good), e.g. 2027-01..2027-06 for 2027Q1–Q2.
+        Before and after they pay the default package. This month's unpaid bill follows at once."""
         if (not is_period(start) or (until is not None and (not is_period(until) or until < start))
                 or not isinstance(member_ids, list) or not 1 <= len(member_ids) <= 200
                 or not all(isinstance(i, int) and not isinstance(i, bool) for i in member_ids)):
@@ -119,6 +119,8 @@ class PlanUseCases:
         with self.d.uow() as uow:
             team = manager_team(uow, team_id, actor)
             plan = _plan(uow, team, plan_id)
+            if start != cycle_start(start, plan.months) or (until and until != period_end(until, plan.months)):
+                raise invalid()  # whole periods only
             chosen = uow.members.of_team(team.id, ids=list(dict.fromkeys(member_ids)))
             if len(chosen) != len(set(member_ids)) or any(m.plan_id != plan.id for m in chosen):
                 raise DomainError(404, "not_found")

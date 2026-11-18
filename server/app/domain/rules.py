@@ -68,6 +68,23 @@ def cycle_bill(amount: int, months: int, first: str, until: str | None = None) -
     return k, amount if k == months else int(math.ceil(amount * k / months / 1000) * 1000)
 
 
+def period_name(period: str, months: int) -> str:
+    """A billing period by its usual name: "11/2026", "2026Q4", "2026H2", "2026"."""
+    y, m = period[:4], int(period[5:])
+    if months == 3:
+        return f"{y}Q{(m - 1) // 3 + 1}"
+    if months == 6:
+        return f"{y}H{(m - 1) // 6 + 1}"
+    if months == 12:
+        return y
+    return f"{m:02d}/{y}"
+
+
+def period_end(period: str, months: int) -> str:
+    """The last month of the standard period `period` falls in (2026-11, quarterly: 2026-12)."""
+    return add_months(cycle_start(period, months), months - 1)
+
+
 def on_plan(member, period: str) -> bool:
     """Does the member's plan apply in `period` (inside its from/until months)?"""
     return ((member.plan_from is None or member.plan_from <= period)

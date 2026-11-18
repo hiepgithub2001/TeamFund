@@ -71,13 +71,18 @@ def test_amount_forms():
         assert parse_amount(raw) == want, raw
 
 
-def test_parse_window():
-    from app.interfaces.bot.fmt import parse_window
-    d = "2026-10"
-    assert parse_window("11/2026", d) == ("2026-11", None)
-    assert parse_window("11/2026 - 06/2027", d) == ("2026-11", "2027-06")
-    assert parse_window("11-2026 đến 6/27", d) == ("2026-11", "2027-06")
-    assert parse_window("- 12/2026", d) == ("2026-10", "2026-12")
-    assert parse_window("11/2026 -", d) == ("2026-11", None)
-    for bad in ("", "-", "13/2026", "12/2026 - 11/2026", "hello", "11/2026 - x"):
-        assert parse_window(bad, d) is None, bad
+def test_parse_periods():
+    from app.interfaces.bot.fmt import parse_periods
+    q = lambda x: parse_periods(x, 3, "2026-10")  # noqa: E731
+    assert q("2026Q4 - 2027Q2") == ("2026-10", "2027-06")
+    assert q("2026q4-2027q2") == ("2026-10", "2027-06")
+    assert q("Q1/2027 đến Q1/2027") == ("2027-01", "2027-03")
+    assert q("2027Q1") == ("2027-01", None)
+    assert q("2027Q1 -") == ("2027-01", None)
+    assert q("- 2027Q1") == ("2026-10", "2027-03")
+    for bad in ("", "-", "2027Q5", "2027Q2 - 2027Q1", "11/2026", "2027", "hello 2027Q1"):
+        assert q(bad) is None, bad
+    assert parse_periods("2026H2 - 2027H1", 6, "2026-07") == ("2026-07", "2027-06")
+    assert parse_periods("2027", 12, "2026-01") == ("2027-01", None)
+    assert parse_periods("2026 - 2027", 12, "2026-01") == ("2026-01", "2027-12")
+    assert parse_periods("11/2026 - 01/27", 1, "2026-11") == ("2026-11", "2027-01")
