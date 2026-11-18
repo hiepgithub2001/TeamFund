@@ -1,7 +1,7 @@
 """Use cases: the team roster. Only managers can see or change it (it holds phone numbers)."""
 from ..domain.entities import Member, Team
 from ..domain.errors import DomainError, invalid
-from ..domain.rules import MAX_FEE, MEMBER_FIELD_LIMITS, MEMBER_STATUSES
+from ..domain.rules import MAX_FEE, MEMBER_FIELD_LIMITS, MEMBER_STATUSES, on_plan
 from . import billing
 from .access import manager_team
 from .billing import bill_dict
@@ -26,10 +26,14 @@ class MemberUseCases:
         owes = sum(b.amount for b in uow.bills.unpaid_of_member(m.id))
         plans = billing.plans_of(uow, team)
         fee, months = billing.fee_of(team, m, plans, self.d.clock.current_period())
-        on_plan = billing.plan_for(m, plans, self.d.clock.current_period()) is not None
+        period = self.d.clock.current_period()
+        current = billing.plan_for(m, plans, period) is not None
+        mine = sorted((x for x in plans.ms.get(m.id, []) if x.plan_id in plans), key=lambda x: x.start or "")
+        packs = [{"amount": plans[x.plan_id].amount, "months": plans[x.plan_id].months, "from": x.start,
+                  "until": x.until, "now": on_plan(x, period)} for x in mine]
         return {"id": m.id, "name": m.name, "nickname": m.nickname, "shirt_number": m.shirt_number,
                 "phone": m.phone, "note": m.note, "fee_override": m.fee_override, "fee": fee, "months": months,
-                "on_plan": on_plan, "status": m.status, "owes": owes}
+                "on_plan": current, "plans": packs, "status": m.status, "owes": owes}
 
     @staticmethod
     def _get(uow: UnitOfWork, team: Team, member_id: int) -> Member:

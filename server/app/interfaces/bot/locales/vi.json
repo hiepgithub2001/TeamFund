@@ -543,5 +543,9 @@
  "plans.overlap_hint": "Chọn thời gian không trùng cho gói này (ví dụ Từ kỳ sau), hoặc rút ngắn gói kia trong 📅 Thời gian áp dụng.",
  "window.open_end": "không thời hạn",
  "err.plan_overlap": "Trùng thời gian với gói khác: {names}.",
- "plans.terms_default": "📅⏰ hạn đóng và phạt trễ như gói mặc định"
+ "plans.terms_default": "📅⏰ hạn đóng và phạt trễ như gói mặc định",
+ "member.plans": "💳 <b>Gói phí ({n})</b>:",
+ "member.pack_from": "từ {p}",
+ "member.pack_until": "đến {p}",
+ "member.pack_now": " ✅ đang áp dụng"
 }

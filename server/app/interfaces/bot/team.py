@@ -273,6 +273,21 @@ async def members_list(ev, entry, lang, edit_in_place: bool = False) -> None:
         await say(ev, text, reply_markup=markup)
 
 
+def member_pack_line(lang: str, p: dict) -> str:
+    """"• 200.000đ/quý · 2026Q4 ✅ đang áp dụng", "• 600.000đ/quý · từ 2027Q1"."""
+    n = p["months"]
+    a = period_name(p["from"], n) if p.get("from") else None
+    b = period_name(p["until"], n) if p.get("until") else None
+    if a and b:
+        when = a if a == b else f"{a} – {b}"
+    elif a:
+        when = t(lang, "member.pack_from", p=a)
+    else:
+        when = t(lang, "member.pack_until", p=b) if b else ""
+    tag = t(lang, "member.pack_now") if p.get("now") else ""
+    return f"• {fee_text(lang, p['amount'], n)} · {when}{tag}"
+
+
 def member_view(lang, m):
     dash = lambda v: esc(v) if v else "—"  # noqa: E731
     text = t(lang, "member.detail", name=esc(m["name"]), nickname=dash(m["nickname"]), shirt=dash(m["shirt_number"]),
@@ -280,6 +295,10 @@ def member_view(lang, m):
              custom=t(lang, "member.on_plan") if m.get("on_plan")
              else t(lang, "member.custom") if m["fee_override"] is not None else "",
              status=t(lang, f"status.{m['status']}"), owes=money(m["owes"], lang))
+    if m.get("plans"):
+        text += "\n\n" + t(lang, "member.plans", n=len(m["plans"]))
+        for p in m["plans"]:
+            text += "\n" + member_pack_line(lang, p)
     i = m["id"]
     paused = m["status"] == "paused"
     markup = kb(

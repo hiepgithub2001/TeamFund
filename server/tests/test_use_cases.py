@@ -924,6 +924,9 @@ def test_several_plans_without_overlap():
     on = {p["amount"]: [(m["name"], m["from"], m["until"]) for m in p["members"]] for p in view["plans"]}
     assert on == {200000: [("An", "2026-10", None), ("Khải", "2027-01", None)], 600000: [("Khải", "2026-10", "2026-12")]}
     assert code(svc.plans.set_window, tid, OWNER, big["id"], [kh], "2026-10", "2027-03") == "plan_overlap"
+    card = next(m for m in svc.members.list_members(tid, OWNER) if m["id"] == kh)
+    assert [(p["amount"], p["from"], p["until"], p["now"]) for p in card["plans"]] == [
+        (600000, "2026-10", "2026-12", True), (200000, "2027-01", None, False)], "the card lists every package"
 
     fee = lambda name: [(b["period_label"], b["amount"]) for g in svc.money.unpaid(tid) if g["name"] == name  # noqa: E731
                         for b in g["bills"]]
@@ -938,3 +941,4 @@ def test_several_plans_without_overlap():
     entry = next(x for x in svc.undo.recent(tid, OWNER) if x["action"] == "plan.save")
     svc.undo.undo(tid, OWNER, entry["id"])
     assert sorted(p["amount"] for p in svc.plans.list_plans(tid, OWNER)["plans"]) == [200000, 600000]
+
