@@ -105,7 +105,7 @@ class WebUseCases:
         plans = billing.plans_of(uow, team)
         out = []
         for m in members:
-            fee, months = billing.fee_of(team, m, plans)
+            fee, months = billing.fee_of(team, m, plans, self.d.clock.current_period())
             out.append({"id": m.id, "name": m.name, "nickname": m.nickname, "shirt_number": m.shirt_number, "status": m.status,
                         "fee": fee, "months": months,
                         "owes": sum(b.amount for b in uow.bills.unpaid_of_member(m.id))})

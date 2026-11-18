@@ -73,3 +73,24 @@ def split_date(text: str, today: date) -> tuple[str, date | None, bool]:
         return title, date(year, mo, d), True
     except ValueError:
         return title, None, False
+
+
+_PERIOD_RE = r"(\d{1,2})[/-](\d{2}|\d{4})"
+
+
+def _period(mm: str, yy: str) -> str | None:
+    m, y = int(mm), int(yy) + (2000 if len(yy) == 2 else 0)
+    return f"{y:04d}-{m:02d}" if 1 <= m <= 12 and 2000 <= y <= 2099 else None
+
+
+def parse_window(text: str, default_start: str) -> tuple[str, str | None] | None:
+    """The months a plan applies: "11/2026" (from, for good), "11/2026 - 06/2027", "- 06/2027" (from the
+    default start), "11/2026 -". Months as mm/yyyy or mm/yy. None when it doesn't read."""
+    m = re.fullmatch(rf"\s*(?:{_PERIOD_RE})?\s*(?:(-|–|đến|den|to)\s*(?:{_PERIOD_RE})?)?\s*", (text or "").lower())
+    if not m or not (m.group(1) or m.group(4)):
+        return None
+    start = _period(m.group(1), m.group(2)) if m.group(1) else default_start
+    until = _period(m.group(4), m.group(5)) if m.group(4) else None
+    if start is None or (m.group(4) and until is None) or (until is not None and until < start):
+        return None
+    return start, until

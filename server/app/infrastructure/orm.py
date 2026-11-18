@@ -71,6 +71,7 @@ members = Table(
     Column("nickname", String(64)), Column("shirt_number", String(8)), Column("phone", String(32)),
     Column("note", String(255)), Column("fee_override", Integer), Column("status", String(16), nullable=False),
     Column("created_at", DateTime, nullable=False), Column("plan_id", Integer),
+    Column("plan_from", String(7)), Column("plan_until", String(7)),
 )
 
 fee_plans = Table(
@@ -99,6 +100,7 @@ bills = Table(
     Column("status", String(16), nullable=False), Column("monthly_key", String(32), unique=True),
     Column("payment_id", ForeignKey("payments.id")), Column("created_at", DateTime, nullable=False),
     Column("paid_at", DateTime), Column("months", Integer), Column("plan_id", Integer),
+    Column("due_on", Date),
 )
 
 payment_intents = Table(

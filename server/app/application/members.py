@@ -25,8 +25,8 @@ class MemberUseCases:
     def _dict(self, uow: UnitOfWork, team: Team, m: Member) -> dict:
         owes = sum(b.amount for b in uow.bills.unpaid_of_member(m.id))
         plans = billing.plans_of(uow, team)
-        fee, months = billing.fee_of(team, m, plans)
-        on_plan = m.plan_id in plans
+        fee, months = billing.fee_of(team, m, plans, self.d.clock.current_period())
+        on_plan = billing.plan_for(m, plans, self.d.clock.current_period()) is not None
         return {"id": m.id, "name": m.name, "nickname": m.nickname, "shirt_number": m.shirt_number,
                 "phone": m.phone, "note": m.note, "fee_override": m.fee_override, "fee": fee, "months": months,
                 "on_plan": on_plan, "status": m.status, "owes": owes}
@@ -77,7 +77,7 @@ class MemberUseCases:
             for k, v in clean.items():
                 setattr(m, k, v)
             if "fee_override" in clean:
-                m.plan_id = None  # an own monthly fee takes the member off their plan
+                m.plan_id = m.plan_from = m.plan_until = None  # an own monthly fee takes the member off their plan
                 uow.flush()
                 billing.reprice_current_month(uow, self.d, team)
             audit(uow, self.d.clock, team.id, actor, "member.update", target=m.name, before=before, after=clean)

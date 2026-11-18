@@ -112,6 +112,10 @@ class Member:
     note: str | None = None
     fee_override: int | None = None
     plan_id: int | None = None   # a fee plan (amount + cycle); None: the team fee, or fee_override, every month
+    # the months the plan applies, YYYY-MM, both inclusive; None: since always / for good. Outside them the
+    # member pays the default package.
+    plan_from: str | None = None
+    plan_until: str | None = None
     status: str = "active"  # active|paused|left
     created_at: datetime | None = None
     id: int | None = None
@@ -146,6 +150,7 @@ class Bill:
     monthly_key: str | None = None
     months: int | None = None  # fee bills: how many months from `period` this bill covers (None = 1)
     plan_id: int | None = None  # fee and late bills: the plan billed under (None: the default package)
+    due_on: date | None = None  # fee bills: an own due date (someone who joined mid-period), else the package's
     payment_id: int | None = None
     created_at: datetime | None = None
     paid_at: datetime | None = None

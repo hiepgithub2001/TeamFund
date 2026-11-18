@@ -1,12 +1,14 @@
 """Use cases: fee plans. Managers put members on a plan (amount + cycle, e.g. 300,000đ per quarter);
 everyone else pays the team fee (or their own monthly fee) every month.
 
-A member is on at most one plan. Bills follow standard periods (quarters Jan–Mar … Oct–Dec, half-years,
+A member is on at most one plan, for a window of months: from the period they're put on it, for good,
+unless a manager sets other months (a guest for one quarter, someone who joined mid-quarter). Outside the
+window they pay the default package. Bills follow standard periods (quarters Jan–Mar … Oct–Dec, half-years,
 years): one bill covers the period. Months a member already paid aren't billed again; the rest of the period
 is priced pro rata. Changing a plan reprices the unpaid bill covering this month (like the default fee)."""
 from ..domain.entities import FeePlan, Team
 from ..domain.errors import DomainError, invalid
-from ..domain.rules import CYCLES, MAX_DUE_DAYS, MAX_FEE, MAX_LATE_FEE, terms
+from ..domain.rules import CYCLES, MAX_DUE_DAYS, MAX_FEE, MAX_LATE_FEE, cycle_start, is_period, terms
 from . import billing
 from .access import manager_team
 from .people import audit
@@ -37,21 +39,23 @@ class PlanUseCases:
             team = manager_team(uow, team_id, actor)
             return self._view(uow, team)
 
-    @staticmethod
-    def _view(uow: UnitOfWork, team: Team) -> dict:
+    def _view(self, uow: UnitOfWork, team: Team) -> dict:
         members = sorted(uow.members.of_team(team.id), key=lambda m: m.name.casefold())
+        period = self.d.clock.current_period()
         plans = uow.plans.of_team(team.id)
         ids = {p.id for p in plans}
-        on = lambda pid: [{"id": m.id, "name": m.name} for m in members if m.plan_id == pid]  # noqa: E731
+        on = lambda pid: [{"id": m.id, "name": m.name, "from": m.plan_from, "until": m.plan_until}  # noqa: E731
+                          for m in members if m.plan_id == pid]
 
         def tm(plan=None) -> dict:
             t = terms(team, plan)
             return {"notify_day": t.notify_day, "due_days": t.due_days, "late_fee": t.late_fee,
                     "own_schedule": plan is None or bool(plan.notify_day),
                     "own_late": plan is None or plan.late_fee is not None}
-        return {"fee": team.fee, "default": tm(),
+        return {"fee": team.fee, "default": tm(), "period": period,
                 "default_members": [{"id": m.id, "name": m.name} for m in members if m.plan_id not in ids],
-                "plans": [{"id": p.id, "amount": p.amount, "months": p.months, "members": on(p.id), **tm(p)}
+                "plans": [{"id": p.id, "amount": p.amount, "months": p.months, "members": on(p.id), "period": period,
+                           **tm(p)}
                           for p in plans]}
 
     def get_plan(self, team_id: int, actor: int, plan_id: int) -> dict:
@@ -88,11 +92,12 @@ class PlanUseCases:
             if len(chosen) != len(set(member_ids)):
                 raise DomainError(404, "not_found")
             picked = {m.id for m in chosen}
+            start = cycle_start(self.d.clock.current_period(), months)
             for m in uow.members.of_team(team.id, include_left=True):
-                if m.id in picked:
-                    m.plan_id = plan.id
-                elif m.plan_id == plan.id and plan_id is not None:
-                    m.plan_id = None
+                if m.id in picked and m.plan_id != plan.id:  # joins: from this period, for good
+                    m.plan_id, m.plan_from, m.plan_until = plan.id, start, None
+                elif m.plan_id == plan.id and m.id not in picked and plan_id is not None:
+                    m.plan_id = m.plan_from = m.plan_until = None
             uow.flush()
             self._drop_empty(uow, team)
             billing.reprice_current_month(uow, self.d, team)
@@ -100,6 +105,32 @@ class PlanUseCases:
                   after={"amount": amount, "months": months, "members": sorted(m.name for m in chosen)})
             uow.commit()
             billing.ensure_bills(uow, self.d, team)
+            return next(x for x in self._view(uow, team)["plans"] if x["id"] == plan.id)
+
+    def set_window(self, team_id: int, actor: int, plan_id: int, member_ids: list, start: str | None,
+                   until: str | None) -> dict:
+        """The months a plan applies to these members (YYYY-MM, both inclusive; until None: for good).
+        A start inside a period bills only the months left, due counting from today; before `start` and
+        after `until` they pay the default package. This month's unpaid bill follows at once."""
+        if (not is_period(start) or (until is not None and (not is_period(until) or until < start))
+                or not isinstance(member_ids, list) or not 1 <= len(member_ids) <= 200
+                or not all(isinstance(i, int) and not isinstance(i, bool) for i in member_ids)):
+            raise invalid()
+        with self.d.uow() as uow:
+            team = manager_team(uow, team_id, actor)
+            plan = _plan(uow, team, plan_id)
+            chosen = uow.members.of_team(team.id, ids=list(dict.fromkeys(member_ids)))
+            if len(chosen) != len(set(member_ids)) or any(m.plan_id != plan.id for m in chosen):
+                raise DomainError(404, "not_found")
+            for m in chosen:
+                m.plan_from, m.plan_until = start, until
+            uow.flush()
+            billing.reprice_current_month(uow, self.d, team)
+            audit(uow, self.d.clock, team.id, actor, "plan.window", target=_label(plan),
+                  after={"members": sorted(m.name for m in chosen), "from": start, "until": until})
+            uow.commit()
+            billing.ensure_bills(uow, self.d, team)
+            billing.update_late_fees(uow, self.d, team)
             return next(x for x in self._view(uow, team)["plans"] if x["id"] == plan.id)
 
     def set_terms(self, team_id: int, actor: int, plan_id: int | None, schedule: tuple[int, int] | None = None,
@@ -151,7 +182,7 @@ class PlanUseCases:
             plan = _plan(uow, team, plan_id)
             moved = [m for m in uow.members.of_team(team.id, include_left=True) if m.plan_id == plan.id]
             for m in moved:
-                m.plan_id = None
+                m.plan_id = m.plan_from = m.plan_until = None
             label, info = _label(plan), {"amount": plan.amount, "months": plan.months}
             uow.plans.remove(plan)
             uow.flush()
@@ -168,5 +199,5 @@ class PlanUseCases:
             if p.id not in used:
                 for m in uow.members.of_team(team.id, include_left=True):
                     if m.plan_id == p.id:
-                        m.plan_id = None
+                        m.plan_id = m.plan_from = m.plan_until = None
                 uow.plans.remove(p)

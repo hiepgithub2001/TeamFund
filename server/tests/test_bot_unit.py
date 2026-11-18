@@ -69,3 +69,15 @@ def test_amount_forms():
              "2tr250": 2250000, "200.000 đồng": 200000, "0": None, "abc": None, "1kk": None}
     for raw, want in cases.items():
         assert parse_amount(raw) == want, raw
+
+
+def test_parse_window():
+    from app.interfaces.bot.fmt import parse_window
+    d = "2026-10"
+    assert parse_window("11/2026", d) == ("2026-11", None)
+    assert parse_window("11/2026 - 06/2027", d) == ("2026-11", "2027-06")
+    assert parse_window("11-2026 đến 6/27", d) == ("2026-11", "2027-06")
+    assert parse_window("- 12/2026", d) == ("2026-10", "2026-12")
+    assert parse_window("11/2026 -", d) == ("2026-11", None)
+    for bad in ("", "-", "13/2026", "12/2026 - 11/2026", "hello", "11/2026 - x"):
+        assert parse_window(bad, d) is None, bad

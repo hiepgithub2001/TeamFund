@@ -432,6 +432,8 @@ async def main():
             await T(cb_update(OWNER, d, pick["message_id"]))
         await wait_sent(lambda c: c["method"] == "editMessageText" and "Plan saved" in c["params"]["text"]
                         and "Members (2): Cường, Dũng" in c["params"]["text"], "quarter plan saved")
+        await wait_sent(to(OWNER, "For which months does <b>300,000đ/quarter</b> apply to <b>Cường, Dũng</b>"),
+                        "new members are asked how long")
         await T(text_update(OWNER, "/plans 150k month"))
         pick = await wait_sent(to(OWNER, "Choose who pays <b>150,000đ/month"), "quick plan picker")
         await T(cb_update(OWNER, "k:t:0", pick["message_id"]))
@@ -600,6 +602,42 @@ async def main():
         await T(cb_update(OWNER, "un:l", lst["message_id"]))
         await wait_sent(lambda c: c["method"] == "editMessageText" and "Pick an action to undo" in c["params"]["text"]
                         and "Typo" not in json.dumps(c["params"].get("reply_markup")), "the list without it")
+
+        # 16. how long a package applies: Cường joined this month, Dũng only for this quarter
+        from datetime import date as _date
+        today = _date.today()
+        q_start = f"{(today.month - 1) // 3 * 3 + 1:02d}/{today.year}"
+        q_end = f"{(today.month - 1) // 3 * 3 + 3:02d}/{today.year}"
+        await T(text_update(OWNER, "/plans"))
+        plans = await wait_sent(to(OWNER, "Fee plans"), "plans for windows")
+        quarter = next(b["callback_data"] for row in plans["params"]["reply_markup"]["inline_keyboard"] for b in row
+                       if "quarter" in b["text"])
+        await T(cb_update(OWNER, quarter, plans["message_id"]))
+        view = await wait_sent(lambda c: c["method"] == "editMessageText" and "Members (2)" in c["params"]["text"],
+                               "quarter plan view")
+        win = next(d for d in buttons(view) if d.startswith("p:w:"))
+
+        async def set_window(index, choice, reply=None):
+            await T(cb_update(OWNER, win, view["message_id"]))
+            pick = await wait_sent(to(OWNER, "set the months it applies"), "window picker")
+            await T(cb_update(OWNER, f"k:t:{index}", pick["message_id"]))
+            mark = len(calls)
+            await T(cb_update(OWNER, "k:ok", pick["message_id"]))
+            menu = await until(lambda: next((c for c in calls[mark:] if c["method"] == "editMessageText"
+                                             and "For which months" in c["params"]["text"]), None), "window menu")
+            assert choice in buttons(menu), buttons(menu)
+            await T(cb_update(OWNER, choice, pick["message_id"]))
+            if reply:
+                await wait_sent(to(OWNER, "Send the first and last month"), "months asked")
+                await T(text_update(OWNER, reply))
+
+        if today.month % 3 != 1:  # not the quarter's first month: "from this month" is offered
+            await set_window(0, "w:mon")
+            await wait_sent(lambda c: "Months set: " in (c["params"].get("text") or "")
+                            and f"Cường (from {today.month:02d}/{today.year})" in c["params"]["text"], "joined mid-quarter")
+        await set_window(1, "w:in", f"- {q_end}")
+        await wait_sent(lambda c: to(OWNER, f"Months set: {q_start}–{q_end}")(c)
+                        and f"Dũng (until {q_end})" in c["params"]["text"], "one quarter only")
 
         print(f"e2e passed ({len(calls)} Telegram API calls)")
     finally:

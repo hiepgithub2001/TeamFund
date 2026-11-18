@@ -679,3 +679,62 @@ def test_standard_quarters():
     assert [(b["period_label"], b["amount"]) for b in bills] == [("11/2026–12/2026", 400000)], "Nov–Dec only"
     clock.local = clock.local.replace(year=2027, month=1)
     assert [b["period_label"] for b in svc.money.unpaid(tid)[0]["bills"]][-1] == "01/2027–03/2027"
+
+
+def test_plan_window():
+    """A plan applies from the period a member joins it, for good, unless a manager picks other months:
+    from this month (mid-quarter: the months left, due counting from today), or only some periods."""
+    from datetime import date
+    from app.domain.rules import cycle_bill
+    assert cycle_bill(600000, 3, "2026-10", until="2026-11") == (2, 400000)
+    svc, clock, _ = make_services(datetime(2026, 11, 20, 10, 0))
+    tid = setup_team(svc)
+    names = ["An", "Bình", "Cường", "Dũng"]
+    ids = dict(zip(names, [m["id"] for m in svc.members.add_members(tid, OWNER, [{"name": n} for n in names])]))
+    p = svc.plans.save_plan(tid, OWNER, 600000, 3, list(ids.values()))
+    assert {m["name"]: (m["from"], m["until"]) for m in p["members"]} == {n: ("2026-10", None) for n in names}
+    svc.plans.set_terms(tid, OWNER, p["id"], late_fee=1000)
+
+    svc.plans.set_window(tid, OWNER, p["id"], [ids["Bình"]], "2026-11", None)  # joined in November
+    svc.plans.set_window(tid, OWNER, p["id"], [ids["Cường"]], "2026-10", "2026-12")  # one quarter only
+    svc.plans.set_window(tid, OWNER, p["id"], [ids["Dũng"]], "2026-10", "2026-11")  # leaves after November
+    assert code(svc.plans.set_window, tid, OWNER, p["id"], [ids["An"]], "2026-12", "2026-11") == "invalid"
+    assert code(svc.plans.set_window, tid, OWNER, p["id"], [ids["An"]], "11/2026", None) == "invalid"
+
+    owed = {g["name"]: g for g in svc.money.unpaid(tid)}
+    fee = lambda n: [(b["period_label"], b["amount"]) for b in owed[n]["bills"] if b["kind"] == "monthly"]  # noqa: E731
+    late = lambda n: sum(b["amount"] for b in owed[n]["bills"] if b["kind"] == "late")  # noqa: E731
+    assert fee("An") == [("10/2026–12/2026", 600000)] and late("An") > 0, "the whole quarter, fined since its due date"
+    assert fee("Bình") == [("11/2026–12/2026", 400000)] and late("Bình") == 0, "the months left, no fine yet"
+    assert fee("Cường") == [("10/2026–12/2026", 600000)]
+    assert fee("Dũng") == [("10/2026–11/2026", 400000)]
+    with svc.plans.d.uow() as uow:
+        due = {b.member_id: b.due_on for b in uow.bills.of_team(tid) if b.kind == "monthly"} \
+            if hasattr(uow.bills, "of_team") else None
+    if due is not None:
+        assert due[ids["Bình"]] == date(2026, 11, 25) and due[ids["An"]] is None
+
+    clock.local = clock.local.replace(day=27)
+    svc.jobs.late_fees()
+    owed = {g["name"]: g for g in svc.money.unpaid(tid)}
+    assert late("Bình") == 2000, "fined from 25/11, not from the quarter's due date"
+
+    # next quarter: An and Bình are billed again; Cường and Dũng are back on the default package (none)
+    clock.local = clock.local.replace(year=2027, month=1, day=2)
+    svc.jobs.open_month()
+    owed = {g["name"]: g for g in svc.money.unpaid(tid)}
+    assert fee("An")[-1] == ("01/2027–03/2027", 600000) and fee("Bình")[-1] == ("01/2027–03/2027", 600000)
+    assert fee("Cường") == [("10/2026–12/2026", 600000)] and fee("Dũng") == [("10/2026–11/2026", 400000)]
+
+
+def test_undo_plan_window():
+    svc, clock, _ = make_services(datetime(2026, 11, 20, 10, 0))
+    tid = setup_team(svc)
+    an, = [m["id"] for m in svc.members.add_members(tid, OWNER, [{"name": "An"}])]
+    p = svc.plans.save_plan(tid, OWNER, 600000, 3, [an])
+    svc.plans.set_window(tid, OWNER, p["id"], [an], "2026-11", None)
+    assert svc.money.unpaid(tid)[0]["total"] == 400000
+    entry = next(v for v in svc.undo.recent(tid, OWNER) if v["action"] == "plan.window")
+    svc.undo.undo(tid, OWNER, entry["id"])
+    assert svc.money.unpaid(tid)[0]["total"] == 600000
+    assert svc.plans.get_plan(tid, OWNER, p["id"])["members"][0]["from"] == "2026-10"

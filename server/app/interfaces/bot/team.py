@@ -12,10 +12,11 @@ from aiogram.types import BufferedInputFile, CallbackQuery, ChatMemberUpdated, F
 
 from ..deps import S
 from .commands import clear_admin_commands, set_admin_commands
-from .fmt import amount_and_title, esc, money, parse_amount, split_date, strip_tags
+from .fmt import amount_and_title, esc, money, parse_amount, parse_window, split_date, strip_tags
 from .i18n import has, t
 from .lang import lang_for, set_lang
 from ...domain.errors import DomainError
+from ...domain.rules import add_months, cycle_start, period_label
 from .render import (bill_label, edit, error_text, fee_text, is_private, kb, owes_lines, pay_keyboard, say,
                      status_text)
 from .run import call
@@ -42,6 +43,10 @@ def pick_key(bot_id, chat_id, msg_id) -> str:
 
 def input_key(bot_id, chat_id) -> str:
     return f"in:{bot_id}:{chat_id}"
+
+
+def window_key(bot_id, chat_id) -> str:
+    return f"win:{bot_id}:{chat_id}"
 
 
 async def role(entry, user) -> str | None:
@@ -96,7 +101,7 @@ async def broadcast(entry, text: str, photo: str | None = None, reply_markup=Non
 # ---- multi-select picker (pay, charge, split, cash, assign) ------------------------------------------
 
 def picker_keyboard(lang, st):
-    per_row = 1 if st["kind"] in ("pay", "markpaid", "assign", "plan") else 2
+    per_row = 1 if st["kind"] in ("pay", "markpaid", "assign", "plan", "window") else 2
     buttons = [(f"{'✅' if o['id'] in st['selected'] else '☐'} {o['label']}", f"k:t:{i}")
                for i, o in enumerate(st["options"])]
     rows = [buttons[i:i + per_row] for i in range(0, len(buttons), per_row)]
@@ -189,6 +194,15 @@ async def on_picker_confirm(cq: CallbackQuery, entry, lang, st, key) -> None:
         await cq.answer()
         text, markup = plan_view(lang, plan)
         await edit(cq, f"{t(lang, 'plans.saved')}\n\n{text}", markup)
+        joined = [m for m in plan["members"] if m["id"] not in dt.get("before", [])]
+        if joined:
+            await open_window_menu(cq, lang, plan, joined)
+    elif st["kind"] == "window":
+        plan = await call(S.plans.get_plan, tid(entry), cq.from_user.id, st["data"]["plan_id"])
+        del_state(key)
+        await cq.answer()
+        chosen = [m for m in plan["members"] if m["id"] in ids]
+        await open_window_menu(cq, lang, plan, chosen, edit_in_place=True)
     elif st["kind"] == "assign":
         r = await call(S.money.assign, tid(entry), cq.from_user.id, st["data"]["payment_id"], ids)
         del_state(key)
@@ -836,15 +850,32 @@ def terms_text(lang: str, x: dict) -> str:
             f"{late}{inherit if not x.get('own_late', True) else ''}")
 
 
+def window_text(lang: str, m: dict, months: int, period: str) -> str:
+    """How long a member is on a plan, when it isn't simply "from this period, for good":
+    " (từ 11/2026)", " (đến 12/2026)", " (11/2026–06/2027)", " (đã hết 12/2026)"."""
+    f, u = m.get("from"), m.get("until")
+    late = bool(f) and f > cycle_start(period, months)
+    if u and u < period:
+        return t(lang, "window.ended", until=period_label(u))
+    if late and u:
+        return f" ({period_label(f)}–{period_label(u)})"
+    if late:
+        return t(lang, "window.from", start=period_label(f))
+    return t(lang, "window.until", until=period_label(u)) if u else ""
+
+
+def member_names(lang: str, p: dict) -> str:
+    return ", ".join(esc(m["name"]) + window_text(lang, m, p["months"], p["period"]) for m in p["members"])
+
+
 def plans_text(lang: str, v: dict) -> str:
-    names = lambda ms: ", ".join(esc(m["name"]) for m in ms)  # noqa: E731
     lines = [t(lang, "plans.title"),
              (t(lang, "plans.default", fee=money(v["fee"], lang), n=len(v["default_members"])) if v["fee"]
               else t(lang, "plans.default_none", n=len(v["default_members"])))
              + "\n   " + terms_text(lang, v["default"])]
     for p in v["plans"]:
         fee = fee_text(lang, p["amount"], p["months"])
-        lines.append((t(lang, "plans.line", fee=fee, names=names(p["members"])) if p["members"]
+        lines.append((t(lang, "plans.line", fee=fee, names=member_names(lang, p)) if p["members"]
                       else t(lang, "plans.empty_line", fee=fee)) + "\n   " + terms_text(lang, p))
     if not v["plans"]:
         lines.append(t(lang, "plans.none"))
@@ -854,9 +885,10 @@ def plans_text(lang: str, v: dict) -> str:
 def plan_view(lang: str, p: dict):
     fee = fee_text(lang, p["amount"], p["months"])
     text = t(lang, "plans.view", fee=fee, n=len(p["members"]),
-             names=", ".join(esc(m["name"]) for m in p["members"]) or "—") + "\n" + terms_text(lang, p)
+             names=member_names(lang, p) or "—") + "\n" + terms_text(lang, p)
     i = p["id"]
     return text, kb([(t(lang, "btn.plan_members"), f"p:m:{i}"), (t(lang, "btn.plan_amount"), f"p:a:{i}")],
+                    [(t(lang, "btn.plan_window"), f"p:w:{i}")] if p["members"] else [],
                     [(t(lang, "btn.plan_due"), f"p:ds:{i}"), (t(lang, "btn.plan_late"), f"p:dl:{i}")],
                     [(t(lang, "btn.plan_cycle"), f"p:k:{i}"), (t(lang, "btn.plan_delete"), f"p:d:{i}")],
                     [(t(lang, "btn.back"), "p:l")])
@@ -876,6 +908,89 @@ def cycle_keyboard(lang: str, prefix: str, back: str):
     return kb([(t(lang, "cycle.1").capitalize(), f"{prefix}1"), (t(lang, "cycle.3").capitalize(), f"{prefix}3")],
               [(t(lang, "cycle.6").capitalize(), f"{prefix}6"), (t(lang, "cycle.12").capitalize(), f"{prefix}12")],
               [(t(lang, "btn.cancel"), back)])
+
+
+def window_choices(p: dict) -> dict[str, tuple[str, str | None]]:
+    """The quick choices for a plan's months, as (from, until): this period on for good, this month on
+    (someone joining mid-period), or the next 1–3 periods only."""
+    n, period = p["months"], p["period"]
+    start = cycle_start(period, n)
+    out = {"cur": (start, None)}
+    if period != start:
+        out["mon"] = (period, None)
+    for k in (1, 2, 3):
+        out[str(k)] = (start, add_months(start, k * n - 1))
+    return out
+
+
+async def open_window_menu(ev, lang, p: dict, members: list[dict], edit_in_place: bool = False) -> None:
+    """Ask for how long these members are on plan p."""
+    if not members:
+        return
+    c = window_choices(p)
+    set_state(window_key(ev.bot.id, ev.message.chat.id if isinstance(ev, CallbackQuery) else ev.chat.id),
+              {"plan_id": p["id"], "ids": [m["id"] for m in members]}, 600)
+    cur = period_label(c["cur"][0], p["months"])
+    rows = [[(t(lang, "btn.window_cur", period=cur), "w:cur")]]
+    if "mon" in c:
+        rows.append([(t(lang, "btn.window_mon", period=period_label(c["mon"][0])), "w:mon")])
+    rows.append([(t(lang, "btn.window_n", n=k, until=period_label(c[k][1])), f"w:{k}") for k in ("1", "2", "3")])
+    rows += [[(t(lang, "btn.window_in"), "w:in")], [(t(lang, "btn.window_keep"), "w:x")]]
+    text = t(lang, "window.ask", fee=fee_text(lang, p["amount"], p["months"]),
+             names=", ".join(esc(m["name"]) for m in members), cur=cur)
+    if edit_in_place:
+        await edit(ev, text, kb(*rows))
+    else:
+        await say(ev, text, reply_markup=kb(*rows))
+
+
+async def apply_window(ev, entry, lang, st: dict, start: str, until: str | None, edit_in_place: bool) -> None:
+    p = await call(S.plans.set_window, tid(entry), ev.from_user.id, st["plan_id"], st["ids"], start, until)
+    text, markup = plan_view(lang, p)
+    span = period_label(start) + (f"–{period_label(until)}" if until else t(lang, "window.forever"))
+    out = f"{t(lang, 'window.saved', span=span)}\n\n{text}"
+    if edit_in_place:
+        await edit(ev, out, markup)
+    else:
+        await say(ev, out, reply_markup=markup)
+
+
+@router.callback_query(F.data.regexp(r"^w:(cur|mon|1|2|3|in|x)$").as_("m"))
+async def on_window(cq: CallbackQuery, m: re.Match, entry, lang):
+    if not await allow(cq, entry, lang, "manager"):
+        return
+    key, choice = window_key(cq.bot.id, cq.message.chat.id), m.group(1)
+    st = get_state(key)
+    await cq.answer()
+    if not st or choice == "x":
+        del_state(key)
+        await edit(cq, t(lang, "window.kept" if st else "err.menu_expired"))
+        return
+    p = await call(S.plans.get_plan, tid(entry), cq.from_user.id, st["plan_id"])
+    if choice == "in":
+        set_state(input_key(cq.bot.id, cq.message.chat.id), {"type": "plan_window", **st}, 600)
+        await say(cq, t(lang, "window.ask_in", start=period_label(cycle_start(p["period"], p["months"]))),
+                  reply_markup=FORCE)
+        return
+    c = window_choices(p)
+    if choice not in c:
+        await edit(cq, t(lang, "err.menu_expired"))
+        return
+    del_state(key)
+    await apply_window(cq, entry, lang, st, *c[choice], edit_in_place=True)
+
+
+async def plan_window_reply(message: Message, entry, lang, st: dict, text: str) -> None:
+    p = await call(S.plans.get_plan, tid(entry), message.from_user.id, st["plan_id"])
+    w = parse_window(text, cycle_start(p["period"], p["months"]))
+    if w is None:
+        set_state(input_key(message.bot.id, message.chat.id), st, 600)
+        await message.answer(t(lang, "err.invalid") + "\n\n" +
+                             t(lang, "window.ask_in", start=period_label(cycle_start(p["period"], p["months"]))),
+                             reply_markup=FORCE)
+        return
+    del_state(window_key(message.bot.id, message.chat.id))
+    await apply_window(message, entry, lang, {"plan_id": st["plan_id"], "ids": st["ids"]}, *w, edit_in_place=False)
 
 
 async def plans_view(ev, entry, lang, edit_in_place: bool = False) -> None:
@@ -899,7 +1014,8 @@ async def open_plan_picker(ev, entry, lang, amount: int, months: int, plan: dict
         "kind": "plan", "title": t(lang, "plans.pick", fee=fee_text(lang, amount, months)),
         "options": [{"id": m["id"], "label": label(m)} for m in members],
         "selected": [m["id"] for m in plan["members"]] if plan else [],
-        "data": {"amount": amount, "months": months, "plan_id": plan["id"] if plan else None}})
+        "data": {"amount": amount, "months": months, "plan_id": plan["id"] if plan else None,
+                 "before": [m["id"] for m in plan["members"]] if plan else []}})
 
 
 @router.message(Command("plans"))
@@ -919,7 +1035,7 @@ async def cmd_plans(message: Message, command: CommandObject, entry, lang):
     await open_plan_picker(message, entry, lang, amount, months)
 
 
-@router.callback_query(F.data.regexp(r"^p:(l|n|f|fa|ds|dl|c|v|m|a|k|kc|d|dy)(?::(\d+))?(?::(\d+))?$").as_("m"))
+@router.callback_query(F.data.regexp(r"^p:(l|n|f|fa|ds|dl|c|v|m|w|a|k|kc|d|dy)(?::(\d+))?(?::(\d+))?$").as_("m"))
 async def on_plan(cq: CallbackQuery, m: re.Match, entry, lang):
     if not await allow(cq, entry, lang, "manager"):
         return
@@ -950,6 +1066,13 @@ async def on_plan(cq: CallbackQuery, m: re.Match, entry, lang):
     elif action == "m" and a:
         p = await call(S.plans.get_plan, team, user, int(a))
         await open_plan_picker(cq, entry, lang, p["amount"], p["months"], p)
+    elif action == "w" and a:  # how long some of the plan's members are on it
+        p = await call(S.plans.get_plan, team, user, int(a))
+        await open_picker(cq, lang, {
+            "kind": "window", "title": t(lang, "window.pick", fee=fee_text(lang, p["amount"], p["months"])),
+            "options": [{"id": x["id"], "label": x["name"] + window_text(lang, x, p["months"], p["period"])}
+                        for x in p["members"]],
+            "selected": [], "data": {"plan_id": p["id"]}})
     elif action == "a" and a:
         p = await call(S.plans.get_plan, team, user, int(a))
         set_state(input_key(cq.bot.id, cq.message.chat.id),
@@ -1392,6 +1515,8 @@ async def on_text(message: Message, entry, lang):
         await plan_terms_reply(message, entry, lang, st, text)
     elif st["type"] == "plan_amount":
         await plan_amount_reply(message, entry, lang, st, text)
+    elif st["type"] == "plan_window":
+        await plan_window_reply(message, entry, lang, st, text)
     elif st["type"] == "add":
         await add_members(message, entry, lang, text)
     elif st["type"] == "edit":

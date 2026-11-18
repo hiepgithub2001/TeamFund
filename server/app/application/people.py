@@ -18,7 +18,7 @@ def user_info(uow: UnitOfWork, tg_id: int) -> dict:
 # actions /undo can take back. Others (bank, SePay, managers, owner, links) change things outside the
 # database or decide who may act, so undo stops at them.
 UNDOABLE = {"expense.add", "income.add", "payment.cash", "payment.assign", "payment.other_income", "bill.charge",
-            "bill.split", "bill.waive", "plan.save", "plan.delete", "plan.terms", "team.settings", "member.add",
+            "bill.split", "bill.waive", "plan.save", "plan.window", "plan.delete", "plan.terms", "team.settings", "member.add",
             "member.update", "member.remove"}
 
 

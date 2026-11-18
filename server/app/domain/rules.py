@@ -57,12 +57,26 @@ def cycle_start(period: str, months: int) -> str:
     return f"{y:04d}-{(m - 1) // months * months + 1:02d}"
 
 
-def cycle_bill(amount: int, months: int, first: str) -> tuple[int, int]:
-    """(months, amount) of a fee bill starting in `first`: to the end of its standard period, priced for
-    the months it covers (600,000đ a quarter from November: 2 months, 400,000đ), rounded up to 1,000đ."""
+def cycle_bill(amount: int, months: int, first: str, until: str | None = None) -> tuple[int, int]:
+    """(months, amount) of a fee bill starting in `first`: to the end of its standard period (or `until`,
+    the plan's last month, if sooner), priced for the months it covers (600,000đ a quarter from November:
+    2 months, 400,000đ), rounded up to 1,000đ."""
     end = add_months(cycle_start(first, months), months)
+    if until is not None and add_months(until, 1) < end:
+        end = add_months(until, 1)
     k = months_between(first, end)
     return k, amount if k == months else int(math.ceil(amount * k / months / 1000) * 1000)
+
+
+def on_plan(member, period: str) -> bool:
+    """Does the member's plan apply in `period` (inside its from/until months)?"""
+    return ((member.plan_from is None or member.plan_from <= period)
+            and (member.plan_until is None or period <= member.plan_until))
+
+
+def is_period(v) -> bool:
+    """"2026-11"."""
+    return isinstance(v, str) and re.fullmatch(r"20\d\d-(0[1-9]|1[0-2])", v) is not None
 
 
 def covers(bill_period: str, months: int | None, period: str) -> bool:

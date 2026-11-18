@@ -370,5 +370,21 @@
  "act.team.create": "Tạo đội",
  "undo.pick": "↩️ <b>Chọn thao tác để hoàn tác</b> (7 ngày gần đây).\nChỉ hoàn tác được nếu dữ liệu của thao tác đó chưa bị thay đổi sau đó.",
  "err.undo_gone": "Thao tác này đã được hoàn tác hoặc không còn nữa.",
- "btn.undo_more": "↩️ Hoàn tác thao tác khác"
+ "btn.undo_more": "↩️ Hoàn tác thao tác khác",
+ "btn.plan_window": "📅 Thời gian áp dụng",
+ "window.pick": "📅 Chọn thành viên của gói <b>{fee}</b> để đặt thời gian áp dụng:",
+ "window.ask": "📅 Gói <b>{fee}</b> áp dụng cho <b>{names}</b> trong thời gian nào?\nMặc định: từ kỳ này ({cur}), không thời hạn. Hết thời gian, họ về gói mặc định.",
+ "btn.window_cur": "♾ Từ kỳ này ({period}), không thời hạn",
+ "btn.window_mon": "🆕 Từ tháng này ({period}): vào giữa kỳ",
+ "btn.window_n": "{n} kỳ · đến {until}",
+ "btn.window_in": "✏️ Nhập tháng",
+ "btn.window_keep": "Giữ nguyên",
+ "window.ask_in": "Gửi tháng bắt đầu và kết thúc, ví dụ <code>11/2026 - 06/2027</code>.\n• <code>11/2026</code>: từ 11/2026, không thời hạn\n• <code>- 06/2027</code>: từ {start} đến hết 06/2027\nBắt đầu giữa kỳ: chỉ tính các tháng còn lại, hạn đóng tính từ hôm nay.",
+ "window.saved": "✅ Đã đặt thời gian áp dụng: {span}. Khoản chưa đóng đã được cập nhật.",
+ "window.forever": " trở đi, không thời hạn",
+ "window.kept": "Giữ nguyên: từ kỳ này, không thời hạn.",
+ "window.from": " (từ {start})",
+ "window.until": " (đến {until})",
+ "window.ended": " (đã hết {until})",
+ "act.plan.window": "Đặt thời gian áp dụng gói"
 }
