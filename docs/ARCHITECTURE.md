@@ -62,7 +62,7 @@ No one signs in. Whoever opens the team bot sees this month's unpaid list and ta
 
 ![Sequence: a member starts the bot, selects names, receives a SePay QR with a unique code, transfers money, SePay sends a](diagrams/03-payment-flow.svg)
 
-_The unique code in the transfer memo is what lets the server match money to bills with no human check. Each intent expires after 24 hours. If the amount doesn't match or the code is missing, the transaction is still saved and a manager is asked to assign it. A transfer whose code matches an expired QR is saved but not matched on its own: the payer hears that a manager will confirm it, and managers get a card naming who the QR was for, with a one-tap ✅ Mark paid: … for them (or assign to pick others). SePay's transaction id is stored, so a repeated webhook can't count the same payment twice. For VietinBank accounts the memo is `SEVQR TF…`: SePay's VietinBank link only reports transfers whose content starts with `SEVQR`, and the server finds the TF code anywhere in the text._
+_The unique code in the transfer memo is what lets the server match money to bills with no human check. Bills being paid are locked in the database until the payment is saved (`SELECT … FOR UPDATE`), so a transfer and a `/markpaid` at the same moment, two managers recording the same cash, or two managers charging one match fee can't pay or bill anything twice. Each intent expires after 24 hours. If the amount doesn't match or the code is missing, the transaction is still saved and a manager is asked to assign it. A transfer whose code matches an expired QR is saved but not matched on its own: the payer hears that a manager will confirm it, and managers get a card naming who the QR was for, with a one-tap ✅ Mark paid: … for them (or assign to pick others). SePay's transaction id is stored, so a repeated webhook can't count the same payment twice. For VietinBank accounts the memo is `SEVQR TF…`: SePay's VietinBank link only reports transfers whose content starts with `SEVQR`, and the server finds the TF code anywhere in the text._
 
 ## Webhooks in detail
 
@@ -292,6 +292,7 @@ _Pushing to GitHub doesn't deploy anything by itself; running `scripts/deploy.sh
 | Telegram login (session) | database (`app_secrets`, Fernet, `TOKEN_ENC_KEY`) | A full login to the admin's account, used only to talk to @BotFather. Made by `python -m app.telegram_login`. It also appears in Telegram → Settings → Devices, where it can be ended; `… logout` does the same. |
 | All team data | volume `db_data` | Backed up daily by `scripts/backup.sh` to `~/backups`, kept 14 days |
 | TLS certificate | volume `caddy_data` | Renewed automatically by Caddy |
+| Container logs | Docker `json-file` | Capped at 3 × 10 MB per container (`x-logging` in `docker-compose.yml`), so they never fill the disk |
 | GitHub SSH key | `~/.ssh/id_ed25519_github` | Lets this VPS push and pull the repo; remove it from GitHub to revoke |
 
 ## First deploy on this VPS

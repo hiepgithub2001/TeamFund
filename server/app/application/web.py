@@ -58,7 +58,7 @@ class WebUseCases:
                     "fund": {k: fund[k] for k in ("income", "other_income", "expense", "balance")},
                     "months": self._months(uow, team, period),
                     "history": self._history(uow, team, 30),
-                    "members": self._members(uow, team),
+                    "members": self._members(uow, team, {u["member_id"]: u["total"] for u in unpaid}),
                     "matches": self._matches(uow, team),
                     "contacts": self._contacts(uow, team)}
 
@@ -95,12 +95,23 @@ class WebUseCases:
         first = f"{start[6:10]}-{start[3:5]}" if start else period
         n = max(1, min(MAX_MONTHS, months_between(first, period) + 1))
         y, m = map(int, period.split("-"))
-        out = []
+        periods = []
         for _ in range(n):
-            p = f"{y:04d}-{m:02d}"
-            out.append({"period": p, "period_label": period_label(p), **billing.month_totals(uow, self.d, team, p)})
+            periods.append(f"{y:04d}-{m:02d}")
             y, m = (y - 1, 12) if m == 1 else (y, m - 1)
-        return out
+        bounds = [self.d.clock.month_bounds(p) for p in periods]  # newest first
+        since, until = bounds[-1][0], bounds[0][1]
+        totals = {p: {"collected": 0, "spent": 0} for p in periods}
+
+        def add(rows, key):  # each row into the month whose bounds hold it (two queries, not two per month)
+            for at, amount in rows:
+                for p, (start, end) in zip(periods, bounds):
+                    if start <= at < end:
+                        totals[p][key] += amount
+                        break
+        add(uow.payments.amounts_between(team.id, since, until), "collected")
+        add(uow.expenses.amounts_between(team.id, since, until), "spent")
+        return [{"period": p, "period_label": period_label(p), **totals[p]} for p in periods]
 
     def month(self, token: str, period: str) -> dict:
         """Every transaction of one month ("YYYY-MM"), newest first, with the month's totals."""
@@ -132,8 +143,9 @@ class WebUseCases:
         items.sort(key=lambda i: i["ts"], reverse=True)
         return [{k: v for k, v in i.items() if k != "ts"} | {"at": self.d.clock.fmt(i["ts"])} for i in items]
 
-    def _members(self, uow: UnitOfWork, team: Team) -> list[dict]:
-        """The roster (members who haven't left), without phone numbers or notes."""
+    def _members(self, uow: UnitOfWork, team: Team, owes: dict[int, int]) -> list[dict]:
+        """The roster (members who haven't left), without phone numbers or notes. `owes`: member id -> unpaid
+        total, from the same unpaid list the page shows (active and paused members, like this roster)."""
         members = sorted(uow.members.of_team(team.id), key=lambda m: m.name.casefold())
         plans = billing.plans_of(uow, team)
         out = []
@@ -141,7 +153,7 @@ class WebUseCases:
             fee, months = billing.fee_of(team, m, plans, self.d.clock.current_period())
             out.append({"id": m.id, "name": m.name, "nickname": m.nickname, "shirt_number": m.shirt_number, "status": m.status,
                         "fee": fee, "months": months,
-                        "owes": sum(b.amount for b in uow.bills.unpaid_of_member(m.id))})
+                        "owes": owes.get(m.id, 0)})
         return out
 
     def create_intent(self, token: str, member_ids: list) -> dict:

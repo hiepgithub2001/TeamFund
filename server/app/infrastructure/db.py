@@ -52,6 +52,11 @@ def _add_missing_columns(engine) -> None:
                     if col.unique:  # ADD COLUMN can't carry the constraint; a unique index does the same job
                         conn.execute(text(f'CREATE UNIQUE INDEX IF NOT EXISTS uq_{table.name}_{col.name} '
                                           f'ON {table.name} ({col.name})'))
+            # indexes declared later (index=True on a column, or Index(...)) that the table doesn't have yet
+            existing = {i["name"] for i in insp.get_indexes(table.name)}
+            for index in table.indexes:
+                if index.name not in existing:
+                    index.create(conn, checkfirst=True)
 
 
 # what /undo can put back; the log, job marks, users and followers are never undone

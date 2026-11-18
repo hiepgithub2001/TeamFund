@@ -148,20 +148,27 @@ class SqlBills(_Repo):
     def of_match(self, match_id: int) -> list[Bill]:
         return list(self.s.scalars(select(Bill).where(Bill.match_id == match_id).order_by(Bill.id)))
 
-    def get_many(self, bill_ids: list[int], unpaid_only: bool = False) -> list[Bill]:
+    def get_many(self, bill_ids: list[int], unpaid_only: bool = False, lock: bool = False) -> list[Bill]:
+        """lock=True: hold these rows until commit, so two payments can't both pay one bill."""
         if not bill_ids:
             return []
         q = select(Bill).where(Bill.id.in_(bill_ids))
         if unpaid_only:
             q = q.where(Bill.status == "unpaid")
+        if lock:
+            q = _locked(q.order_by(Bill.id))
         return list(self.s.scalars(q))
 
-    def unpaid_with_members(self, team_id: int, member_ids: list[int] | None = None) -> list[tuple[Bill, Member]]:
+    def unpaid_with_members(self, team_id: int, member_ids: list[int] | None = None,
+                            lock: bool = False) -> list[tuple[Bill, Member]]:
         q = (select(Bill, Member).join(Member, Bill.member_id == Member.id)
              .where(Bill.team_id == team_id, Bill.status == "unpaid", Member.status.in_(["active", "paused"])))
         if member_ids is not None:
             q = q.where(Member.id.in_(member_ids))
-        return [(b, m) for b, m in self.s.execute(q.order_by(Bill.period, Bill.id))]
+        q = q.order_by(Bill.period, Bill.id)
+        if lock:
+            q = _locked(q, of=Bill)
+        return [(b, m) for b, m in self.s.execute(q)]
 
     def fee_bills_since(self, team_id: int, since: str) -> list[tuple[Bill, Member]]:
         q = (select(Bill, Member).join(Member, Bill.member_id == Member.id)
@@ -234,6 +241,11 @@ class SqlIntents(_Repo):
                        .values(status="expired"))
 
 
+def _locked(q, of=None):
+    """SELECT ... FOR UPDATE (ignored by SQLite), with already-loaded rows refreshed from what it read."""
+    return q.with_for_update(of=of).execution_options(populate_existing=True)
+
+
 def _between(q, col, start, end):
     if start is not None:
         q = q.where(col >= start)
@@ -243,7 +255,9 @@ def _between(q, col, start, end):
 
 
 class SqlPayments(_Repo):
-    def get(self, payment_id: int) -> Payment | None:
+    def get(self, payment_id: int, lock: bool = False) -> Payment | None:
+        if lock:
+            return self.s.scalar(_locked(select(Payment).where(Payment.id == payment_id)))
         return self.s.get(Payment, payment_id)
 
     def tx_exists(self, tx_id: str) -> bool:
@@ -258,6 +272,11 @@ class SqlPayments(_Repo):
         if source is not None:
             q = q.where(Payment.source == source)
         return int(self.s.scalar(_between(q, Payment.created_at, start, end)))
+
+    def amounts_between(self, team_id: int, start, end) -> list[tuple]:
+        """(created_at, amount) of every payment in [start, end): one query for many months' totals."""
+        q = select(Payment.created_at, Payment.amount).where(Payment.team_id == team_id)
+        return [tuple(r) for r in self.s.execute(_between(q, Payment.created_at, start, end))]
 
     def count_unmatched(self, team_id: int) -> int:
         return int(self.s.scalar(select(func.count(Payment.id)).where(
@@ -290,6 +309,10 @@ class SqlExpenses(_Repo):
     def first_at(self, team_id: int):
         return self.s.scalar(select(func.min(Expense.created_at)).where(Expense.team_id == team_id))
 
+    def amounts_between(self, team_id: int, start, end) -> list[tuple]:
+        q = select(Expense.created_at, Expense.amount).where(Expense.team_id == team_id)
+        return [tuple(r) for r in self.s.execute(_between(q, Expense.created_at, start, end))]
+
     def between(self, team_id: int, start, end) -> list[Expense]:
         q = _between(select(Expense).where(Expense.team_id == team_id), Expense.created_at, start, end)
         return list(self.s.scalars(q.order_by(Expense.created_at.desc(), Expense.id.desc())))
@@ -320,6 +343,10 @@ class SqlJobRuns(_Repo):
 class SqlMatches(_Repo):
     def get(self, match_id: int) -> Match | None:
         return self.s.get(Match, match_id)
+
+    def lock(self, match_id: int) -> None:
+        """Hold the match row until commit: one manager charges its players at a time."""
+        self.s.execute(_locked(select(Match.id).where(Match.id == match_id)))
 
     def between(self, team_id: int, start, end, statuses: tuple = ("scheduled", "cancelled")) -> list[Match]:
         q = select(Match).where(Match.team_id == team_id, Match.day >= start, Match.day <= end,

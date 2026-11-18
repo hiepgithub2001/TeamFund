@@ -158,6 +158,7 @@ class MatchUseCases:
         with self.d.uow() as uow:
             team = manager_team(uow, team_id, actor)
             m = self._match(uow, team, match_id)
+            uow.matches.lock(m.id)  # two managers charging at once: the second sees the first one's bills
             already = {b.member_id for b in uow.bills.of_match(m.id) if b.status != "waived"}
             chosen = [x for x in uow.members.of_team(team.id, ids=list(dict.fromkeys(member_ids)))
                       if x.id not in already]

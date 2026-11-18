@@ -1,7 +1,15 @@
 name: teamfund
 
+# Docker keeps container logs forever by default; cap each container at 3 files of 10 MB.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
+    logging: *logging
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
@@ -18,6 +26,7 @@ services:
 
   # The whole application: domain layer, Telegram bots, webhooks and scheduled jobs.
   app:
+    logging: *logging
     build: ./server
     restart: unless-stopped
     env_file: .env
@@ -29,6 +38,7 @@ services:
         condition: service_healthy
 
   caddy:
+    logging: *logging
     image: caddy:2.8.4
     restart: unless-stopped
     # --watch: Caddy reloads by itself whenever caddy/Caddyfile changes (edit or git pull).

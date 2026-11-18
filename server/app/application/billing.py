@@ -243,9 +243,12 @@ def bill_dict(b: Bill) -> dict:
     return out
 
 
-def unpaid_by_member(uow: UnitOfWork, team: Team, member_ids: list[int] | None = None) -> list[dict]:
+def unpaid_by_member(uow: UnitOfWork, team: Team, member_ids: list[int] | None = None,
+                     lock: bool = False) -> list[dict]:
+    """Unpaid bills per member. lock=True when they are about to be paid: a payment arriving at the same
+    moment waits, then finds them paid."""
     groups: dict[int, dict] = {}
-    for bill, member in uow.bills.unpaid_with_members(team.id, member_ids):
+    for bill, member in uow.bills.unpaid_with_members(team.id, member_ids, lock=lock):
         g = groups.setdefault(member.id, {"member_id": member.id, "name": member.name, "total": 0, "bills": []})
         g["total"] += bill.amount
         g["bills"].append(bill_dict(bill))
@@ -341,7 +344,7 @@ def record_transfer(uow: UnitOfWork, d: Deps, team: Team, transfer: IncomingTran
     needed, reason, names = 0, "no_code", []
     if intent:
         payment.intent_id, payment.payer_tg_id = intent.id, intent.payer_tg_id
-        bills = uow.bills.get_many(intent.bill_ids, unpaid_only=True)
+        bills = uow.bills.get_many(intent.bill_ids, unpaid_only=True, lock=True)
         needed = sum(b.amount for b in bills)
         if bills and intent_expired(intent, d):
             reason = "expired"  # its bills may have changed since: a manager says who this was for
@@ -393,7 +396,7 @@ def expired_details(uow: UnitOfWork, d: Deps, intent: PaymentIntent) -> dict:
 
 
 def cash_payments(uow: UnitOfWork, d: Deps, team: Team, member_ids: list[int], actor: int) -> dict:
-    groups = unpaid_by_member(uow, team, member_ids)
+    groups = unpaid_by_member(uow, team, member_ids, lock=True)
     if not groups:
         raise DomainError(400, "nothing_to_pay")
     total = 0
@@ -414,7 +417,7 @@ def partial_cash(uow: UnitOfWork, d: Deps, team: Team, member_id: int, amount: i
     is let go, e.g. someone who joined mid-quarter) or split into a paid part and a new unpaid bill for the
     rest; bills the money doesn't reach stay unpaid. More than they owe: every bill is paid and the extra
     stays in the fund as part of the same payment. The fund grows by `amount` either way."""
-    groups = unpaid_by_member(uow, team, [member_id])
+    groups = unpaid_by_member(uow, team, [member_id], lock=True)
     if not groups:
         raise DomainError(400, "nothing_to_pay")
     g = groups[0]
@@ -446,7 +449,7 @@ def partial_cash(uow: UnitOfWork, d: Deps, team: Team, member_id: int, amount: i
 
 
 def unmatched_payment(uow: UnitOfWork, team: Team, payment_id: int) -> Payment:
-    p = uow.payments.get(payment_id)
+    p = uow.payments.get(payment_id, lock=True)  # two managers assigning it at once: the second sees it resolved
     if not p or p.team_id != team.id:
         raise DomainError(404, "not_found")
     if p.status != "unmatched":
@@ -456,7 +459,7 @@ def unmatched_payment(uow: UnitOfWork, team: Team, payment_id: int) -> Payment:
 
 def assign_payment(uow: UnitOfWork, d: Deps, team: Team, payment_id: int, member_ids: list[int], actor: int) -> dict:
     p = unmatched_payment(uow, team, payment_id)
-    groups = unpaid_by_member(uow, team, member_ids)
+    groups = unpaid_by_member(uow, team, member_ids, lock=True)
     if not groups:
         raise DomainError(400, "nothing_to_pay")
     _mark_paid(uow.bills.get_many([b["id"] for g in groups for b in g["bills"]]), p, d)

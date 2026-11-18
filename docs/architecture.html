@@ -389,7 +389,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <text class="lb" x="175" y="561" text-anchor="middle">14 · receipt + followers told</text>
     </svg>
     </div>
-    <figcaption>The unique code in the transfer memo is what lets the server match money to bills with no human check. Each intent expires after 24 hours. If the amount doesn't match or the code is missing, the transaction is still saved and a manager is asked to assign it. A transfer whose code matches an expired QR is saved but not matched on its own: the payer hears that a manager will confirm it, and managers get a card naming who the QR was for, with a one-tap <i>✅ Mark paid: …</i> for them (or <i>assign</i> to pick others). SePay's transaction id is stored, so a repeated webhook can't count the same payment twice. For VietinBank accounts the memo is <code>SEVQR TF…</code>: SePay's VietinBank link only reports transfers whose content starts with <code>SEVQR</code>, and the server finds the TF code anywhere in the text.</figcaption>
+    <figcaption>The unique code in the transfer memo is what lets the server match money to bills with no human check. Bills being paid are locked in the database until the payment is saved (<code>SELECT … FOR UPDATE</code>), so a transfer and a <code>/markpaid</code> at the same moment, two managers recording the same cash, or two managers charging one match fee can't pay or bill anything twice. Each intent expires after 24 hours. If the amount doesn't match or the code is missing, the transaction is still saved and a manager is asked to assign it. A transfer whose code matches an expired QR is saved but not matched on its own: the payer hears that a manager will confirm it, and managers get a card naming who the QR was for, with a one-tap <i>✅ Mark paid: …</i> for them (or <i>assign</i> to pick others). SePay's transaction id is stored, so a repeated webhook can't count the same payment twice. For VietinBank accounts the memo is <code>SEVQR TF…</code>: SePay's VietinBank link only reports transfers whose content starts with <code>SEVQR</code>, and the server finds the TF code anywhere in the text.</figcaption>
   </figure>
 </section>
 
@@ -1206,6 +1206,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <tr><td>Telegram login (session)</td><td>database (<code>app_secrets</code>, Fernet, <code>TOKEN_ENC_KEY</code>)</td><td>A full login to the admin's account, used only to talk to @BotFather. Made by <code>python -m app.telegram_login</code>. It also appears in Telegram → Settings → Devices, where it can be ended; <code>… logout</code> does the same.</td></tr>
       <tr><td>All team data</td><td>volume <code>db_data</code></td><td>Backed up daily by <code>scripts/backup.sh</code> to <code>~/backups</code>, kept 14 days</td></tr>
       <tr><td>TLS certificate</td><td>volume <code>caddy_data</code></td><td>Renewed automatically by Caddy</td></tr>
+      <tr><td>Container logs</td><td>Docker <code>json-file</code></td><td>Capped at 3 × 10 MB per container (<code>x-logging</code> in <code>docker-compose.yml</code>), so they never fill the disk</td></tr>
       <tr><td>GitHub SSH key</td><td><code>~/.ssh/id_ed25519_github</code></td><td>Lets this VPS push and pull the repo; remove it from GitHub to revoke</td></tr>
     </tbody>
   </table>
