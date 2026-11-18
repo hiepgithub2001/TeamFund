@@ -152,10 +152,13 @@ function teamFees(d) {  // "200.000đ/tháng · hạn 20/11", or each package wi
 
 const TABS = [["pay", "tabPay"], ["fund", "tabFund"], ["members", "tabMembers"], ["matches", "tabMatches"],
   ["contacts", "tabContacts"]];
+// a link can open one tab on its own: …/#contacts, …/#matches
+if (TABS.some(([id]) => id === location.hash.slice(1))) S.tab = location.hash.slice(1);
 function tabs() {
   return h("nav", { class: "tabs", role: "tablist" }, TABS.map(([id, key]) =>
     h("button", { role: "tab", "aria-selected": S.tab === id ? "true" : "false", class: "tab", onclick: () => {
-      S.tab = id; store.set("tab", id); render(); toTop();
+      S.tab = id; store.set("tab", id); try { history.replaceState(null, "", "#" + id); } catch { /* old browsers */ }
+      render(); toTop();
     } }, t(key))));
 }
 function section(title, ...kids) { return h("section", { class: "card" }, h("h2", { class: "sec" }, title), ...kids); }

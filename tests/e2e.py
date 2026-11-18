@@ -735,21 +735,27 @@ async def main():
         await wait_sent(to(OWNER, "Send the note"), "note asked")
         await T(text_update(OWNER, "zalo: Dung, sân Mỹ Đình"))
         await wait_sent(lambda c: to(OWNER, "Updated")(c) and "📝 zalo: Dung, sân Mỹ Đình" in c["params"]["text"], "note saved")
-        # ➕ one team: name, then the bot asks phone and note; no confirm step
+        # ➕ one team: the name saves it; phone and note are optional buttons, then Done
         await T(cb_update(OWNER, "ct:l", found["message_id"]))
         await T(cb_update(OWNER, "ct:a", found["message_id"]))
         await wait_sent(to(OWNER, "Send the team's name"), "name asked")
         await T(text_update(OWNER, "FC WQ"))
-        await wait_sent(to(OWNER, "<b>FC WQ</b>'s phone number"), "phone asked next")
+        new = await wait_sent(to(OWNER, "Saved to contacts"), "saved at once")
+        wq = next(d.split(":")[2] for d in buttons(new) if d.startswith("ct:aph:"))
+        assert buttons(new) == [f"ct:aph:{wq}", f"ct:ant:{wq}", f"ct:ok1:{wq}"], buttons(new)
+        await T(cb_update(OWNER, f"ct:aph:{wq}", new["message_id"]))
+        await wait_sent(to(OWNER, "Send the phone number"), "phone asked only when tapped")
         await T(text_update(OWNER, "0911 222 333"))
-        nq = await wait_sent(to(OWNER, "A note for <b>FC WQ</b>"), "note asked next")
-        await T(cb_update(OWNER, "ct:skn", nq["message_id"]))
-        await wait_sent(lambda c: to(OWNER, "Saved to contacts")(c) and "📞 0911 222 333" in c["params"]["text"]
-                        and "FC WQ" in c["params"]["text"], "saved without a confirm step")
+        upd = await wait_sent(lambda c: to(OWNER, "Updated")(c) and "📞 0911 222 333" in c["params"]["text"], "phone added")
+        assert f"ct:ok1:{wq}" in buttons(upd), "still the short card"
+        await T(cb_update(OWNER, f"ct:ok1:{wq}", upd["message_id"]))
+        await wait_sent(lambda c: c["method"] == "editMessageText" and "<b>FC WQ</b> saved to contacts" in c["params"]["text"], "done")
 
         await T(text_update(FAN, "/contacts"))
         fan = await wait_sent(to(FAN, "Opposing teams"), "everyone can look contacts up")
         assert "ct:a" not in buttons(fan), "only managers add"
+        urls = [b.get("url") for row in fan["params"]["reply_markup"]["inline_keyboard"] for b in row if b.get("url")]
+        assert len(urls) == 1 and urls[0].endswith("/#contacts"), urls
         await T(cb_update(FAN, next(d for d in buttons(fan) if d.startswith("ct:v:")), fan["message_id"]))
         card = await wait_sent(lambda c: c["method"] == "editMessageText" and str(c["params"].get("chat_id")) == str(FAN)
                                and "📇" in c["params"]["text"], "a member opens a contact")

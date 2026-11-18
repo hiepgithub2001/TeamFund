@@ -279,6 +279,12 @@ class TeamUseCases:
                 uow.commit()
             return {"url": f"{self.d.config.public_url}/p/{team.public_token}/"}
 
+    def page_url(self, team_id: int) -> str | None:
+        """The pay page link if a manager has made one (anyone may see it: it's shared with the team)."""
+        with self.d.uow() as uow:
+            team = get_team(uow, team_id)
+            return f"{self.d.config.public_url}/p/{team.public_token}/" if team.public_token else None
+
     # ---- followers: who gets the team's announcements ---------------------------------------------
 
     def follow(self, team_id: int, tg_id: int) -> bool:

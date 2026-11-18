@@ -7,7 +7,7 @@ from datetime import date, timedelta
 
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
-from aiogram.types import CallbackQuery, ForceReply, Message
+from aiogram.types import CallbackQuery, ForceReply, InlineKeyboardButton, Message
 
 from ..deps import S
 from .fmt import esc, parse_contact, parse_match, parse_phone, show_phone
@@ -21,6 +21,14 @@ router = Router()
 WD = {"vi": ["T2", "T3", "T4", "T5", "T6", "T7", "CN"], "en": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]}
 REASONS = ("rain", "opp", "short", "holiday", "pitch")
 PASTE_KEY = "mtp:{}:{}"
+
+
+async def with_page(entry, lang, markup, tab: str):
+    """Add a button that opens the team page straight on one tab (…/#contacts), if the team has a page."""
+    url = await call(S.teams.page_url, tid(entry))
+    if url:
+        markup.inline_keyboard.append([InlineKeyboardButton(text=t(lang, f"web.open_{tab}"), url=f"{url}#{tab}")])
+    return markup
 
 
 def _wd(lang: str, i: int) -> str:
@@ -87,6 +95,7 @@ def list_view(lang: str, v: dict):
 async def show_list(ev, entry, lang, limit: int = 5, edit_in_place: bool = False) -> None:
     v = await call(S.matches.show, tid(entry), ev.from_user.id, limit)
     text, markup = list_view(lang, v)
+    markup = await with_page(entry, lang, markup, "matches")
     await (edit(ev, text, markup) if edit_in_place else say(ev, text, reply_markup=markup))
 
 
@@ -429,6 +438,7 @@ async def cmd_contacts(message: Message, command: CommandObject, entry, lang):
         return
     items = await call(S.contacts.search, tid(entry), message.from_user.id, args or None)
     text, markup = contact_list(lang, items, args or None, await is_manager(message, entry))
+    markup = await with_page(entry, lang, markup, "contacts")
     await message.answer(text, reply_markup=markup)
 
 
@@ -447,31 +457,23 @@ async def contacts_preview(message: Message, entry, lang, text: str) -> None:
     await message.answer("\n".join(lines), reply_markup=kb([(t(lang, "mt.btn_save"), "ct:ok"), (t(lang, "btn.cancel"), "ct:x")]))
 
 
-async def ask_new_phone(ev, lang, item: dict, invalid: bool = False) -> None:
-    set_state(ikey(ev), {"type": "ct_new_phone", "item": item}, 900)
-    await say(ev, (t(lang, "err.invalid") + "\n\n" if invalid else "") + t(lang, "ct.new_phone", name=esc(item["name"])),
-              reply_markup=kb([(t(lang, "mt.btn_skip"), "ct:skp")]))
-    await say(ev, t(lang, "ct.type_below"), reply_markup=ForceReply(force_reply=True, input_field_placeholder="0912 345 678"))
+def added_view(lang: str, c: dict, head: str):
+    """Right after adding a team: the card with just two optional buttons (phone, note) and Xong."""
+    text, _ = contact_view(lang, c)
+    i = c["id"]
+    return f"{head}\n\n{text}", kb([(t(lang, "ct.btn_add_phone" if not c.get("phone") else "ct.btn_phone"), f"ct:aph:{i}"),
+                                    (t(lang, "ct.btn_add_note" if not c.get("note") else "ct.btn_note"), f"ct:ant:{i}")],
+                                   [(t(lang, "ct.btn_done"), f"ct:ok1:{i}")])
 
 
-async def contact_next(ev, entry, lang, item: dict, asked_phone: bool = False, asked_note: bool = False) -> None:
-    """Adding one team: ask for the phone, then the note, unless already given or skipped; then save."""
-    if not item.get("phone") and not asked_phone:
-        await ask_new_phone(ev, lang, item)
-        return
-    if not item.get("note") and not asked_note:
-        set_state(ikey(ev), {"type": "ct_new_note", "item": item}, 900)
-        await say(ev, t(lang, "ct.new_note", name=esc(item["name"])), reply_markup=kb([(t(lang, "mt.btn_skip"), "ct:skn")]))
-        await say(ev, t(lang, "ct.type_below"),
-                  reply_markup=ForceReply(force_reply=True, input_field_placeholder="fb: Dũng, zalo: 09…"))
-        return
-    del_state(ikey(ev))
+async def contact_next(ev, entry, lang, item: dict) -> None:
+    """Adding one team: save it at once; phone and note are a tap away if wanted, otherwise Xong."""
     team, user = tid(entry), ev.from_user.id
     r = await call(S.contacts.save_many, team, user, [item])
     c = next(c for c in await call(S.contacts.search, team, user, item["name"]) if c["name"] == item["name"])
-    text, markup = contact_view(lang, await call(S.contacts.get, team, user, c["id"]))
-    head = t(lang, "ct.saved_one") if r["added"] else t(lang, "ct.updated")
-    await say(ev, f"{head}\n\n{text}", reply_markup=markup)
+    text, markup = added_view(lang, await call(S.contacts.get, team, user, c["id"]),
+                              t(lang, "ct.saved_one") if r["added"] else t(lang, "ct.updated"))
+    await say(ev, text, reply_markup=markup)
 
 
 def contact_view(lang: str, c: dict, can_edit: bool = True):
@@ -501,6 +503,7 @@ async def on_contacts(cq: CallbackQuery, m: re.Match, entry, lang):
         can = await is_manager(cq, entry)
         if action == "l":
             text, markup = contact_list(lang, await call(S.contacts.search, team, user), None, can)
+            markup = await with_page(entry, lang, markup, "contacts")
         else:
             text, markup = contact_view(lang, await call(S.contacts.get, team, user, int(a)), can)
         await edit(cq, text, markup)
@@ -511,14 +514,13 @@ async def on_contacts(cq: CallbackQuery, m: re.Match, entry, lang):
     pk = f"ctp:{cq.bot.id}:{cq.message.chat.id}"
     if action == "a":
         await ask(cq, lang, {"type": "ct_add"}, t(lang, "ct.ask_add"), "FC Moreh")
-    elif action in ("skp", "skn"):  # skip the phone / the note while adding one team
-        st = get_state(ikey(cq)) or {}
-        want = "ct_new_phone" if action == "skp" else "ct_new_note"
-        if st.get("type") != want:
-            await edit(cq, t(lang, "err.menu_expired"))
-            return
-        await edit(cq, t(lang, "ct.skipped"))
-        await contact_next(cq, entry, lang, st["item"], asked_phone=True, asked_note=action == "skn")
+    elif action in ("aph", "ant") and a:  # from the just-added card: add a phone / a note
+        phone = action == "aph"
+        await ask(cq, lang, {"type": "ct_phone" if phone else "ct_note", "id": int(a), "fresh": True},
+                  t(lang, "ct.ask_phone" if phone else "ct.ask_note"), "0912 345 678" if phone else "fb: Dũng, zalo…")
+    elif action == "ok1" and a:
+        c = await call(S.contacts.get, team, user, int(a))
+        await edit(cq, t(lang, "ct.done", name=esc(c["name"])))
     elif action == "en" and a:
         await ask(cq, lang, {"type": "ct_name", "id": int(a)}, t(lang, "ct.ask_name"), "FC Moreh")
     elif action == "ph" and a:
@@ -617,14 +619,6 @@ async def on_reply(message: Message, entry, lang):
             await contacts_preview(message, entry, lang, text)  # several teams: show them, then save
             return
         await contact_next(message, entry, lang, p)
-    elif kind == "ct_new_phone":
-        phone = parse_phone(text)
-        if not phone:
-            await ask_new_phone(message, lang, st["item"], invalid=True)
-            return
-        await contact_next(message, entry, lang, {**st["item"], "phone": phone}, asked_phone=True)
-    elif kind == "ct_new_note":
-        await contact_next(message, entry, lang, {**st["item"], "note": text}, asked_phone=True, asked_note=True)
     elif kind in ("ct_name", "ct_phone", "ct_note"):
         if kind == "ct_name":
             changes = {"name": text}
@@ -638,5 +632,9 @@ async def on_reply(message: Message, entry, lang):
             changes = {"note": None if text == "-" else text}
         await call(S.contacts.update, team, user, st["id"], changes)
         c = await call(S.contacts.get, team, user, st["id"])
+        if st.get("fresh"):  # still adding: keep the short card
+            text_, markup = added_view(lang, c, t(lang, "ct.updated"))
+            await message.answer(text_, reply_markup=markup)
+            return
         text_, markup = contact_view(lang, c)
         await message.answer(t(lang, "ct.updated") + "\n\n" + text_, reply_markup=markup)
