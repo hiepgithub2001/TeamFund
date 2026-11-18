@@ -6,6 +6,7 @@ from .jobs import JobUseCases
 from .matches import MatchUseCases
 from .members import MemberUseCases
 from .money import MoneyUseCases
+from .ops import OpsUseCases
 from .plans import PlanUseCases
 from .ports import Deps
 from .registration import RegistrationUseCases
@@ -28,10 +29,11 @@ class Services:
     undo: UndoUseCases
     matches: MatchUseCases
     contacts: ContactUseCases
+    ops: OpsUseCases
 
 
 def build_services(d: Deps) -> Services:
     return Services(users=UserUseCases(d), registration=RegistrationUseCases(d), teams=TeamUseCases(d),
                     members=MemberUseCases(d), money=MoneyUseCases(d), plans=PlanUseCases(d), jobs=JobUseCases(d),
                     web=WebUseCases(d), undo=UndoUseCases(d),
-                    matches=MatchUseCases(d), contacts=ContactUseCases(d))
+                    matches=MatchUseCases(d), contacts=ContactUseCases(d), ops=OpsUseCases(d))

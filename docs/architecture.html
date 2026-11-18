@@ -815,6 +815,7 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
       <tr><td><code>remind</code></td><td>09:00 every day</td><td>If any package is 3 days before its due date, on it, or a multiple of 3 days past it (and announced), sends followers one message listing everyone who still owes, with a pay button.</td><td><code>job_log</code> key per team per day.</td></tr>
       <tr><td><code>matches</code></td><td>every hour at :10, and once at start</td><td>Fills each repeating calendar's match days 8 weeks ahead. From 09:00, tells managers about a match in 7 days with no opponent; from 18:00, reminds followers of tomorrow's matches.</td><td>Days: one match per calendar date, none on a busy day. Messages: <code>job_log</code> keys per team per day.</td></tr>
       <tr><td><code>clean_up</code></td><td>every hour at :30</td><td>Expires QR codes older than 24 hours and manager requests older than 7 days.</td><td>Only changes what's still pending.</td></tr>
+      <tr><td><code>ops_check</code></td><td>08:00</td><td>Messages the system admins in the master bot only when something needs them: database down, disk ≥ 80%, newest backup older than 26 hours (or none), a bot's webhook failing or backed up, errors logged in 24 hours, money unmatched for over 3 days, or a team with 3+ QR codes in 7 days and no SePay transfer at all. <code>/ops</code> shows the same on demand.</td><td>Only reads; silent when all is well.</td></tr>
     </tbody>
   </table>
   </div>
@@ -1220,7 +1221,8 @@ pre.cmd{margin:0;font-family:var(--mono);font-size:13px;background:var(--surface
     <li><span><b>Open TCP 443</b> in the VPS provider's firewall, if it has one.</span></li>
     <li><span><b>Fill in <code>.env</code></b>: <code>MASTER_BOT_TOKEN</code> and <code>MASTER_ADMIN_IDS</code>. The other secrets are already generated.</span></li>
     <li><span><b>Start everything:</b> <code>docker compose up -d --build</code>, then <code>docker compose logs -f caddy app</code> until the certificate is issued and the master bot reports ready.</span></li>
-    <li><span><b>Check from outside:</b> <code>curl https://teamfund.103-90-225-28.sslip.io/health</code> returns <code>ok</code>.</span></li>
+    <li><span><b>Check from outside:</b> <code>curl https://teamfund.103-90-225-28.sslip.io/health</code> returns <code>{"ok": true, "db": true, …}</code>, or 503 when the database doesn't answer. Point an external uptime monitor (UptimeRobot, Better Stack) at it every 5 minutes.</span></li>
+    <li><span><b>Day to day:</b> <code>/ops</code> in the master bot (system admins) shows the server (database, uptime, disk, memory, newest backup in <code>~/backups</code>, mounted read-only into the app), every bot's webhook, errors in 24 hours, and per team the last SePay transfer, unmatched money and QR codes of the last 7 days.</span></li>
     <li><span><b>Schedule backups:</b> add <code>0 3 * * * …/scripts/backup.sh</code> to <code>crontab -e</code>.</span></li>
   </ol>
   <h3 class="sub">Everyday commands</h3>

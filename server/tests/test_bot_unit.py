@@ -125,3 +125,77 @@ def test_expired_qr_card():
     assert "Bình" in markup.inline_keyboard[0][0].text
     _, plain = unmatched_card("en", {**p, "reason": "no_code", "member_ids": None})
     assert [b.callback_data for row in plain.inline_keyboard for b in row] == ["u:a:7", "u:d:7"]
+
+
+def test_ops_problems_and_report():
+    from datetime import timedelta, datetime, timezone
+    from app.interfaces.bot import ops
+    team = {"team_id": 1, "name": "FC Test", "bot_id": 5, "bot_username": "fc_bot", "has_bank": True,
+            "unmatched": 0, "unmatched_amount": 0, "unmatched_oldest_days": None, "unmatched_stale": False,
+            "last_transfer": "18/11/2026 10:00", "last_transfer_days": 0, "qr_made_7d": 4, "qr_paid_7d": 3,
+            "qr_open": 1, "sepay_quiet": False}
+    fine = {"db": True, "teams": [team], "disk": {"pct": 41, "used_gb": 16, "total_gb": 39},
+            "mem": {"used_gb": 1.4, "total_gb": 3.8},
+            "backup": {"name": "teamfund-x.sql.gz", "age": timedelta(hours=5), "size_kb": 24,
+                       "at": datetime(2026, 11, 18, 12, 5, tzinfo=timezone.utc)},
+            "bots": [{"name": "@fc_bot", "ok": True, "pending": 0, "error": None, "error_at": None}],
+            "errors": [], "uptime": timedelta(hours=2)}
+    assert ops.problems("en", fine) == []
+    text = ops.report("en", fine)
+    assert "All good" in text and "41%" in text and "19:05 18/11" in text and "<b>FC Test</b>" in text
+
+    bad = {**fine, "db": False, "disk": {**fine["disk"], "pct": 85},
+           "backup": {**fine["backup"], "age": timedelta(hours=30)},
+           "bots": [{"name": "@fc_bot", "ok": False, "pending": 40, "error": "Connection refused", "error_at": None}],
+           "errors": [(0, "bots: update failed")],
+           "teams": [{**team, "unmatched": 2, "unmatched_amount": 300000, "unmatched_oldest_days": 5,
+                      "unmatched_stale": True, "sepay_quiet": True}]}
+    issues = ops.problems("en", bad)
+    assert len(issues) == 7, issues
+    joined = "\n".join(issues)
+    for bit in ("database isn't answering", "85%", "30 h old", "Connection refused", "update failed",
+                "300,000đ", "Check the webhook"):
+        assert bit in joined, bit
+    assert ops.problems("en", {**fine, "backup": {"missing": True}}) == ["No backup files in ~/backups."]
+    assert ops.problems("en", {**fine, "backup": None}) == []  # not configured: not checked
+
+
+def test_error_log_counts_errors_only():
+    import logging
+    from app.interfaces.bot.ops import ErrorLog
+    h = ErrorLog()
+    log = logging.getLogger("ops-test")
+    log.addHandler(h)
+    log.warning("just a warning")
+    log.error("boom\nsecond line")
+    log.removeHandler(h)
+    assert [m for _, m in h.since(60)] == ["ops-test: boom"]
+
+
+def test_daily_check_messages_admins_only_when_needed(monkeypatch):
+    import asyncio
+    from datetime import timedelta
+    from app.interfaces.bot import ops, registry
+    sent = []
+
+    class Bot:
+        async def send_message(self, chat_id, text):
+            sent.append((chat_id, text))
+
+    async def lang_for(_id, fallback):
+        return "en"
+    fine = {"db": True, "teams": [], "disk": {"pct": 40, "used_gb": 1, "total_gb": 2}, "mem": None,
+            "backup": None, "bots": [], "errors": [], "uptime": timedelta(hours=1)}
+    state = {"r": fine}
+
+    async def collect(_actor):
+        return state["r"]
+    monkeypatch.setattr(ops, "collect", collect)
+    monkeypatch.setattr(ops, "lang_for", lang_for)
+    monkeypatch.setattr(ops.settings, "master_admin_ids", [1, 2])
+    monkeypatch.setitem(registry.master, "bot", Bot())
+    asyncio.run(ops.daily_check())
+    assert sent == []  # all well: silence
+    state["r"] = {**fine, "disk": {"pct": 91, "used_gb": 1, "total_gb": 2}}
+    asyncio.run(ops.daily_check())
+    assert [c for c, _ in sent] == [1, 2] and "Daily check: 1 to look at" in sent[0][1] and "91%" in sent[0][1]

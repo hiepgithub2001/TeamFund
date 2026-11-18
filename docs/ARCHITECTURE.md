@@ -221,6 +221,7 @@ _All times are team time (`TEAM_TIMEZONE`, Asia/Ho_Chi_Minh). The jobs run insid
 | `remind` | 09:00 every day | If any package is 3 days before its due date, on it, or a multiple of 3 days past it (and announced), sends followers one message listing everyone who still owes, with a pay button. | `job_log` key per team per day. |
 | `matches` | every hour at :10, and once at start | Fills each repeating calendar's match days 8 weeks ahead. From 09:00, tells managers about a match in 7 days with no opponent; from 18:00, reminds followers of tomorrow's matches. | Days: one match per calendar date, none on a busy day. Messages: `job_log` keys per team per day. |
 | `clean_up` | every hour at :30 | Expires QR codes older than 24 hours and manager requests older than 7 days. | Only changes what's still pending. |
+| `ops_check` | 08:00 | Messages the system admins in the master bot only when something needs them: database down, disk ≥ 80%, newest backup older than 26 hours (or none), a bot's webhook failing or backed up, errors logged in 24 hours, money unmatched for over 3 days, or a team with 3+ QR codes in 7 days and no SePay transfer at all. `/ops` shows the same on demand. | Only reads; silent when all is well. |
 
 - Nothing about fines changes on reads: opening the bot or the pay page shows what the last `late_fees` run set. A QR made one day and paid after the next run is accepted at the QR's amount.
 - Only one app process runs the scheduler (one uvicorn worker). `RUN_JOBS=0` turns it off, which the tests use; they call the jobs directly with a fixed clock.
@@ -301,8 +302,9 @@ _Pushing to GitHub doesn't deploy anything by itself; running `scripts/deploy.sh
 2. **Open TCP 443** in the VPS provider's firewall, if it has one.
 3. **Fill in `.env`**: `MASTER_BOT_TOKEN` and `MASTER_ADMIN_IDS`. The other secrets are already generated.
 4. **Start everything:** `docker compose up -d --build`, then `docker compose logs -f caddy app` until the certificate is issued and the master bot reports ready.
-5. **Check from outside:** `curl https://teamfund.103-90-225-28.sslip.io/health` returns `ok`.
-6. **Schedule backups:** add `0 3 * * * …/scripts/backup.sh` to `crontab -e`.
+5. **Check from outside:** `curl https://teamfund.103-90-225-28.sslip.io/health` returns `{"ok": true, "db": true, …}`, or 503 when the database doesn't answer. Point an external uptime monitor (UptimeRobot, Better Stack) at it every 5 minutes.
+6. **Day to day:** `/ops` in the master bot (system admins) shows the server (database, uptime, disk, memory, newest backup in `~/backups`, mounted read-only into the app), every bot's webhook, errors in 24 hours, and per team the last SePay transfer, unmatched money and QR codes of the last 7 days.
+7. **Schedule backups:** add `0 3 * * * …/scripts/backup.sh` to `crontab -e`.
 
 ### Everyday commands
 

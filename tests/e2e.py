@@ -47,7 +47,9 @@ async def fake_telegram(request: web.Request):
     calls.append({"token": token, "method": method, "params": params})
     bot_id = int(token.split(":")[0])
     result = True
-    if method == "getMe":
+    if method == "getWebhookInfo":
+        result = {"url": "https://example.test/tg/x", "has_custom_certificate": False, "pending_update_count": 0}
+    elif method == "getMe":
         team = bot_id == 555555
         result = {"id": bot_id, "is_bot": True, "first_name": "FC Test Bot" if team else "Master",
                   "username": "fctest_bot" if team else "master_bot", "can_join_groups": True,
@@ -204,6 +206,13 @@ async def main():
         await M(text_update(OWNER, "/newteam"))
         await M(text_update(OWNER, TEAM_TOKEN))
         await wait_sent(to(OWNER, "is ready"), "team created")
+        # /ops: the system admin's one-screen health view; nobody else
+        await M(text_update(SUPER, "/ops"))
+        ops = await wait_sent(to(SUPER, "System health"), "ops report")
+        assert "Database answering" in ops["params"]["text"] and "@fctest_bot" in ops["params"]["text"], ops["params"]["text"]
+        assert "<b>FC Test</b>" in ops["params"]["text"]
+        await M(text_update(OWNER, "/ops"))
+        await wait_sent(to(OWNER, "system admin"), "ops refused to others")
         hook = next(c for c in calls if c["method"] == "setWebhook" and str(c["params"].get("url")).endswith("/tg/555555"))
         assert any(c["method"] == "deleteMessage" for c in calls), "token message deleted"
         secret = hook["params"]["secret_token"]

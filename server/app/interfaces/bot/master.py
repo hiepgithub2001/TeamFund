@@ -160,6 +160,16 @@ async def cmd_teams(message: Message, lang):
     await message.answer("\n".join([t(lang, "m.teams_title", n=len(teams)), *lines]))
 
 
+@router.message(Command("ops"))
+async def cmd_ops(message: Message, lang):
+    """System admins: the whole system on one screen (server, backups, bots, SePay, money to check)."""
+    if not is_super(message.from_user.id):
+        await message.answer(t(lang, "err.not_super"))
+        return
+    from . import ops
+    await message.answer(ops.report(lang, await ops.collect(message.from_user.id)))
+
+
 @router.message(Command("myteams"))
 async def cmd_myteams(message: Message, lang):
     teams = await call(S.registration.my_teams, message.from_user.id)

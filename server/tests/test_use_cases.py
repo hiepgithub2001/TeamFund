@@ -1063,3 +1063,34 @@ def test_who_opened_the_bot(world):
     assert owner["role"] == "owner" and not owner["muted"]
     assert member["name"] == "Khải Trần" and member["username"] == "khai" and member["role"] is None and member["muted"]
     assert code(svc.teams.bot_users, tid, MEMBER) == "not_manager"
+
+
+def test_ops_team_checks(world):
+    """What /ops and the daily check read from the database: stale unmatched money, and a team whose QR codes
+    get made but SePay never reports a transfer (a broken webhook)."""
+    svc, clock, _ = world
+    tid = setup_team(svc)
+    svc.teams.update_settings(tid, OWNER, fee=200000)
+    link_bank(svc, tid)
+    key = sepay_key(svc, tid)
+    an = svc.members.add_members(tid, OWNER, [{"name": "An"}])[0]["id"]
+    assert code(svc.ops.teams, OWNER) == "not_super"
+    assert svc.ops.db_ok()
+
+    row = svc.ops.teams(SUPER)[0]
+    assert (row["unmatched"], row["unmatched_stale"], row["sepay_quiet"], row["last_transfer"]) == (0, False, False, None)
+
+    svc.money.unpaid(tid)  # this month's bills
+    for _ in range(3):  # QR codes made, nothing ever arrives
+        svc.money.create_intent(tid, OWNER, [an])
+    row = svc.ops.teams(None)[0]
+    assert row["qr_made_7d"] == 3 and row["qr_paid_7d"] == 0 and row["qr_open"] == 3 and row["sepay_quiet"]
+
+    # a transfer without a code arrives: SePay is reaching us, but someone must assign it
+    svc.money.record_transfer(tid, key, IncomingTransfer("tx-ops", 50000, "chuyen tien"))
+    row = svc.ops.teams(None)[0]
+    assert not row["sepay_quiet"] and row["last_transfer_days"] == 0
+    assert (row["unmatched"], row["unmatched_amount"], row["unmatched_stale"]) == (1, 50000, False)
+    clock.advance(days=4)
+    row = svc.ops.teams(None)[0]
+    assert row["unmatched_stale"] and row["unmatched_oldest_days"] == 4 and row["qr_open"] == 0

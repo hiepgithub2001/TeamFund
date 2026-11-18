@@ -33,6 +33,10 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://teamfund:${POSTGRES_PASSWORD}@db:5432/teamfund
       PUBLIC_URL: https://${PUBLIC_HOST}
+      BACKUP_DIR: /backups
+    volumes:
+      # read-only: /ops and the daily check only look at the newest backup's date and size
+      - ${HOME}/backups:/backups:ro
     depends_on:
       db:
         condition: service_healthy

@@ -236,6 +236,10 @@ class SqlIntents(_Repo):
         rows = self.s.execute(select(PaymentIntent.id, PaymentIntent.member_names).where(PaymentIntent.id.in_(intent_ids)))
         return {i: list(names or []) for i, names in rows}
 
+    def since(self, team_id: int, since: datetime) -> list[PaymentIntent]:
+        return list(self.s.scalars(select(PaymentIntent).where(PaymentIntent.team_id == team_id,
+                                                               PaymentIntent.created_at >= since)))
+
     def expire_pending_before(self, now: datetime) -> None:
         self.s.execute(update(PaymentIntent).where(PaymentIntent.status == "pending", PaymentIntent.expires_at < now)
                        .values(status="expired"))
@@ -272,6 +276,11 @@ class SqlPayments(_Repo):
         if source is not None:
             q = q.where(Payment.source == source)
         return int(self.s.scalar(_between(q, Payment.created_at, start, end)))
+
+    def last_transfer_at(self, team_id: int):
+        """When SePay last reported a bank transfer for this team (None: never)."""
+        return self.s.scalar(select(func.max(Payment.created_at)).where(Payment.team_id == team_id,
+                                                                        Payment.sepay_tx_id.is_not(None)))
 
     def amounts_between(self, team_id: int, start, end) -> list[tuple]:
         """(created_at, amount) of every payment in [start, end): one query for many months' totals."""

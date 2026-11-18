@@ -28,12 +28,13 @@ from .infrastructure.secret_store import SecretStore
 from .infrastructure.sepay import SepayQr, SepayUserApi
 from .infrastructure.xlsx import XlsxWriter
 from .interfaces import deps, scheduler
-from .interfaces.bot import registry
+from .interfaces.bot import ops, registry
 from .interfaces.bot.notifier import TelegramNotifier
 from .interfaces.http import sepay, telegram, web
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logging.getLogger("aiogram.event").setLevel(logging.WARNING)
+ops.install()  # count errors for /ops and the daily check
 
 
 def create_app() -> FastAPI:
@@ -60,7 +61,7 @@ def create_app() -> FastAPI:
     async def lifespan(_: FastAPI):
         notifier.bind(asyncio.get_running_loop())
         await registry.start()
-        jobs = scheduler.start(services.jobs, settings.timezone) if settings.run_jobs else None
+        jobs = scheduler.start(services.jobs, settings.timezone, daily_check=ops.daily_check) if settings.run_jobs else None
         yield
         if jobs:
             jobs.shutdown(wait=False)
@@ -73,8 +74,11 @@ def create_app() -> FastAPI:
         return JSONResponse(status_code=exc.status, content={"detail": {"code": exc.code, **exc.extra}})
 
     @app.get("/health")
-    def health():
-        return {"ok": True}
+    async def health():
+        """For uptime monitors: 200 when the app and its database answer, 503 when the database doesn't."""
+        if not await asyncio.to_thread(services.ops.db_ok):
+            return JSONResponse({"ok": False, "db": False}, status_code=503)
+        return {"ok": True, "db": True, "bots": len(registry.by_bot) + (registry.master["bot"] is not None)}
 
     app.include_router(telegram.router)
     app.include_router(sepay.router)
