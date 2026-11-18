@@ -552,5 +552,17 @@
  "guide.bot": "📘 <b>Hướng dẫn đóng quỹ</b>\n\n<b>🤖 Bot Telegram</b>\n1. Mở @{bot}, bấm <b>Start</b>.\n2. Chọn tên mình (hoặc đóng hộ người khác) → <b>Thanh toán</b>.\n3. Quét QR bằng app ngân hàng, <b>giữ nguyên số tiền và nội dung</b>. Bot tự xác nhận trong vài phút.\nKhác: /status ai đã đóng · /fund số dư · /matches lịch đá · /contacts danh bạ",
  "guide.web": "<b>🌐 Trang web</b> (không cần Telegram){link}\n• <b>Đóng quỹ</b>: chọn tên → quét QR\n• <b>Quỹ</b>: thu chi, số dư · <b>Thành viên</b>: ai còn nợ\n• <b>Lịch đá</b>, <b>Danh bạ</b> đội bạn (bấm số để gọi)\n• Thêm vào màn hình chính để mở như app",
  "guide.link": "\n👉 {url}",
- "guide.forward": "↪️ Chuyển tiếp tin này vào nhóm chat của đội."
+ "guide.forward": "↪️ Chuyển tiếp tin này vào nhóm chat của đội.",
+ "btn.member_packs": "💳 Gói phí",
+ "btn.pack_add": "➕ Thêm gói",
+ "btn.pack_new": "✏️ Gói mới (nhập mức)",
+ "btn.pack_window": "📅 Đổi thời gian áp dụng",
+ "btn.pack_drop": "🗑 Bỏ gói này",
+ "btn.pack_drop_yes": "🗑 Bỏ",
+ "member.packs_title": "💳 <b>Gói phí của {name}</b>",
+ "member.no_packs": "Chưa ở gói nào: đóng theo gói mặc định.",
+ "member.pack_pick": "Thêm gói cho <b>{name}</b>: chọn một gói của đội, hoặc tạo gói mới.",
+ "member.pack_new_ask": "Nhập mức và chu kỳ của gói, ví dụ <code>300k quý</code> (chu kỳ: tháng, quý, 6 tháng, năm).",
+ "member.pack_drop_confirm": "Bỏ gói này? Những tháng gói không còn áp dụng sẽ đóng theo gói khác hoặc gói mặc định.",
+ "member.pack_dropped": "✅ Đã bỏ gói."
 }

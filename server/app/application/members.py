@@ -29,7 +29,7 @@ class MemberUseCases:
         period = self.d.clock.current_period()
         current = billing.plan_for(m, plans, period) is not None
         mine = sorted((x for x in plans.ms.get(m.id, []) if x.plan_id in plans), key=lambda x: x.start or "")
-        packs = [{"amount": plans[x.plan_id].amount, "months": plans[x.plan_id].months, "from": x.start,
+        packs = [{"plan_id": x.plan_id, "amount": plans[x.plan_id].amount, "months": plans[x.plan_id].months, "from": x.start,
                   "until": x.until, "now": on_plan(x, period)} for x in mine]
         return {"id": m.id, "name": m.name, "nickname": m.nickname, "shirt_number": m.shirt_number,
                 "phone": m.phone, "note": m.note, "fee_override": m.fee_override, "fee": fee, "months": months,

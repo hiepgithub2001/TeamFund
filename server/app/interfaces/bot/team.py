@@ -307,6 +307,7 @@ def member_view(lang, m):
         [(t(lang, "btn.note"), f"m:e:{i}:note"), (t(lang, "btn.fee"), f"m:e:{i}:fee")],
         [(t(lang, "btn.activate" if paused else "btn.pause"), f"m:s:{i}:{'active' if paused else 'paused'}"),
          (t(lang, "btn.bills"), f"m:b:{i}")],
+        [(t(lang, "btn.member_packs"), f"m:pk:{i}")],
         [(t(lang, "btn.remove"), f"m:rm:{i}"), (t(lang, "btn.back"), "m:l")],
     )
     return text, markup
@@ -319,6 +320,82 @@ async def bills_view(cq, entry, lang, member_id) -> None:
     rows.append([(t(lang, "btn.back"), f"m:v:{member_id}")])
     key = "bills.title" if r["bills"] else "bills.none"
     await edit(cq, t(lang, key, name=esc(r["member"]["name"])), kb(*rows))
+
+
+async def member_packs_view(ev, entry, lang, member_id: int, note: str = "", edit_in_place: bool = True) -> None:
+    """One member's packages: each is a button (change its periods, take them off it), plus ➕ add one."""
+    mem = await call(S.members.get_member, tid(entry), ev.from_user.id, member_id)
+    lines = [member_pack_line(lang, p) for p in mem["plans"]] or [t(lang, "member.no_packs")]
+    text = (note + "\n\n" if note else "") + t(lang, "member.packs_title", name=esc(mem["name"])) + "\n" + "\n".join(lines)
+    rows = [[(f"✏️ {fee_text(lang, p['amount'], p['months'])}", f"m:po:{member_id}:{p['plan_id']}")]
+            for p in mem["plans"]]
+    rows += [[(t(lang, "btn.pack_add"), f"m:pa:{member_id}")], [(t(lang, "btn.back"), f"m:v:{member_id}")]]
+    if edit_in_place:
+        await edit(ev, text, kb(*rows))
+    else:
+        await say(ev, text, reply_markup=kb(*rows))
+
+
+async def member_pack_action(cq, entry, lang, action: str, mid: int, arg: str | None) -> None:
+    user = cq.from_user
+    if action == "pk":
+        await member_packs_view(cq, entry, lang, mid)
+    elif action == "po":  # one package: change its periods or take them off it
+        mem = await call(S.members.get_member, tid(entry), user.id, mid)
+        p = next((x for x in mem["plans"] if x["plan_id"] == int(arg)), None)
+        if not p:
+            await member_packs_view(cq, entry, lang, mid)
+            return
+        await edit(cq, f"<b>{esc(mem['name'])}</b>\n{member_pack_line(lang, p)}",
+                   kb([(t(lang, "btn.pack_window"), f"m:pw:{mid}:{arg}")],
+                      [(t(lang, "btn.pack_drop"), f"m:pd:{mid}:{arg}")],
+                      [(t(lang, "btn.back"), f"m:pk:{mid}")]))
+    elif action in ("pw", "pj"):  # periods for this package (joining it if they aren't on it yet)
+        mem = await call(S.members.get_member, tid(entry), user.id, mid)
+        plan = await call(S.plans.get_plan, tid(entry), user.id, int(arg))
+        await open_window_menu(cq, lang, plan, [{"id": mid, "name": mem["name"]}], edit_in_place=True, member_id=mid)
+    elif action == "pd":
+        await edit(cq, t(lang, "member.pack_drop_confirm"),
+                   kb([(t(lang, "btn.pack_drop_yes"), f"m:pdy:{mid}:{arg}"), (t(lang, "btn.cancel"), f"m:pk:{mid}")]))
+    elif action == "pdy":
+        await call(S.plans.remove_members, tid(entry), user.id, int(arg), [mid])
+        await member_packs_view(cq, entry, lang, mid, note=t(lang, "member.pack_dropped"))
+    elif action == "pa":  # pick one of the team's packages, or type a new one
+        v = await call(S.plans.list_plans, tid(entry), user.id)
+        mem = await call(S.members.get_member, tid(entry), user.id, mid)
+        mine = {p["plan_id"] for p in mem["plans"]}
+        rows = [[(f"➕ {fee_text(lang, p['amount'], p['months'])}", f"m:pj:{mid}:{p['id']}")]
+                for p in v["plans"] if p["id"] not in mine]
+        rows += [[(t(lang, "btn.pack_new"), f"m:pn:{mid}")], [(t(lang, "btn.back"), f"m:pk:{mid}")]]
+        await edit(cq, t(lang, "member.pack_pick", name=esc(mem["name"])), kb(*rows))
+    elif action == "pn":
+        set_state(input_key(cq.bot.id, cq.message.chat.id), {"type": "member_pack", "member_id": mid}, 600)
+        await say(cq, t(lang, "member.pack_new_ask"), reply_markup=ForceReply(force_reply=True,
+                                                                               input_field_placeholder="300k quý"))
+
+
+async def member_pack_reply(message: Message, entry, lang, st: dict, text: str) -> None:
+    """A new package typed for one member ("300k quý"): made (or the same one found), then its periods."""
+    amount, rest = amount_and_title(text)
+    months = parse_cycle(rest or "")
+    if not amount or not months:
+        set_state(input_key(message.bot.id, message.chat.id), st, 600)
+        await message.answer(t(lang, "err.invalid") + "\n\n" + t(lang, "member.pack_new_ask"), reply_markup=FORCE)
+        return
+    mid = st["member_id"]
+    plan = await call(S.plans.save_plan, tid(entry), message.from_user.id, amount, months, [mid])
+    mem = await call(S.members.get_member, tid(entry), message.from_user.id, mid)
+    if plan.get("conflicts"):
+        await message.answer(clash_text(lang, plan["conflicts"]) + "\n\n" + t(lang, "plans.overlap_hint"))
+    await open_window_menu(message, lang, plan, [{"id": mid, "name": mem["name"]}], member_id=mid)
+
+
+@router.callback_query(F.data.regexp(r"^m:(pk|po|pw|pj|pd|pdy|pa|pn)(?::(\d+))(?::(\d+))?$").as_("m"))
+async def on_member_pack(cq: CallbackQuery, m: re.Match, entry, lang):
+    if not await allow(cq, entry, lang, "manager"):
+        return
+    await cq.answer()
+    await member_pack_action(cq, entry, lang, m.group(1), int(m.group(2)), m.group(3))
 
 
 @router.callback_query(F.data.regexp(r"^m:(l|v|e|s|b|rm|rmy|add)(?::(\d+))?(?::(\w+))?$").as_("m"))
@@ -966,13 +1043,17 @@ def window_choices(p: dict) -> dict[str, tuple[str, str | None]]:
             "only": (start, add_months(start, p["months"] - 1))}
 
 
-async def open_window_menu(ev, lang, p: dict, members: list[dict], edit_in_place: bool = False) -> None:
-    """Ask for how long these members are on plan p."""
+async def open_window_menu(ev, lang, p: dict, members: list[dict], edit_in_place: bool = False,
+                           member_id: int | None = None) -> None:
+    """Ask for how long these members are on plan p. From a member card (member_id), the answer goes back
+    to that member's packages."""
     if not members:
         return
     c = window_choices(p)
-    set_state(window_key(ev.bot.id, ev.message.chat.id if isinstance(ev, CallbackQuery) else ev.chat.id),
-              {"plan_id": p["id"], "ids": [m["id"] for m in members]}, 600)
+    st = {"plan_id": p["id"], "ids": [m["id"] for m in members]}
+    if member_id:
+        st["member_id"] = member_id
+    set_state(window_key(ev.bot.id, ev.message.chat.id if isinstance(ev, CallbackQuery) else ev.chat.id), st, 600)
     cur = period_name(c["cur"][0], p["months"])
     rows = [[(t(lang, "btn.window_next", period=period_name(c["next"][0], p["months"])), "w:next")],
             [(t(lang, "btn.window_cur", period=cur), "w:cur")],
@@ -1008,12 +1089,17 @@ async def apply_window(ev, entry, lang, st: dict, start: str, until: str | None,
         names = {c["member_id"]: c["member"] for c in e.extra["clashes"]}
         names.update({m["id"]: m["name"] for m in plan["members"]})
         await say(ev, clash_text(lang, e.extra["clashes"]) + "\n\n" + t(lang, "plans.overlap_hint"))
-        await open_window_menu(ev, lang, plan, [{"id": i, "name": names.get(i, "?")} for i in st["ids"]])
+        await open_window_menu(ev, lang, plan, [{"id": i, "name": names.get(i, "?")} for i in st["ids"]],
+                               member_id=st.get("member_id"))
         return
-    text, markup = plan_view(lang, p)
     n = p["months"]
     a, b = period_name(start, n), until and period_name(until, n)
     span = (a if a == b else f"{a}–{b}") if b else a + t(lang, "window.forever")
+    if st.get("member_id"):
+        await member_packs_view(ev, entry, lang, st["member_id"], note=t(lang, "window.saved", span=span),
+                                edit_in_place=edit_in_place)
+        return
+    text, markup = plan_view(lang, p)
     out = f"{t(lang, 'window.saved', span=span)}\n\n{text}"
     if edit_in_place:
         await edit(ev, out, markup)
@@ -1098,7 +1184,8 @@ async def plan_window_reply(message: Message, entry, lang, st: dict, text: str) 
         await message.answer(t(lang, "err.invalid") + "\n\n" + type_guide(lang, p), reply_markup=FORCE)
         return
     del_state(window_key(message.bot.id, message.chat.id))
-    await apply_window(message, entry, lang, {"plan_id": st["plan_id"], "ids": st["ids"]}, *w, edit_in_place=False)
+    await apply_window(message, entry, lang, {"plan_id": st["plan_id"], "ids": st["ids"],
+                                              "member_id": st.get("member_id")}, *w, edit_in_place=False)
 
 
 async def plans_view(ev, entry, lang, edit_in_place: bool = False) -> None:
@@ -1618,6 +1705,8 @@ async def on_text(message: Message, entry, lang):
         await save_sepay_token(message, entry, lang, text)
     elif st["type"] in ("expense", "income"):
         await record_money(message, entry, lang, st["type"], text)
+    elif st["type"] == "member_pack":
+        await member_pack_reply(message, entry, lang, st, text)
     elif st["type"] == "cash_amount":
         await cash_amount_reply(message, entry, lang, st, text)
     elif st["type"] == "default_fee":

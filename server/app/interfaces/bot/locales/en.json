@@ -552,5 +552,17 @@
  "guide.bot": "📘 <b>How to pay the team fund</b>\n\n<b>🤖 Telegram bot</b>\n1. Open @{bot}, tap <b>Start</b>.\n2. Pick your name (or pay for someone else) → <b>Pay</b>.\n3. Scan the QR in your bank app, <b>keep the amount and message as they are</b>. The bot confirms in a few minutes.\nMore: /status who paid · /fund balance · /matches fixtures · /contacts contacts",
  "guide.web": "<b>🌐 Web page</b> (no Telegram needed){link}\n• <b>Pay</b>: pick names → scan the QR\n• <b>Fund</b>: income, expenses, balance · <b>Members</b>: who still owes\n• <b>Matches</b>, <b>Contacts</b> of other teams (tap a number to call)\n• Add it to your home screen to open it like an app",
  "guide.link": "\n👉 {url}",
- "guide.forward": "↪️ Forward this message to the team chat."
+ "guide.forward": "↪️ Forward this message to the team chat.",
+ "btn.member_packs": "💳 Packages",
+ "btn.pack_add": "➕ Add package",
+ "btn.pack_new": "✏️ New package (type it)",
+ "btn.pack_window": "📅 Change months it applies",
+ "btn.pack_drop": "🗑 Remove this package",
+ "btn.pack_drop_yes": "🗑 Remove",
+ "member.packs_title": "💳 <b>{name}'s packages</b>",
+ "member.no_packs": "On no package: pays the default package.",
+ "member.pack_pick": "Add a package for <b>{name}</b>: pick one of the team's, or make a new one.",
+ "member.pack_new_ask": "Type the amount and cycle, e.g. <code>300k quarter</code> (cycle: month, quarter, 6 months, year).",
+ "member.pack_drop_confirm": "Remove this package? Months it no longer covers are paid on another package or the default.",
+ "member.pack_dropped": "✅ Package removed."
 }

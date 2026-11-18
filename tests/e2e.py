@@ -687,6 +687,45 @@ async def main():
         await until(lambda: len(sent(lambda c: to(OWNER, "Overlaps another package")(c))) >= 2, "still overlapping: warned again")
         await T(cb_update(OWNER, "w:x", menu["message_id"]))
 
+        # 16b2. packages from An's member card: add a new one from next period, then remove it again
+        await T(text_update(OWNER, "/members"))
+        lst = await wait_sent(lambda c: to(OWNER, r"Members</b>")(c) and c["method"] == "sendMessage", "members list again")
+        an = next(b["callback_data"] for row in lst["params"]["reply_markup"]["inline_keyboard"] for b in row
+                  if b["text"].startswith("An"))
+        aid = an.split(":")[2]
+        await T(cb_update(OWNER, f"m:pk:{aid}", lst["message_id"]))
+        await wait_sent(lambda c: "An's packages" in c["params"].get("text", "") and "150,000đ/month" in c["params"].get("text", ""),
+                        "member packages")
+        await T(cb_update(OWNER, f"m:pn:{aid}", lst["message_id"]))
+        await wait_sent(to(OWNER, "Type the amount and cycle"), "new package asked")
+        await T(text_update(OWNER, "90k month"))
+        menu = await wait_sent(to(OWNER, "From which period does <b>90,000đ/month</b> apply to <b>An</b>"),
+                               "periods for the new package")
+        await T(cb_update(OWNER, "w:x", menu["message_id"]))
+        # shorten the 150k one to this month, then the 90k one fits from next month
+        plan150 = next(c for c in [await wait_sent(lambda c: "An's packages" in c["params"].get("text", ""), "packages")])
+        pid150 = next(b["callback_data"] for row in plan150["params"]["reply_markup"]["inline_keyboard"] for b in row
+                      if "150,000" in b["text"]).split(":")[3]
+        await T(cb_update(OWNER, f"m:pw:{aid}:{pid150}", lst["message_id"]))
+        await wait_sent(to(OWNER, "From which period does <b>150,000đ/month</b> apply to <b>An</b>"), "periods for 150k")
+        await T(cb_update(OWNER, "w:only", lst["message_id"]))
+        await wait_sent(lambda c: "Months set:" in c["params"].get("text", "") and "An's packages" in c["params"].get("text", ""),
+                        "back on An's packages")
+        await T(cb_update(OWNER, f"m:pa:{aid}", lst["message_id"]))
+        add = await wait_sent(lambda c: "Add a package for <b>An</b>" in c["params"].get("text", ""), "pick a package")
+        join = next(b["callback_data"] for row in add["params"]["reply_markup"]["inline_keyboard"] for b in row
+                    if "90,000" in b["text"])
+        await T(cb_update(OWNER, join, lst["message_id"]))
+        await T(cb_update(OWNER, "w:next", lst["message_id"]))
+        done = await wait_sent(lambda c: "Months set:" in c["params"].get("text", "") and "90,000đ/month" in c["params"].get("text", "")
+                               and "An's packages" in c["params"].get("text", "") and "Overlaps" not in c["params"].get("text", ""),
+                               "second package added from the card")
+        pid90 = join.split(":")[3]
+        await T(cb_update(OWNER, f"m:pd:{aid}:{pid90}", lst["message_id"]))
+        await T(cb_update(OWNER, f"m:pdy:{aid}:{pid90}", lst["message_id"]))
+        await wait_sent(lambda c: "Package removed" in c["params"].get("text", "") and "90,000" not in c["params"].get("text", ""),
+                        "package removed from the card")
+
         # 16c. /guide: short how-to with the pay page link, and a hint for managers to forward it
         await T(text_update(OWNER, "/guide"))
         await wait_sent(lambda c: to(OWNER, "How to pay the team fund")(c) and "/p/" in c["params"]["text"]
