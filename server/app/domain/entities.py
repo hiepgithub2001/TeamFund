@@ -164,6 +164,7 @@ class Bill:
     months: int | None = None  # fee bills: how many months from `period` this bill covers (None = 1)
     plan_id: int | None = None  # fee and late bills: the plan billed under (None: the default package)
     due_on: date | None = None  # fee bills: an own due date (someone who joined mid-period), else the package's
+    match_id: int | None = None  # a match fee: someone who played that match pays for it
     payment_id: int | None = None
     created_at: datetime | None = None
     paid_at: datetime | None = None
@@ -263,6 +264,7 @@ class Match:
     schedule_id: int | None = None  # made by a repeating calendar
     paid: int | None = None      # what the team paid the opponent for it (recorded as an expense)
     received: int | None = None  # what the opponent paid the team (recorded as income)
+    fee: int | None = None       # what each player charged for this match pays (set by a manager, per match)
     created_at: datetime | None = None
     id: int | None = None
 

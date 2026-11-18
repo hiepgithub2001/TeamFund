@@ -3,9 +3,9 @@ matches ahead, cancelling with a reason. Each match can carry money a manager re
 (pitch, water, paying the opponent…) and income (the opponent paying, a prize…), counted in the fund."""
 from datetime import date, timedelta
 
-from ..domain.entities import Expense, Match, MatchSchedule, Payment, Team
+from ..domain.entities import Bill, Expense, Match, MatchSchedule, Payment, Team
 from ..domain.errors import DomainError, invalid
-from ..domain.rules import MATCH_FILL_DAYS, MAX_MATCHES_AT_ONCE, fold, schedule_dates
+from ..domain.rules import MATCH_FILL_DAYS, MAX_FEE, MAX_MATCHES_AT_ONCE, fold, schedule_dates
 from . import billing
 from .access import get_team, manager_team
 from .people import audit, display_name
@@ -47,7 +47,7 @@ def match_dict(m: Match, today: date | None = None) -> dict:
     return {"id": m.id, "day": m.day.isoformat(), "weekday": m.day.weekday(), "at": m.at, "place": m.place,
             "opponent": m.opponent, "note": m.note, "status": m.status, "reason": m.reason,
             "schedule_id": m.schedule_id, "past": bool(today and m.day < today),
-            "paid": m.paid, "received": m.received}
+            "paid": m.paid, "received": m.received, "fee": m.fee}
 
 
 def schedule_dict(s: MatchSchedule) -> dict:
@@ -135,7 +135,44 @@ class MatchUseCases:
             c = next((c for c in uow.contacts.of_team(team.id) if key and fold(c.name) == key), None)
             out["contact_id"] = c.id if c else None
             out["contact_phone"] = c.phone if c else None
+            out["players"] = self._players(uow, m)
             return out
+
+    @staticmethod
+    def _players(uow: UnitOfWork, m: Match) -> list[dict]:
+        """Who was charged for this match, what, and whether they've paid."""
+        bills = [b for b in uow.bills.of_match(m.id) if b.status != "waived"]
+        names = {x.id: x.name for x in uow.members.of_team(m.team_id, include_left=True)}
+        return sorted(({"member_id": b.member_id, "name": names.get(b.member_id, "?"), "amount": b.amount,
+                        "paid": b.status == "paid"} for b in bills), key=lambda r: r["name"].casefold())
+
+    def charge_players(self, team_id: int, actor: int, match_id: int, amount, member_ids: list) -> dict:
+        """People who play (or played) this match pay `amount` each for it, a bill titled after the match
+        ("Trận 20/11 vs FC X") in the match's month. Anyone already charged for it is skipped. The amount
+        is kept on the match as the next default. Undo takes the bills back."""
+        if not isinstance(amount, int) or isinstance(amount, bool) or not 1000 <= amount <= MAX_FEE or amount % 1000:
+            raise DomainError(400, "match_fee_amount")
+        if not isinstance(member_ids, list) or not member_ids \
+                or not all(isinstance(i, int) and not isinstance(i, bool) for i in member_ids):
+            raise invalid()
+        with self.d.uow() as uow:
+            team = manager_team(uow, team_id, actor)
+            m = self._match(uow, team, match_id)
+            already = {b.member_id for b in uow.bills.of_match(m.id) if b.status != "waived"}
+            chosen = [x for x in uow.members.of_team(team.id, ids=list(dict.fromkeys(member_ids)))
+                      if x.id not in already]
+            title = (f"Trận {m.day:%d/%m}" + (f" vs {m.opponent}" if m.opponent else ""))[:100]
+            now = self.d.clock.now()
+            for x in chosen:
+                uow.bills.add(Bill(team_id=team.id, member_id=x.id, kind="charge", title=title,
+                                   period=f"{m.day:%Y-%m}", amount=amount, match_id=m.id, created_at=now))
+            m.fee = amount
+            names = sorted((x.name for x in chosen), key=str.casefold)
+            audit(uow, self.d.clock, team.id, actor, "match.fee", target=title,
+                  after={"amount": amount, "members": names})
+            uow.commit()
+            return {"match": {**match_dict(m, self._today()), "players": self._players(uow, m)}, "title": title,
+                    "amount": amount, "charged": names, "skipped": len(set(member_ids)) - len(chosen)}
 
     def suggest_days(self, team_id: int, actor: int, n: int = 4) -> list[str]:
         """Days to offer when adding a match: the calendars' next free days, else the next weekend days."""

@@ -125,6 +125,8 @@ def picker_keyboard(lang, st):
             return kb(*rows)
         confirm = t(lang, "btn.confirm", n=n)
         amount = (st.get("data") or {}).get("amount")
+        if st["kind"] == "match_fee" and n and amount:
+            confirm += " · " + t(lang, "pick.total", amount=money(amount * n, lang))
         if st["kind"] in ("charge", "split") and n and amount:  # what the choice costs
             confirm += " · " + (t(lang, "pick.total", amount=money(amount * n, lang)) if st["kind"] == "charge"
                                 else t(lang, "pick.each", amount=money(split_share(amount, n), lang)))
@@ -227,6 +229,17 @@ async def on_picker_confirm(cq: CallbackQuery, entry, lang, st, key) -> None:
         await cq.answer()
         chosen = [m for m in plan["members"] if m["id"] in ids]
         await open_window_menu(cq, lang, plan, chosen, edit_in_place=True)
+    elif st["kind"] == "match_fee":
+        dt = st["data"]
+        r = await call(S.matches.charge_players, tid(entry), cq.from_user.id, dt["match_id"], dt["amount"], ids)
+        del_state(key)
+        await cq.answer()
+        from .matches import match_view
+        text, markup = match_view(lang, {**await call(S.matches.get, tid(entry), cq.from_user.id, dt["match_id"])})
+        await edit(cq, t(lang, "mt.fee_done", n=len(r["charged"]), amount=money(r["amount"], lang)) + "\n\n" + text, markup)
+        if r["charged"]:
+            await broadcast(entry, t(G, "group.match_fee", title=esc(r["title"]), amount=money(r["amount"], G),
+                                     names=esc(", ".join(r["charged"]))), reply_markup=pay_keyboard(G, entry.username))
     elif st["kind"] == "assign":
         r = await call(S.money.assign, tid(entry), cq.from_user.id, st["data"]["payment_id"], ids)
         del_state(key)

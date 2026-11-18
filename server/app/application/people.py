@@ -20,7 +20,7 @@ def user_info(uow: UnitOfWork, tg_id: int) -> dict:
 UNDOABLE = {"expense.add", "income.add", "payment.cash", "payment.assign", "payment.other_income", "bill.charge",
             "bill.split", "bill.waive", "plan.save", "plan.window", "plan.delete", "plan.terms", "team.settings", "member.add",
             "member.update", "member.remove",
-            "match.add", "match.update", "match.money", "match.delete", "match.cancel", "match.restore", "schedule.add",
+            "match.add", "match.update", "match.money", "match.fee", "match.delete", "match.cancel", "match.restore", "schedule.add",
             "schedule.stop", "contact.save", "contact.update", "contact.delete"}
 
 

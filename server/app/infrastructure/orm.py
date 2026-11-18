@@ -108,7 +108,7 @@ bills = Table(
     Column("status", String(16), nullable=False), Column("monthly_key", String(32), unique=True),
     Column("payment_id", ForeignKey("payments.id")), Column("created_at", DateTime, nullable=False),
     Column("paid_at", DateTime), Column("months", Integer), Column("plan_id", Integer),
-    Column("due_on", Date),
+    Column("due_on", Date), Column("match_id", Integer, index=True),
 )
 
 payment_intents = Table(
@@ -152,7 +152,7 @@ matches = Table(
     Column("team_id", ForeignKey("teams.id"), index=True, nullable=False), Column("day", Date, nullable=False),
     Column("at", String(5)), Column("place", String(100)), Column("opponent", String(100)), Column("note", String(255)),
     Column("status", String(16), nullable=False), Column("reason", String(255)), Column("schedule_id", Integer),
-    Column("created_at", DateTime, nullable=False), Column("paid", Integer), Column("received", Integer),
+    Column("created_at", DateTime, nullable=False), Column("paid", Integer), Column("received", Integer), Column("fee", Integer),
 )
 
 match_schedules = Table(

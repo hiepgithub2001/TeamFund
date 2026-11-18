@@ -109,12 +109,21 @@ def match_view(lang: str, x: dict):
         lines.append(t(lang, "mt.paid_line", amount=money(x["paid"], lang)))
     if x.get("received"):
         lines.append(t(lang, "mt.received_line", amount=money(x["received"], lang)))
+    if x.get("players"):
+        ps = x["players"]
+        done = sum(1 for p in ps if p["paid"])
+        lines.append(t(lang, "mt.fee_line", n=len(ps), paid=done))
+        lines.append(", ".join(("✅ " if p["paid"] else "⏳ ") + esc(p["name"]) + (
+            f" ({money(p['amount'], lang)})" if p["amount"] != ps[0]["amount"] else "") for p in ps))
+        if all(p["amount"] == ps[0]["amount"] for p in ps):
+            lines[-2] += " · " + t(lang, "mt.fee_each", amount=money(ps[0]["amount"], lang))
     i = x["id"]
     cancel = (t(lang, "mt.btn_restore"), f"mt:r:{i}") if x["status"] == "cancelled" else (t(lang, "mt.btn_cancel"), f"mt:c:{i}")
     contact = [(t(lang, "mt.btn_contact"), f"ct:v:{x['contact_id']}")] if x.get("contact_id") else (
         [(t(lang, "mt.btn_save_contact"), f"mt:sc:{i}")] if x.get("opponent") else [])
     settle = [(t(lang, "mt.btn_paid"), f"mt:mp:{i}"), (t(lang, "mt.btn_received"), f"mt:mr:{i}")]
-    return "\n".join(lines), kb(settle, [(t(lang, "mt.btn_when"), f"mt:ed:{i}"), (t(lang, "mt.btn_opp"), f"mt:eo:{i}")],
+    return "\n".join(lines), kb([(t(lang, "mt.btn_fee"), f"mt:f:{i}")], settle,
+                                [(t(lang, "mt.btn_when"), f"mt:ed:{i}"), (t(lang, "mt.btn_opp"), f"mt:eo:{i}")],
                                 [(t(lang, "mt.btn_note"), f"mt:en:{i}"), cancel], contact,
                                 [(t(lang, "mt.btn_delete"), f"mt:d:{i}"), (t(lang, "btn.back"), "mt:l:5")])
 
@@ -303,6 +312,15 @@ async def on_matches(cq: CallbackQuery, m: re.Match, entry, lang):
         await show_match(cq, entry, lang, int(a), t(lang, "mt.updated") + "\n\n")
     elif action == "en" and a:
         await ask(cq, lang, {"type": "mt_note", "id": int(a)}, t(lang, "mt.ask_note"), "áo trắng")
+    elif action == "f" and a:  # a fee for the people who play it: how much each (last amount one tap away)
+        x = await call(S.matches.get, team, user, int(a))
+        quick = [(t(lang, "mt.fee_again", amount=money(x["fee"], lang)), f"mt:fa:{a}:{x['fee']}")] if x.get("fee") else []
+        set_state(ikey(cq), {"type": "mt_fee", "id": int(a)}, 600)
+        await say(cq, t(lang, "mt.ask_fee", match=match_line(lang, x)),
+                  reply_markup=kb(quick, [(t(lang, "btn.cancel"), f"mt:v:{a}")]) if quick else FORCE)
+    elif action == "fa" and a and b:
+        del_state(ikey(cq))
+        await fee_picker(cq, entry, lang, int(a), int(b))
     elif action in ("mp", "mr") and a:  # money after the match: we paid / they paid
         x = await call(S.matches.get, team, user, int(a))
         kind = "paid" if action == "mp" else "received"
@@ -564,6 +582,22 @@ async def on_contacts(cq: CallbackQuery, m: re.Match, entry, lang):
         await edit(cq, t(lang, "cancelled"))
 
 
+async def fee_picker(ev, entry, lang, match_id: int, amount: int) -> None:
+    """Who pays the match fee: members not charged for it yet, nobody ticked."""
+    from .team import open_picker
+    x = await call(S.matches.get, tid(entry), ev.from_user.id, match_id)
+    done = {p["member_id"] for p in x.get("players") or []}
+    members = [m for m in await call(S.members.list_members, tid(entry), ev.from_user.id)
+               if m["status"] == "active" and m["id"] not in done]
+    if not members:
+        await say(ev, t(lang, "mt.fee_nobody"))
+        return
+    await open_picker(ev, lang, {
+        "kind": "match_fee", "title": t(lang, "mt.fee_pick", match=match_line(lang, x), amount=money(amount, lang)),
+        "options": [{"id": m["id"], "label": m["name"]} for m in members], "selected": [],
+        "data": {"match_id": match_id, "amount": amount}})
+
+
 # ---- typed replies for the prompts above ------------------------------------------------------------
 
 def _mine(message: Message) -> bool:
@@ -614,6 +648,12 @@ async def on_reply(message: Message, entry, lang):
     elif kind == "mt_opp":
         await call(S.matches.update, team, user, st["id"], {"opponent": None if text == "-" else text})
         await show_match(message, entry, lang, st["id"], t(lang, "mt.updated") + "\n\n", edit_in_place=False)
+    elif kind == "mt_fee":
+        amount = parse_amount(text)
+        if not amount or amount % 1000:
+            await again("mt.ask_fee_short", "50k")
+            return
+        await fee_picker(message, entry, lang, st["id"], amount)
     elif kind == "mt_money":
         amount, note = amount_and_title(text)
         if " " not in text.strip():

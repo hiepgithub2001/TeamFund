@@ -817,6 +817,24 @@ async def main():
         await wait_sent(lambda c: to(OWNER, "Recorded 300,000đ spent")(c) and "Spent: 300,000đ" in c["params"]["text"],
                         "recorded on the match")
         await wait_sent(to(MEMBER, "Trận 26/10 vs Tăng High: pitch"), "followers see the expense")
+        # the same played match: two players pay 40k each for it
+        await T(cb_update(OWNER, pm.replace("mt:v:", "mt:f:"), pastv["message_id"]))
+        await wait_sent(to(OWNER, "How much does each player pay"), "match fee asked")
+        await T(text_update(OWNER, "40k"))
+        fp = await wait_sent(to(OWNER, "Who plays this match"), "players picker")
+        await T(cb_update(OWNER, "k:t:0", fp["message_id"]))
+        await T(cb_update(OWNER, "k:t:1", fp["message_id"]))
+        await T(cb_update(OWNER, "k:ok", fp["message_id"]))
+        await wait_sent(lambda c: c["method"] == "editMessageText" and "Charged 2 players 40,000đ each" in c["params"]["text"]
+                        and "Match fee: 2 players, 0 paid" in c["params"]["text"], "players charged, shown on the card")
+        await wait_sent(to(MEMBER, "Trận 26/10 vs Tăng High</b>: 40,000đ each"), "followers told")
+        await T(cb_update(OWNER, pm.replace("mt:v:", "mt:f:"), pastv["message_id"]))
+        again = await wait_sent(lambda c: to(OWNER, "How much does each player pay")(c)
+                                and "mt:fa:" in json.dumps(c["params"].get("reply_markup")), "last amount one tap away")
+        await T(cb_update(OWNER, next(d for d in buttons(again) if d.startswith("mt:fa:")), again["message_id"]))
+        rest = await wait_sent(lambda c: to(OWNER, "Who plays this match")(c) and c is not fp, "only those not charged yet")
+        assert len([b for b in buttons(rest) if b.startswith("k:t:")]) == len([b for b in buttons(fp) if b.startswith("k:t:")]) - 2
+        await T(cb_update(OWNER, "k:x", rest["message_id"]))
 
         FAN = 777001  # someone who just opened the bot
         await T(text_update(FAN, "/matches"))

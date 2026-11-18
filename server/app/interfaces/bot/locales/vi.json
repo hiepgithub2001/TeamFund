@@ -577,5 +577,16 @@
  "pick.each": "{amount}/người",
  "weblink.none": "Đội chưa có link trang đóng quỹ. Nhờ quản lý đội gửi /weblink để tạo.",
  "pick.choose": "<b>{title}</b> · {amount}\n1️⃣ Bấm tên những người phải đóng (hoặc 👥 Cả đội).\n2️⃣ Chọn cách tính ở dưới:\n• 👤 Mỗi người đóng {amount}\n• ➗ Chia đều {amount} cho những người đã chọn",
- "btn.everyone": "👥 Cả đội ({n} người)"
+ "btn.everyone": "👥 Cả đội ({n} người)",
+ "mt.btn_fee": "💵 Thu phí người đá",
+ "mt.ask_fee": "💵 Phí trận {match}\nMỗi người đá đóng bao nhiêu? Nhập số tiền, ví dụ <code>50k</code>. Sau đó chọn những người đá trận này.",
+ "mt.ask_fee_short": "Nhập số tiền mỗi người, bội số của 1.000đ, ví dụ <code>50k</code>.",
+ "mt.fee_again": "{amount}/người (như lần trước)",
+ "mt.fee_pick": "💵 {match}\nAi đá trận này? Mỗi người đóng <b>{amount}</b>. Bấm tên để chọn.",
+ "mt.fee_nobody": "Mọi người đều đã được tính phí trận này.",
+ "mt.fee_done": "✅ Đã tính phí trận cho {n} người, {amount}/người. Họ đóng bằng /start hoặc trang web như khoản thu thường.",
+ "mt.fee_line": "💵 Phí trận: {n} người, {paid} đã đóng",
+ "mt.fee_each": "{amount}/người",
+ "group.match_fee": "💵 <b>{title}</b>: {amount}/người cho {names}. Đóng bằng /start.",
+ "err.match_fee_amount": "Số tiền mỗi người phải là bội số của 1.000đ, ví dụ 50k."
 }

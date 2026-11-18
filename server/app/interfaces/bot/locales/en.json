@@ -577,5 +577,16 @@
  "pick.each": "{amount} each",
  "weblink.none": "The team has no pay page link yet. Ask a manager to send /weblink to make one.",
  "pick.choose": "<b>{title}</b> · {amount}\n1️⃣ Tap the names of who pays (or 👥 Whole team).\n2️⃣ Then pick how, below:\n• 👤 Each pays {amount}\n• ➗ Split {amount} between them",
- "btn.everyone": "👥 Whole team ({n})"
+ "btn.everyone": "👥 Whole team ({n})",
+ "mt.btn_fee": "💵 Charge players",
+ "mt.ask_fee": "💵 Match fee for {match}\nHow much does each player pay? Type the amount, e.g. <code>50k</code>. Then pick who plays this match.",
+ "mt.ask_fee_short": "Type each player's amount, a multiple of 1,000đ, e.g. <code>50k</code>.",
+ "mt.fee_again": "{amount} each (as last time)",
+ "mt.fee_pick": "💵 {match}\nWho plays this match? Each pays <b>{amount}</b>. Tap names to pick.",
+ "mt.fee_nobody": "Everyone has already been charged for this match.",
+ "mt.fee_done": "✅ Charged {n} players {amount} each. They pay with /start or the pay page like any charge.",
+ "mt.fee_line": "💵 Match fee: {n} players, {paid} paid",
+ "mt.fee_each": "{amount} each",
+ "group.match_fee": "💵 <b>{title}</b>: {amount} each for {names}. Pay with /start.",
+ "err.match_fee_amount": "Each player's amount must be a multiple of 1,000đ, e.g. 50k."
 }

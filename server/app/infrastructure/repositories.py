@@ -142,6 +142,9 @@ class SqlBills(_Repo):
     def get(self, bill_id: int) -> Bill | None:
         return self.s.get(Bill, bill_id)
 
+    def of_match(self, match_id: int) -> list[Bill]:
+        return list(self.s.scalars(select(Bill).where(Bill.match_id == match_id).order_by(Bill.id)))
+
     def get_many(self, bill_ids: list[int], unpaid_only: bool = False) -> list[Bill]:
         if not bill_ids:
             return []

@@ -994,3 +994,37 @@ def test_two_teams_on_one_bank_account(world):
     assert svc.money.record_transfer(b, kb, IncomingTransfer("100517448", 30000, "chuyen tien")) is None, \
         "a shared account: no code of this team, ignored"
     assert svc.money.unmatched(b, OWNER) == [] and svc.money.fund(b)["balance"] == 0
+
+
+def test_match_fee():
+    """Players of one match (past or ahead) pay a fee a manager sets for it: a bill per player titled after the
+    match, in the match's month; nobody is charged twice; the card shows who paid; undo takes it back."""
+    from datetime import date
+    svc, clock, _ = make_services(datetime(2026, 11, 18, 10, 0))
+    tid = setup_team(svc)
+    link_bank(svc, tid)
+    an, binh, cuong = [m["id"] for m in svc.members.add_members(tid, OWNER, [{"name": "An"}, {"name": "Bình"},
+                                                                             {"name": "Cường"}])]
+    past, ahead = [x["id"] for x in svc.matches.add(tid, OWNER, [{"day": date(2026, 11, 15), "opponent": "FC Moreh"},
+                                                                {"day": date(2026, 12, 6)}])]
+    assert code(svc.matches.charge_players, tid, MEMBER, past, 50000, [an]) == "not_manager"
+    for bad in (0, 1500, "50000", True):
+        assert code(svc.matches.charge_players, tid, OWNER, past, bad, [an]) == "match_fee_amount"
+    r = svc.matches.charge_players(tid, OWNER, past, 50000, [an, binh])
+    assert r["charged"] == ["An", "Bình"] and r["title"] == "Trận 15/11 vs FC Moreh" and r["match"]["fee"] == 50000
+    again = svc.matches.charge_players(tid, OWNER, past, 50000, [an, cuong])
+    assert again["charged"] == ["Cường"] and again["skipped"] == 1, "An already charged for this match"
+    owed = {g["name"]: [(b["title"], b["amount"]) for b in g["bills"] if b["kind"] == "charge"] for g in svc.money.unpaid(tid)}
+    assert owed["An"] == [("Trận 15/11 vs FC Moreh", 50000)]
+
+    fut = svc.matches.charge_players(tid, OWNER, ahead, 30000, [an])  # a match ahead: billed in its month
+    assert fut["title"] == "Trận 06/12"
+    an_bills = [b for g in svc.money.unpaid(tid) if g["name"] == "An" for b in g["bills"]]
+    assert ("Trận 06/12", "12/2026") in {(b["title"], b["period_label"]) for b in an_bills}
+
+    svc.money.markpaid(tid, OWNER, [binh])
+    card = svc.matches.get(tid, OWNER, past)
+    assert [(p["name"], p["paid"]) for p in card["players"]] == [("An", False), ("Bình", True), ("Cường", False)]
+    act = next(a for a in svc.undo.recent(tid, OWNER) if a["action"] == "match.fee")
+    svc.undo.undo(tid, OWNER, act["id"])
+    assert not any(b["title"] == "Trận 06/12" for g in svc.money.unpaid(tid) for b in g["bills"]), "undo takes it back"
