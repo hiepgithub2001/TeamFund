@@ -231,7 +231,7 @@ Each team bot keeps its own list of managers, keyed by Telegram user ID. That ID
 |---|---|---|
 | Owner | Whoever registered the bot with `/newteam` | Everything a manager can, plus `/sepaytoken`, `/setbank` (pick from SePay; also sets up the webhook), approve or remove managers, `/transferowner`, `/log` |
 | Manager | Approved by the owner | `/weblink` (the pay page link), `/members` (view, ➕ add, edit, remove), `/plans` (default fee and plans), deadlines and late fees (in `/plans`), `/markpaid`, `/expense`, `/income`, `/charge` (each pays, or ➗ split), `/undo`, `/remind`, assign unmatched payments, `/export` |
-| Everyone | Anyone who opens the bot | `/start` and pay (or the pay page in a browser, no Telegram needed), `/status`, `/fund`, `/history` (or `/history 10/2026` for every transaction of one month), `/bank` (the team account; managers also see whether SePay is connected), `/notify`, `/lang`, `/requestmanager` |
+| Everyone | Anyone who opens the bot | `/start` and pay (or the pay page in a browser, no Telegram needed), `/status`, `/fund`, `/history` (or `/history 10/2026` for every transaction of one month), `/bank` (the team account; managers also see whether SePay is connected), `/notify`, `/lang`, `/requestmanager`, `/guide` (a short how-to for the bot and the pay page, with the page link; managers forward it to the team chat) |
 
 ### Becoming a manager: request and approve
 
