@@ -51,6 +51,14 @@ class SqlTeams(_Repo):
     def by_public_token(self, token: str) -> Team | None:
         return self.s.scalar(select(Team).where(Team.public_token == token, Team.active.is_(True)))
 
+    def shares_account(self, team: Team) -> bool:
+        """Another active team is paid into the same bank account (so each hears every transfer on it)."""
+        if not team.bank_account:
+            return False
+        return self.s.scalar(select(Team.id).where(Team.id != team.id, Team.active.is_(True),
+                                                   Team.bank_name == team.bank_name,
+                                                   Team.bank_account == team.bank_account).limit(1)) is not None
+
     def for_admin(self, tg_id: int) -> list[tuple[Team, str]]:
         rows = self.s.execute(select(Team, TeamAdmin.role).join(TeamAdmin, TeamAdmin.team_id == Team.id)
                               .where(TeamAdmin.tg_id == tg_id, Team.active.is_(True)).order_by(Team.name))

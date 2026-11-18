@@ -977,7 +977,7 @@ def test_donation(world):
 
 def test_two_teams_on_one_bank_account(world):
     """Two teams linked to the same bank account both hear every transfer. A transfer with the other team's
-    code is that team's: ignored here, not flagged. One with no code at all still needs checking."""
+    code is that team's, and one with no code at all is ignored too: only this team's QR codes count here."""
     svc, clock, notifier = world
     a = setup_team(svc)
     req = svc.registration.request_team(OWNER, "FC Two")
@@ -991,4 +991,6 @@ def test_two_teams_on_one_bank_account(world):
     assert svc.money.record_transfer(a, ka, tx) == "donation_received"
     assert svc.money.record_transfer(b, kb, tx) is None, "the other team's code: not this team's money"
     assert svc.money.fund(b) == {"income": 0, "other_income": 0, "expense": 0, "balance": 0, "unmatched": 0}
-    assert svc.money.record_transfer(b, kb, IncomingTransfer("100517448", 30000, "chuyen tien")) == "unmatched_payment"
+    assert svc.money.record_transfer(b, kb, IncomingTransfer("100517448", 30000, "chuyen tien")) is None, \
+        "a shared account: no code of this team, ignored"
+    assert svc.money.unmatched(b, OWNER) == [] and svc.money.fund(b)["balance"] == 0
