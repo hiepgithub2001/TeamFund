@@ -847,6 +847,8 @@ def parse_cycle(word: str) -> int | None:
 
 def terms_text(lang: str, x: dict) -> str:
     """"📅 ngày 15, hạn +5 ngày · ⏰ 1.000đ/ngày" (with "(như mặc định)" where a plan follows the default)."""
+    if not x.get("own_schedule", True) and not x.get("own_late", True):
+        return t(lang, "plans.terms_default")  # follows the default package in both: say just that
     inherit = t(lang, "plans.inherit")
     sched = t(lang, "plans.schedule", notify=x["notify_day"], days=x["due_days"])
     late = t(lang, "plans.late_on", fee=money(x["late_fee"], lang)) if x["late_fee"] else t(lang, "plans.late_off")
@@ -870,7 +872,11 @@ def window_text(lang: str, m: dict, months: int, period: str) -> str:
 
 
 def member_names(lang: str, p: dict) -> str:
-    return ", ".join(esc(m["name"]) + window_text(lang, m, p["months"], p["period"]) for m in p["members"])
+    """Members grouped by their periods: "An, Bình · Cường, Dũng (từ 12/2026)" instead of a label per name."""
+    groups: dict[str, list[str]] = {}
+    for m in p["members"]:
+        groups.setdefault(window_text(lang, m, p["months"], p["period"]), []).append(esc(m["name"]))
+    return " · ".join(", ".join(names) + label for label, names in groups.items())
 
 
 def plans_text(lang: str, v: dict) -> str:

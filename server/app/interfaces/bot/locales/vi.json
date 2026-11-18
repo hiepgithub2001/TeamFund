@@ -252,7 +252,7 @@
  "plans.default_none": "Mặc định: chưa đặt · {n} người",
  "plans.line": "• <b>{fee}</b>: {names}",
  "plans.empty_line": "• <b>{fee}</b>: (chưa có ai)",
- "plans.help": "Mỗi người theo một gói; ai không ở gói nào theo gói mặc định. Mỗi gói có hạn đóng và tiền phạt trễ riêng (hoặc như mặc định). Kỳ theo chuẩn: quý 1–3, 4–6, 7–9, 10–12; nửa năm 1–6, 7–12; năm 1–12. Ai vào giữa kỳ mà đã đóng các tháng trước thì chỉ tính các tháng còn lại.\nTạo nhanh: <code>/plans 300k quý</code>",
+ "plans.help": "Một người có thể ở nhiều gói, mỗi lúc một gói (không trùng thời gian); tháng nào không ở gói nào thì theo gói mặc định. Mỗi gói có hạn đóng và tiền phạt trễ riêng (hoặc như mặc định). Kỳ theo chuẩn: quý 1–3, 4–6, 7–9, 10–12; nửa năm 1–6, 7–12; năm 1–12.\nTạo nhanh: <code>/plans 300k quý</code>",
  "plans.none": "Chưa có gói nào: mọi người đóng mức mặc định mỗi tháng.",
  "plans.choose_cycle": "Gói mới: đóng theo chu kỳ nào?",
  "plans.ask_amount": "Gửi số tiền mỗi {cycle}, ví dụ <code>300k</code>.",
@@ -542,5 +542,6 @@
  "plans.overlap": "⚠️ <b>Trùng thời gian với gói khác</b> (mỗi người chỉ ở một gói tại một thời điểm), chưa áp dụng:",
  "plans.overlap_hint": "Chọn thời gian không trùng cho gói này (ví dụ Từ kỳ sau), hoặc rút ngắn gói kia trong 📅 Thời gian áp dụng.",
  "window.open_end": "không thời hạn",
- "err.plan_overlap": "Trùng thời gian với gói khác: {names}."
+ "err.plan_overlap": "Trùng thời gian với gói khác: {names}.",
+ "plans.terms_default": "📅⏰ hạn đóng và phạt trễ như gói mặc định"
 }

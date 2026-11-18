@@ -578,7 +578,7 @@ async def main():
                         "default late fee saved")
         # the quarterly plan follows the default until it gets its own
         await T(text_update(OWNER, "/plans"))
-        pl = await wait_sent(lambda c: to(OWNER, "Fee plans")(c) and "(as default)" in c["params"]["text"],
+        pl = await wait_sent(lambda c: to(OWNER, "Fee plans")(c) and "deadline and late fee as the default package" in c["params"]["text"],
                              "plans follow the default")
         plan_btn = next(b for b in buttons(pl) if b.startswith("p:v:"))
         pid = plan_btn.split(":")[2]

@@ -252,7 +252,7 @@
  "plans.default_none": "Default: not set · {n} people",
  "plans.line": "• <b>{fee}</b>: {names}",
  "plans.empty_line": "• <b>{fee}</b>: (nobody yet)",
- "plans.help": "Each person is on one plan; everyone else is on the default package. Each package has its own deadline and late fee (or the default's). Standard periods: quarters Jan–Mar, Apr–Jun, Jul–Sep, Oct–Dec; half-years Jan–Jun, Jul–Dec; years Jan–Dec. Months already paid aren't billed again; the rest is priced pro rata.\nQuick create: <code>/plans 300k quarter</code>",
+ "plans.help": "Someone can be on several packages, one at a time (no overlapping periods); months on no package follow the default package. Each package has its own deadline and late fee (or the default's). Standard periods: quarters Jan–Mar, Apr–Jun, Jul–Sep, Oct–Dec; half-years Jan–Jun, Jul–Dec; years Jan–Dec.\nQuick create: <code>/plans 300k quarter</code>",
  "plans.none": "No plans yet: everyone pays the default fee every month.",
  "plans.choose_cycle": "New plan: how often do they pay?",
  "plans.ask_amount": "Send the amount per {cycle}, e.g. <code>300k</code>.",
@@ -542,5 +542,6 @@
  "plans.overlap": "⚠️ <b>Overlaps another package</b> (one package per person at a time), not applied:",
  "plans.overlap_hint": "Pick periods for this package that don't overlap (e.g. From next period), or shorten the other one in 📅 Months it applies.",
  "window.open_end": "for good",
- "err.plan_overlap": "Overlaps another package: {names}."
+ "err.plan_overlap": "Overlaps another package: {names}.",
+ "plans.terms_default": "📅⏰ deadline and late fee as the default package"
 }
