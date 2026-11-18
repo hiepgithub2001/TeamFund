@@ -79,10 +79,13 @@ def list_view(lang: str, v: dict):
     n = v["limit"]
     more = [(t(lang, "mt.show", n=k), f"mt:l:{k}") for k in (n + 5, n + 10)] + [(t(lang, "mt.show_all"), "mt:l:200")] \
         if v["more"] else []
-    rows = [more]
+    rows = []
+    if v["can_edit"]:  # one button per match opens it (edit, cancel, ➖ Chi / ➕ Thu), like the played list
+        rows = [[(re.sub(r"<[^>]+>", "", match_line(lang, x))[:60], f"mt:v:{x['id']}")] for x in v["matches"]]
+    rows.append(more)
     if v["can_edit"]:
         rows += [[(t(lang, "mt.btn_add"), "mt:a"), (t(lang, "mt.btn_sched"), "mt:s")],
-                 [(t(lang, "mt.btn_edit"), f"mt:e:{n}"), (t(lang, "mt.btn_past"), "mt:p")]]
+                 [(t(lang, "mt.btn_past"), "mt:p")]]
     else:
         rows.append([(t(lang, "mt.btn_past"), "mt:p")])
     if v["can_edit"]:

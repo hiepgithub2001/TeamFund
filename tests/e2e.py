@@ -680,6 +680,8 @@ async def main():
         await T(text_update(OWNER, "/matches"))
         lst = await wait_sent(to(OWNER, "Upcoming matches"), "list again")
         assert "<s>" in lst["params"]["text"] and "🚫 rain" in lst["params"]["text"]
+        assert any(d.startswith("mt:v:") for d in buttons(lst)) and not any(d.startswith("mt:e:") for d in buttons(lst)), \
+            "each match is its own button; no separate Edit step"
         await T(cb_update(OWNER, "mt:s", lst["message_id"]))
         await wait_sent(lambda c: c["method"] == "editMessageText" and "Repeating calendars" in c["params"]["text"], "calendars")
         for d in ("mt:sn", "mt:sf:weekly", "mt:sw:weekly:6"):
