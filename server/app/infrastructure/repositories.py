@@ -51,6 +51,14 @@ class SqlTeams(_Repo):
     def by_public_token(self, token: str) -> Team | None:
         return self.s.scalar(select(Team).where(Team.public_token == token, Team.active.is_(True)))
 
+    def sharing_account(self, team: Team) -> list[Team]:
+        """Other active teams paid into the same bank account (each hears every transfer on it)."""
+        if not team.bank_account:
+            return []
+        return list(self.s.scalars(select(Team).where(Team.id != team.id, Team.active.is_(True),
+                                                      Team.bank_name == team.bank_name,
+                                                      Team.bank_account == team.bank_account).order_by(Team.id)))
+
     def for_admin(self, tg_id: int) -> list[tuple[Team, str]]:
         rows = self.s.execute(select(Team, TeamAdmin.role).join(TeamAdmin, TeamAdmin.team_id == Team.id)
                               .where(TeamAdmin.tg_id == tg_id, Team.active.is_(True)).order_by(Team.name))
@@ -236,8 +244,17 @@ class SqlPayments(_Repo):
         return list(self.s.scalars(select(Payment).where(Payment.team_id == team_id, Payment.status == "unmatched")
                                    .order_by(Payment.id)))
 
+    def copies(self, tx_id: str) -> list[Payment]:
+        """Every team's record of one bank transfer ("<team>:<tx>" ids share the "<tx>" part)."""
+        tx = tx_id.split(":", 1)[-1]
+        return list(self.s.scalars(select(Payment).where(Payment.sepay_tx_id.like(f"%:{tx}"))))
+
+    def remove(self, p: Payment) -> None:
+        self.s.delete(p)
+
     def total(self, team_id: int, start=None, end=None, source: str | None = None) -> int:
-        q = select(func.coalesce(func.sum(Payment.amount), 0)).where(Payment.team_id == team_id)
+        q = select(func.coalesce(func.sum(Payment.amount), 0)).where(
+            Payment.team_id == team_id, ~((Payment.status == "unmatched") & Payment.shared_with.is_not(None)))
         if source is not None:
             q = q.where(Payment.source == source)
         return int(self.s.scalar(_between(q, Payment.created_at, start, end)))

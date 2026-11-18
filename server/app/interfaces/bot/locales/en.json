@@ -577,5 +577,10 @@
  "pick.each": "{amount} each",
  "weblink.none": "The team has no pay page link yet. Ask a manager to send /weblink to make one.",
  "pick.choose": "<b>{title}</b> · {amount}\n1️⃣ Tap the names of who pays (or 👥 Whole team).\n2️⃣ Then pick how, below:\n• 👤 Each pays {amount}\n• ➗ Split {amount} between them",
- "btn.everyone": "👥 Whole team ({n})"
+ "btn.everyone": "👥 Whole team ({n})",
+ "unmatched.shared": "🔁 This bank account is shared with <b>{teams}</b>, so they see this transfer too. It isn't in the balance yet. Whichever team assigns or keeps it first gets it; the other team's copy goes away. If it isn't your team's money, tap ↪️ Not ours.",
+ "btn.not_ours": "↪️ Not ours",
+ "not_ours.done": "↪️ Dropped: not this team's money.",
+ "shared.claimed": "🔁 The <b>{amount}</b> transfer (<code>{content}</code>) was taken by <b>{team}</b>. Removed from this team's list to check.",
+ "err.not_shared": "This transfer isn't on a shared account."
 }

@@ -297,6 +297,8 @@ def test_web_pay_page(world):
     assert len(view["months"]) == 1  # no records before this month
     hist = {(h["type"], h["kind"], h["title"], h["amount"]) for h in view["history"]}
     assert hist == {("in", "sepay", "An", 200000), ("in", "unassigned", "", 30000), ("out", "expense", "Sân bóng", 50000)}
+    stranger = svc.money.unmatched(tid, OWNER)[0]
+    assert stranger["shared_with"] is None and code(svc.money.not_ours, tid, OWNER, stranger["payment_id"]) == "not_shared"
     roster = {m["name"]: m for m in view["members"]}
     assert roster["An"] == {"id": an, "name": "An", "nickname": None, "shirt_number": "10", "status": "active", "fee": 200000, "months": 1, "owes": 0}
     assert roster["Bình"]["owes"] == 200000
@@ -992,3 +994,36 @@ def test_two_teams_on_one_bank_account(world):
     assert svc.money.record_transfer(b, kb, tx) is None, "the other team's code: not this team's money"
     assert svc.money.fund(b) == {"income": 0, "other_income": 0, "expense": 0, "balance": 0, "unmatched": 0}
     assert svc.money.record_transfer(b, kb, IncomingTransfer("100517448", 30000, "chuyen tien")) == "unmatched_payment"
+
+
+def test_shared_account_claim(world):
+    """A code-less transfer on a shared account: both teams see it, outside the balance; the first team to
+    assign or keep it gets it and the other copy goes (its managers told); "not ours" drops one copy."""
+    svc, clock, notifier = world
+    a = setup_team(svc)
+    req = svc.registration.request_team(OWNER, "FC Two")
+    svc.registration.decide_team_request(SUPER, req["id"], True)
+    b = svc.registration.create_team(OWNER, "2:secret", 556, "two_bot", None)["team_id"]
+    link_bank(svc, a)
+    link_bank(svc, b)
+    ka, kb = sepay_key(svc, a), sepay_key(svc, b)
+    tx = IncomingTransfer("777", 50000, "dong quy")
+    assert svc.money.record_transfer(a, ka, tx) == "unmatched_payment"
+    assert notifier.events[-1]["shared_with"] == "FC Two"
+    assert svc.money.record_transfer(b, kb, tx) == "unmatched_payment"
+    ua, ub = svc.money.unmatched(a, OWNER)[0], svc.money.unmatched(b, OWNER)[0]
+    assert ua["shared_with"] == "FC Two" and ub["shared_with"] == "FC Test"
+    assert svc.money.fund(a)["balance"] == 0 and svc.money.fund(b)["balance"] == 0, "not in the balance yet"
+
+    svc.money.dismiss(b, OWNER, ub["payment_id"])  # FC Two keeps it
+    assert svc.money.fund(b)["balance"] == 50000
+    assert svc.money.unmatched(a, OWNER) == [] and svc.money.fund(a)["balance"] == 0
+    ev = notifier.events[-1]
+    assert ev["type"] == "shared_claimed" and ev["team_id"] == a and ev["by_team"] == "FC Two"
+
+    # another one: FC Test says it isn't theirs; FC Two still has it to decide
+    tx2 = IncomingTransfer("778", 20000, "chuyen khoan")
+    svc.money.record_transfer(a, ka, tx2)
+    svc.money.record_transfer(b, kb, tx2)
+    svc.money.not_ours(a, OWNER, svc.money.unmatched(a, OWNER)[0]["payment_id"])
+    assert svc.money.unmatched(a, OWNER) == [] and len(svc.money.unmatched(b, OWNER)) == 1

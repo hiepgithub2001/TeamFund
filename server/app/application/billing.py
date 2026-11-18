@@ -361,13 +361,16 @@ def record_transfer(uow: UnitOfWork, d: Deps, team: Team, transfer: IncomingTran
             payment.status, payment.note = "matched", ", ".join(names)
             intent.status, intent.payment_id = "paid", payment.id
     payment.reason = reason
+    others = uow.teams.sharing_account(team) if reason == "no_code" else []
+    if others:  # no code: can't tell whose it is; every team sharing the account sees it until one claims it
+        payment.shared_with = ", ".join(t.name for t in others)[:200]
     uow.commit()
 
     if reason is None:
         return {"type": "payment_confirmed", "team_id": team.id, "payer_tg_id": intent.payer_tg_id,
                 "members": names, "amount": transfer.amount, "to": uow.followers.active_ids(team.id)}
     return {"type": "unmatched_payment", "team_id": team.id, "payment_id": payment.id, "amount": transfer.amount,
-            "content": transfer.content[:200], "reason": reason, "needed": needed,
+            "content": transfer.content[:200], "reason": reason, "needed": needed, "shared_with": payment.shared_with,
             "at": d.clock.fmt(payment.created_at), "admins": [a.tg_id for a in uow.admins.of_team(team.id)]}
 
 
@@ -429,6 +432,19 @@ def unmatched_payment(uow: UnitOfWork, team: Team, payment_id: int) -> Payment:
     return p
 
 
+def claim_shared(uow: UnitOfWork, team: Team, p: Payment) -> list[dict]:
+    """This team took a shared transfer: the other teams' unclaimed copies go. Returns what to tell them."""
+    if not p.shared_with or not p.sepay_tx_id:
+        return []
+    told = []
+    for c in uow.payments.copies(p.sepay_tx_id):
+        if c.team_id != team.id and c.status == "unmatched":
+            told.append({"type": "shared_claimed", "team_id": c.team_id, "by_team": team.name, "amount": c.amount,
+                         "content": (c.content or "")[:200], "admins": [a.tg_id for a in uow.admins.of_team(c.team_id)]})
+            uow.payments.remove(c)
+    return told
+
+
 def assign_payment(uow: UnitOfWork, d: Deps, team: Team, payment_id: int, member_ids: list[int], actor: int) -> dict:
     p = unmatched_payment(uow, team, payment_id)
     groups = unpaid_by_member(uow, team, member_ids)
@@ -437,7 +453,8 @@ def assign_payment(uow: UnitOfWork, d: Deps, team: Team, payment_id: int, member
     _mark_paid(uow.bills.get_many([b["id"] for g in groups for b in g["bills"]]), p, d)
     names = [g["name"] for g in groups]
     p.status, p.recorded_by, p.note = "resolved", actor, ", ".join(names)
-    return {"members": names, "amount": p.amount, "billed": sum(g["total"] for g in groups)}
+    return {"members": names, "amount": p.amount, "billed": sum(g["total"] for g in groups),
+            "told": claim_shared(uow, team, p)}
 
 
 def create_charges(uow: UnitOfWork, d: Deps, team: Team, title: str, amount: int, member_ids: list[int] | None,

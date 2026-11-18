@@ -577,5 +577,10 @@
  "pick.each": "{amount}/người",
  "weblink.none": "Đội chưa có link trang đóng quỹ. Nhờ quản lý đội gửi /weblink để tạo.",
  "pick.choose": "<b>{title}</b> · {amount}\n1️⃣ Bấm tên những người phải đóng (hoặc 👥 Cả đội).\n2️⃣ Chọn cách tính ở dưới:\n• 👤 Mỗi người đóng {amount}\n• ➗ Chia đều {amount} cho những người đã chọn",
- "btn.everyone": "👥 Cả đội ({n} người)"
+ "btn.everyone": "👥 Cả đội ({n} người)",
+ "unmatched.shared": "🔁 Tài khoản này dùng chung với <b>{teams}</b>, nên đội đó cũng thấy khoản này. Chưa tính vào số dư. Đội nào gán hoặc giữ trước thì nhận; bản ở đội kia tự xoá. Nếu không phải tiền của đội mình, bấm ↪️ Không phải của đội.",
+ "btn.not_ours": "↪️ Không phải của đội",
+ "not_ours.done": "↪️ Đã bỏ: không phải tiền của đội.",
+ "shared.claimed": "🔁 Khoản <b>{amount}</b> (<code>{content}</code>) đã được đội <b>{team}</b> nhận. Đã xoá khỏi danh sách cần kiểm tra của đội này.",
+ "err.not_shared": "Khoản này không thuộc tài khoản dùng chung."
 }

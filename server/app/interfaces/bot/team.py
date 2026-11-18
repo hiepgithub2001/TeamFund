@@ -601,15 +601,23 @@ def unmatched_card(lang, p):
     reason = t(lang, f"reason.{p.get('reason') or 'no_code'}", needed=money(p.get("needed") or 0, lang))
     text = t(lang, "unmatched.card", amount=money(p["amount"], lang), content=esc(p.get("content") or "—"),
              at=p["at"], reason=reason)
+    if p.get("shared_with"):
+        text += "\n\n" + t(lang, "unmatched.shared", teams=esc(p["shared_with"]))
     return text, kb([(t(lang, "btn.assign"), f"u:a:{p['payment_id']}")],
-                    [(t(lang, "btn.dismiss"), f"u:d:{p['payment_id']}")])
+                    [(t(lang, "btn.dismiss"), f"u:d:{p['payment_id']}")],
+                    [(t(lang, "btn.not_ours"), f"u:n:{p['payment_id']}")] if p.get("shared_with") else [])
 
 
-@router.callback_query(F.data.regexp(r"^u:(a|d):(\d+)$").as_("m"))
+@router.callback_query(F.data.regexp(r"^u:(a|d|n):(\d+)$").as_("m"))
 async def on_unmatched(cq: CallbackQuery, m: re.Match, entry, lang):
     if not await allow(cq, entry, lang, "manager"):
         return
     action, pid = m.group(1), m.group(2)
+    if action == "n":
+        await call(S.money.not_ours, tid(entry), cq.from_user.id, int(pid))
+        await cq.answer()
+        await edit(cq, f"{esc(cq.message.text or '')}\n\n{t(lang, 'not_ours.done')}")
+        return
     if action == "d":
         await call(S.money.dismiss, tid(entry), cq.from_user.id, int(pid))
         await cq.answer()

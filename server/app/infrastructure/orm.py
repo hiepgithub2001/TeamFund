@@ -97,6 +97,7 @@ payments = Table(
     Column("content", String(500)), Column("intent_id", Integer), Column("payer_tg_id", BigInteger),
     Column("recorded_by", BigInteger), Column("status", String(16), nullable=False), Column("reason", String(32)),
     Column("note", String(500)), Column("created_at", DateTime, nullable=False),
+    Column("shared_with", String(200))
 )
 
 bills = Table(
