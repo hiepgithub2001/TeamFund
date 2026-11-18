@@ -385,8 +385,12 @@
  "window.ended": " (đã hết {until})",
  "act.plan.window": "Đặt thời gian áp dụng gói",
  "btn.window_next": "⏭ Từ kỳ sau ({period})",
- "window.pick_start": "📆 Chọn <b>kỳ bắt đầu</b>:",
- "window.pick_end": "📆 Từ <b>{start}</b>. Chọn <b>kỳ kết thúc</b> (tính cả kỳ đó):",
+ "window.pick_start": "📆 Chọn <b>kỳ bắt đầu</b>, hoặc gõ cả khoảng thời gian:",
+ "window.pick_end": "📆 Từ <b>{start}</b>. Chọn <b>kỳ kết thúc</b> (tính cả kỳ đó), hoặc gõ nó, ví dụ <code>{example}</code>:",
  "btn.window_forever": "♾ Không thời hạn",
- "btn.window_only": "1️⃣ Chỉ kỳ này ({period})"
+ "btn.window_only": "1️⃣ Chỉ kỳ này ({period})",
+ "window.type_1": "✍️ Gõ theo tháng:\n• <code>{a} - {b}</code>: từ {a} đến hết {b}\n• <code>{a}</code>: từ {a}, không thời hạn\n• <code>- {b}</code>: từ tháng này ({cur}) đến hết {b}",
+ "window.type_3": "✍️ Gõ theo quý (<code>2027Q1</code> là quý 1 năm 2027):\n• <code>{a} - {b}</code>: từ {a} đến hết {b}\n• <code>{a}</code>: từ {a}, không thời hạn\n• <code>- {b}</code>: từ quý này ({cur}) đến hết {b}",
+ "window.type_6": "✍️ Gõ theo nửa năm (<code>2027H1</code> là tháng 1–6, <code>2027H2</code> là tháng 7–12):\n• <code>{a} - {b}</code>: từ {a} đến hết {b}\n• <code>{a}</code>: từ {a}, không thời hạn\n• <code>- {b}</code>: từ kỳ này ({cur}) đến hết {b}",
+ "window.type_12": "✍️ Gõ theo năm:\n• <code>{a} - {b}</code>: từ {a} đến hết {b}\n• <code>{a}</code>: từ {a}, không thời hạn\n• <code>- {b}</code>: từ năm nay ({cur}) đến hết {b}"
 }

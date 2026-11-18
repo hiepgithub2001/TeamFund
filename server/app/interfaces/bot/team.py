@@ -12,11 +12,11 @@ from aiogram.types import BufferedInputFile, CallbackQuery, ChatMemberUpdated, F
 
 from ..deps import S
 from .commands import clear_admin_commands, set_admin_commands
-from .fmt import amount_and_title, esc, money, parse_amount, split_date, strip_tags
+from .fmt import amount_and_title, esc, money, parse_amount, parse_periods, split_date, strip_tags
 from .i18n import has, t
 from .lang import lang_for, set_lang
 from ...domain.errors import DomainError
-from ...domain.rules import add_months, cycle_start, period_name
+from ...domain.rules import add_months, cycle_start, period_end, period_name
 from .render import (bill_label, edit, error_text, fee_text, is_private, kb, owes_lines, pay_keyboard, say,
                      status_text)
 from .run import call
@@ -980,14 +980,18 @@ async def on_window(cq: CallbackQuery, m: re.Match, entry, lang):
         return
     p = await call(S.plans.get_plan, tid(entry), cq.from_user.id, st["plan_id"])
     n, cur = p["months"], cycle_start(p["period"], p["months"])
-    if choice == "in":  # pick the first period
-        await edit(cq, t(lang, "window.pick_start"),
+    inp = input_key(cq.bot.id, cq.message.chat.id)
+    if choice == "in":  # pick the first period, or type the whole range
+        set_state(inp, {"type": "plan_window", **st}, 600)
+        await edit(cq, t(lang, "window.pick_start") + "\n\n" + type_guide(lang, p),
                    kb(*range_rows(p, cur, "w:s", end=False), [(t(lang, "btn.cancel"), "w:x")]))
         return
-    if choice.startswith("s"):  # then the last one, or no end
+    if choice.startswith("s"):  # then the last one, or no end (typed or tapped)
         start = f"{choice[1:5]}-{choice[5:]}"
         set_state(key, {**st, "start": start}, 600)
-        await edit(cq, t(lang, "window.pick_end", start=period_name(start, n)),
+        set_state(inp, {"type": "plan_window", **st, "start": start}, 600)
+        example = period_name(add_months(start, n), n)
+        await edit(cq, t(lang, "window.pick_end", start=period_name(start, n), example=example),
                    kb([(t(lang, "btn.window_forever"), "w:e0")], *range_rows(p, start, "w:e", end=True),
                       [(t(lang, "btn.cancel"), "w:x")]))
         return
@@ -999,7 +1003,30 @@ async def on_window(cq: CallbackQuery, m: re.Match, entry, lang):
     else:
         start, until = window_choices(p)[choice]
     del_state(key)
+    del_state(inp)
     await apply_window(cq, entry, lang, st, start, until, edit_in_place=True)
+
+
+def type_guide(lang: str, p: dict) -> str:
+    """How to type a range, with examples in the plan's own cycle."""
+    n, cur = p["months"], cycle_start(p["period"], p["months"])
+    a, b = period_name(add_months(cur, n), n), period_name(add_months(cur, 2 * n), n)
+    return t(lang, f"window.type_{n}", a=a, b=b, cur=period_name(cur, n))
+
+
+async def plan_window_reply(message: Message, entry, lang, st: dict, text: str) -> None:
+    """A typed range ("2027Q1 - 2027Q2", "2027Q1", "- 2027Q2"), or, once the start is picked, the last period."""
+    p = await call(S.plans.get_plan, tid(entry), message.from_user.id, st["plan_id"])
+    n, cur = p["months"], cycle_start(p["period"], p["months"])
+    w = parse_periods(text, n, cur)
+    if w and st.get("start") and w[1] is None and "-" not in text and "–" not in text:
+        w = (st["start"], period_end(w[0], n)) if w[0] >= st["start"] else None  # just the last period
+    if w is None or w[0] < cur:
+        set_state(input_key(message.bot.id, message.chat.id), st, 600)
+        await message.answer(t(lang, "err.invalid") + "\n\n" + type_guide(lang, p), reply_markup=FORCE)
+        return
+    del_state(window_key(message.bot.id, message.chat.id))
+    await apply_window(message, entry, lang, {"plan_id": st["plan_id"], "ids": st["ids"]}, *w, edit_in_place=False)
 
 
 async def plans_view(ev, entry, lang, edit_in_place: bool = False) -> None:
@@ -1524,6 +1551,8 @@ async def on_text(message: Message, entry, lang):
         await plan_terms_reply(message, entry, lang, st, text)
     elif st["type"] == "plan_amount":
         await plan_amount_reply(message, entry, lang, st, text)
+    elif st["type"] == "plan_window":
+        await plan_window_reply(message, entry, lang, st, text)
     elif st["type"] == "add":
         await add_members(message, entry, lang, text)
     elif st["type"] == "edit":

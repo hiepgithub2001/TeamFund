@@ -631,10 +631,14 @@ async def main():
             assert buttons(menu) == ["w:next", "w:cur", "w:only", "w:in", "w:x"], buttons(menu)
             for d in steps:
                 mark = len(calls)
+                if d.startswith("type:"):
+                    await T(text_update(OWNER, d[5:]))
+                    continue
                 await T(cb_update(OWNER, d, pick["message_id"]))
                 shown = await until(lambda: next((c for c in calls[mark:] if c["method"] == "editMessageText"), None), d)
                 if d == "w:in":
-                    assert "first period" in shown["params"]["text"] and buttons(shown)[0] == qm(today.year, cur_q).format("s")
+                    assert "first period" in shown["params"]["text"] and "Type quarters" in shown["params"]["text"]
+                    assert buttons(shown)[0] == qm(today.year, cur_q).format("s")
                     labels = [b["text"] for row in shown["params"]["reply_markup"]["inline_keyboard"] for b in row]
                     assert labels[:2] == [this_q, next_q], labels
                 elif d.startswith("w:s"):
@@ -648,6 +652,10 @@ async def main():
         await wait_sent(saved(f"Cường ({next_q}–{after_q})"), "two quarters")
         await set_window(1, "w:next")
         await wait_sent(saved(f"Dũng (from {next_q})"), "from next quarter")
+        await set_window(1, "w:in", f"type:{this_q} - {next_q}")
+        await wait_sent(saved(f"Dũng (until {next_q})"), "typed range")
+        await set_window(0, "w:in", qm(today.year, cur_q + 1).format("s"), f"type:{after_q}")
+        await wait_sent(lambda c: saved(f"Cường ({next_q}–{after_q})")(c) and c["method"] == "sendMessage", "typed end")
         await set_window(1, "w:only")
         await wait_sent(lambda c: saved(f"Dũng (until {this_q})")(c) and f"Months set: {this_q}." in c["params"]["text"],
                         "this quarter only")
