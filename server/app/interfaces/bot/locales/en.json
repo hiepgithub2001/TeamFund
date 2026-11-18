@@ -405,7 +405,7 @@
  "mt.btn_sched": "🔁 Repeating",
  "mt.btn_edit": "✏️ Edit",
  "mt.btn_past": "🕘 Played",
- "mt.past": "🕘 <b>Past matches</b> (last 10)",
+ "mt.past": "🕘 <b>Past matches</b> (last {n})",
  "mt.past_empty": "No past matches yet.",
  "mt.usage": "Send the date first, then time, opponent and pitch (all optional):\n<code>/matches 7/12 19h FC Moreh @Pitch A</code>\nSeveral: one match per line after <code>/matches</code>. Cancel: <code>/matches cancel 30/11 rain</code>.",
  "mt.read": "📅 Read <b>{n}</b> matches:",

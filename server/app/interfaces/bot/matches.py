@@ -216,14 +216,19 @@ async def on_matches(cq: CallbackQuery, m: re.Match, entry, lang):
         await cq.answer()
         await show_list(cq, entry, lang, int(a or 5), edit_in_place=True)
         return
-    if action == "p":
+    if action == "p":  # played matches: the last 5, then 10, 15 or all, like the upcoming list
         await cq.answer()
-        past = await call(S.matches.past, team, user, 10)
-        lines = [t(lang, "mt.past")] + ["• " + match_line(lang, x) + money_tags(lang, x) for x in past] \
+        n = int(a or 5)
+        got = await call(S.matches.past, team, user, n + 1)
+        past, more = got[:n], len(got) > n
+        lines = [t(lang, "mt.past", n=n)] + ["• " + match_line(lang, x) + money_tags(lang, x) for x in past] \
             if past else [t(lang, "mt.past_empty")]
         rows = []
         if past and await role(entry, cq.from_user) in ("owner", "manager"):
             rows = [[(re.sub(r"<[^>]+>", "", match_line(lang, x))[:60], f"mt:v:{x['id']}")] for x in past]
+        if more:
+            rows.append([(t(lang, "mt.show", n=k), f"mt:p:{k}") for k in (n + 5, n + 10)]
+                        + [(t(lang, "mt.show_all"), "mt:p:100")])
         await edit(cq, "\n".join(lines), kb(*rows, [(t(lang, "btn.back"), "mt:l:5")]))
         return
     if not await allow(cq, entry, lang, "manager"):

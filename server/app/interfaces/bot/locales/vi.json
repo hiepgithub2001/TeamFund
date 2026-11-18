@@ -405,7 +405,7 @@
  "mt.btn_sched": "🔁 Lịch cố định",
  "mt.btn_edit": "✏️ Sửa",
  "mt.btn_past": "🕘 Đã đá",
- "mt.past": "🕘 <b>Trận đã qua</b> (10 trận gần nhất)",
+ "mt.past": "🕘 <b>Trận đã qua</b> ({n} trận gần nhất)",
  "mt.past_empty": "Chưa có trận nào đã qua.",
  "mt.usage": "Gửi ngày trước, rồi giờ, đối và sân (không bắt buộc):\n<code>/matches 7/12 19h FC Moreh @Sân Mỹ Đình</code>\nNhiều trận: mỗi dòng một trận sau <code>/matches</code>. Huỷ: <code>/matches cancel 30/11 mưa</code>.",
  "mt.read": "📅 Đọc được <b>{n}</b> trận:",
