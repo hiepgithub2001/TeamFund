@@ -911,15 +911,13 @@ def cycle_keyboard(lang: str, prefix: str, back: str):
 
 
 def window_choices(p: dict) -> dict[str, tuple[str, str | None]]:
-    """The quick choices for a plan's months, as (from, until): this period on for good, this month on
-    (someone joining mid-period), or the next 1–3 periods only."""
+    """The quick choices for a plan's months, as (from, until): from next period (the usual for newcomers),
+    this period, or this month (someone joining mid-period), each for good. Other months are typed."""
     n, period = p["months"], p["period"]
     start = cycle_start(period, n)
-    out = {"cur": (start, None)}
+    out = {"next": (add_months(start, n), None), "cur": (start, None)}
     if period != start:
         out["mon"] = (period, None)
-    for k in (1, 2, 3):
-        out[str(k)] = (start, add_months(start, k * n - 1))
     return out
 
 
@@ -931,10 +929,10 @@ async def open_window_menu(ev, lang, p: dict, members: list[dict], edit_in_place
     set_state(window_key(ev.bot.id, ev.message.chat.id if isinstance(ev, CallbackQuery) else ev.chat.id),
               {"plan_id": p["id"], "ids": [m["id"] for m in members]}, 600)
     cur = period_label(c["cur"][0], p["months"])
-    rows = [[(t(lang, "btn.window_cur", period=cur), "w:cur")]]
+    rows = [[(t(lang, "btn.window_next", period=period_label(c["next"][0], p["months"])), "w:next")],
+            [(t(lang, "btn.window_cur", period=cur), "w:cur")]]
     if "mon" in c:
         rows.append([(t(lang, "btn.window_mon", period=period_label(c["mon"][0])), "w:mon")])
-    rows.append([(t(lang, "btn.window_n", n=k, until=period_label(c[k][1])), f"w:{k}") for k in ("1", "2", "3")])
     rows += [[(t(lang, "btn.window_in"), "w:in")], [(t(lang, "btn.window_keep"), "w:x")]]
     text = t(lang, "window.ask", fee=fee_text(lang, p["amount"], p["months"]),
              names=", ".join(esc(m["name"]) for m in members), cur=cur)
@@ -955,7 +953,7 @@ async def apply_window(ev, entry, lang, st: dict, start: str, until: str | None,
         await say(ev, out, reply_markup=markup)
 
 
-@router.callback_query(F.data.regexp(r"^w:(cur|mon|1|2|3|in|x)$").as_("m"))
+@router.callback_query(F.data.regexp(r"^w:(next|cur|mon|in|x)$").as_("m"))
 async def on_window(cq: CallbackQuery, m: re.Match, entry, lang):
     if not await allow(cq, entry, lang, "manager"):
         return

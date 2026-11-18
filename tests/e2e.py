@@ -432,7 +432,7 @@ async def main():
             await T(cb_update(OWNER, d, pick["message_id"]))
         await wait_sent(lambda c: c["method"] == "editMessageText" and "Plan saved" in c["params"]["text"]
                         and "Members (2): Cường, Dũng" in c["params"]["text"], "quarter plan saved")
-        await wait_sent(to(OWNER, "For which months does <b>300,000đ/quarter</b> apply to <b>Cường, Dũng</b>"),
+        await wait_sent(to(OWNER, "From when does <b>300,000đ/quarter</b> apply to <b>Cường, Dũng</b>"),
                         "new members are asked how long")
         await T(text_update(OWNER, "/plans 150k month"))
         pick = await wait_sent(to(OWNER, "Choose who pays <b>150,000đ/month"), "quick plan picker")
@@ -624,7 +624,7 @@ async def main():
             mark = len(calls)
             await T(cb_update(OWNER, "k:ok", pick["message_id"]))
             menu = await until(lambda: next((c for c in calls[mark:] if c["method"] == "editMessageText"
-                                             and "For which months" in c["params"]["text"]), None), "window menu")
+                                             and "From when does" in c["params"]["text"]), None), "window menu")
             assert choice in buttons(menu), buttons(menu)
             await T(cb_update(OWNER, choice, pick["message_id"]))
             if reply:
@@ -635,6 +635,10 @@ async def main():
             await set_window(0, "w:mon")
             await wait_sent(lambda c: "Months set: " in (c["params"].get("text") or "")
                             and f"Cường (from {today.month:02d}/{today.year})" in c["params"]["text"], "joined mid-quarter")
+        await set_window(1, "w:next")
+        nq = f"{(today.month - 1) // 3 * 3 + 4:02d}/{today.year}" if today.month < 10 else f"01/{today.year + 1}"
+        await wait_sent(lambda c: "Months set: " in (c["params"].get("text") or "")
+                        and f"Dũng (from {nq})" in c["params"]["text"], "from next quarter")
         await set_window(1, "w:in", f"- {q_end}")
         await wait_sent(lambda c: to(OWNER, f"Months set: {q_start}–{q_end}")(c)
                         and f"Dũng (until {q_end})" in c["params"]["text"], "one quarter only")

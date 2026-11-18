@@ -373,10 +373,9 @@
  "btn.undo_more": "↩️ Undo another action",
  "btn.plan_window": "📅 Months it applies",
  "window.pick": "📅 Pick members of the <b>{fee}</b> package to set the months it applies:",
- "window.ask": "📅 For which months does <b>{fee}</b> apply to <b>{names}</b>?\nDefault: from this period ({cur}), for good. After it ends they're back on the default package.",
- "btn.window_cur": "♾ From this period ({period}), for good",
- "btn.window_mon": "🆕 From this month ({period}): joined mid-period",
- "btn.window_n": "{n} period(s) · until {until}",
+ "window.ask": "📅 From when does <b>{fee}</b> apply to <b>{names}</b>?\nNow: from this period ({cur}). Every choice is for good; for an end month, ✏️ Type months. After it ends they're back on the default package.\n• From next period: nothing on this package this period.\n• From this month: joined mid-period, only the months left, due counting from today.",
+ "btn.window_cur": "▶️ From this period ({period})",
+ "btn.window_mon": "🆕 From this month ({period})",
  "btn.window_in": "✏️ Type months",
  "btn.window_keep": "Keep as is",
  "window.ask_in": "Send the first and last month, e.g. <code>11/2026 - 06/2027</code>.\n• <code>11/2026</code>: from 11/2026, for good\n• <code>- 06/2027</code>: from {start} to the end of 06/2027\nStarting mid-period bills only the months left, due counting from today.",
@@ -386,5 +385,6 @@
  "window.from": " (from {start})",
  "window.until": " (until {until})",
  "window.ended": " (ended {until})",
- "act.plan.window": "Package months set"
+ "act.plan.window": "Package months set",
+ "btn.window_next": "⏭ From next period ({period})"
 }

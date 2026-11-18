@@ -373,10 +373,9 @@
  "btn.undo_more": "↩️ Hoàn tác thao tác khác",
  "btn.plan_window": "📅 Thời gian áp dụng",
  "window.pick": "📅 Chọn thành viên của gói <b>{fee}</b> để đặt thời gian áp dụng:",
- "window.ask": "📅 Gói <b>{fee}</b> áp dụng cho <b>{names}</b> trong thời gian nào?\nMặc định: từ kỳ này ({cur}), không thời hạn. Hết thời gian, họ về gói mặc định.",
- "btn.window_cur": "♾ Từ kỳ này ({period}), không thời hạn",
- "btn.window_mon": "🆕 Từ tháng này ({period}): vào giữa kỳ",
- "btn.window_n": "{n} kỳ · đến {until}",
+ "window.ask": "📅 Gói <b>{fee}</b> áp dụng cho <b>{names}</b> từ khi nào?\nĐang áp dụng: từ kỳ này ({cur}). Các lựa chọn đều không thời hạn; cần ngày kết thúc thì ✏️ Nhập tháng. Hết thời gian, họ về gói mặc định.\n• Từ kỳ sau: kỳ này chưa phải đóng gói này.\n• Từ tháng này: vào giữa kỳ, chỉ tính các tháng còn lại, hạn tính từ hôm nay.",
+ "btn.window_cur": "▶️ Từ kỳ này ({period})",
+ "btn.window_mon": "🆕 Từ tháng này ({period})",
  "btn.window_in": "✏️ Nhập tháng",
  "btn.window_keep": "Giữ nguyên",
  "window.ask_in": "Gửi tháng bắt đầu và kết thúc, ví dụ <code>11/2026 - 06/2027</code>.\n• <code>11/2026</code>: từ 11/2026, không thời hạn\n• <code>- 06/2027</code>: từ {start} đến hết 06/2027\nBắt đầu giữa kỳ: chỉ tính các tháng còn lại, hạn đóng tính từ hôm nay.",
@@ -386,5 +385,6 @@
  "window.from": " (từ {start})",
  "window.until": " (đến {until})",
  "window.ended": " (đã hết {until})",
- "act.plan.window": "Đặt thời gian áp dụng gói"
+ "act.plan.window": "Đặt thời gian áp dụng gói",
+ "btn.window_next": "⏭ Từ kỳ sau ({period})"
 }
