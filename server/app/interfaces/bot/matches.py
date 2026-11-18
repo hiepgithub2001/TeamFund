@@ -10,7 +10,7 @@ from aiogram.filters import Command, CommandObject
 from aiogram.types import CallbackQuery, ForceReply, Message
 
 from ..deps import S
-from .fmt import esc, money, parse_amount, parse_contact, parse_match, parse_phone, show_phone
+from .fmt import amount_and_title, esc, money, parse_amount, parse_contact, parse_match, parse_phone, show_phone
 from .i18n import t
 from .render import edit, is_private, kb, say
 from .run import call
@@ -110,8 +110,7 @@ def match_view(lang: str, x: dict):
     cancel = (t(lang, "mt.btn_restore"), f"mt:r:{i}") if x["status"] == "cancelled" else (t(lang, "mt.btn_cancel"), f"mt:c:{i}")
     contact = [(t(lang, "mt.btn_contact"), f"ct:v:{x['contact_id']}")] if x.get("contact_id") else (
         [(t(lang, "mt.btn_save_contact"), f"mt:sc:{i}")] if x.get("opponent") else [])
-    settle = [(t(lang, "mt.btn_paid"), f"mt:mp:{i}"), (t(lang, "mt.btn_received"), f"mt:mr:{i}")] \
-        if x.get("settleable") else []
+    settle = [(t(lang, "mt.btn_paid"), f"mt:mp:{i}"), (t(lang, "mt.btn_received"), f"mt:mr:{i}")]
     return "\n".join(lines), kb(settle, [(t(lang, "mt.btn_when"), f"mt:ed:{i}"), (t(lang, "mt.btn_opp"), f"mt:eo:{i}")],
                                 [(t(lang, "mt.btn_note"), f"mt:en:{i}"), cancel], contact,
                                 [(t(lang, "mt.btn_delete"), f"mt:d:{i}"), (t(lang, "btn.back"), "mt:l:5")])
@@ -224,7 +223,6 @@ async def on_matches(cq: CallbackQuery, m: re.Match, entry, lang):
             if past else [t(lang, "mt.past_empty")]
         rows = []
         if past and await role(entry, cq.from_user) in ("owner", "manager"):
-            lines.append("\n" + t(lang, "mt.past_pick"))
             rows = [[(re.sub(r"<[^>]+>", "", match_line(lang, x))[:60], f"mt:v:{x['id']}")] for x in past]
         await edit(cq, "\n".join(lines), kb(*rows, [(t(lang, "btn.back"), "mt:l:5")]))
         return
@@ -301,7 +299,7 @@ async def on_matches(cq: CallbackQuery, m: re.Match, entry, lang):
         x = await call(S.matches.get, team, user, int(a))
         kind = "paid" if action == "mp" else "received"
         await ask(cq, lang, {"type": "mt_money", "id": int(a), "kind": kind},
-                  t(lang, f"mt.ask_{kind}", match=match_line(lang, x)), "300k")
+                  t(lang, f"mt.ask_{kind}", match=match_line(lang, x)), "300k tiền sân" if kind == "paid" else "300k đối trả")
     elif action == "c" and a:
         x = await call(S.matches.get, team, user, int(a))
         await edit(cq, t(lang, "mt.ask_cancel", match=match_line(lang, x)), reasons_kb(lang, int(a)))
@@ -609,11 +607,13 @@ async def on_reply(message: Message, entry, lang):
         await call(S.matches.update, team, user, st["id"], {"opponent": None if text == "-" else text})
         await show_match(message, entry, lang, st["id"], t(lang, "mt.updated") + "\n\n", edit_in_place=False)
     elif kind == "mt_money":
-        amount = parse_amount(text)
+        amount, note = amount_and_title(text)
+        if " " not in text.strip():
+            amount, note = parse_amount(text), None
         if not amount:
-            await again("mt.ask_" + st["kind"], "300k")
+            await again("mt.ask_" + st["kind"], "300k tiền sân")
             return
-        r = await call(S.matches.record_money, team, user, st["id"], st["kind"], amount)
+        r = await call(S.matches.record_money, team, user, st["id"], st["kind"], amount, note)
         G = group_lang(entry)
         key = "expense" if st["kind"] == "paid" else "income"
         await show_match(message, entry, lang, st["id"],

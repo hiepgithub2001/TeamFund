@@ -866,12 +866,14 @@ def test_match_money():
     tid = setup_team(svc)
     past, ahead = [x["id"] for x in svc.matches.add(tid, OWNER, [{"day": date(2026, 11, 15), "opponent": "FC Moreh"},
                                                                 {"day": date(2026, 11, 22)}])]
-    assert code(svc.matches.record_money, tid, OWNER, ahead, "paid", 300000) == "match_not_played"
     assert code(svc.matches.record_money, tid, MEMBER, past, "paid", 300000) == "not_manager"
-    r = svc.matches.record_money(tid, OWNER, past, "paid", 300000)
-    assert (r["title"], r["balance"], r["match"]["paid"]) == ("Trận vs FC Moreh", -300000, 300000)
+    r = svc.matches.record_money(tid, OWNER, past, "paid", 300000, "tiền sân")
+    assert (r["title"], r["balance"], r["match"]["paid"]) == ("Trận 15/11 vs FC Moreh: tiền sân", -300000, 300000)
     r = svc.matches.record_money(tid, OWNER, past, "received", 500000)
-    assert (r["title"], r["balance"], r["match"]["received"]) == ("Đối trả: FC Moreh", 200000, 500000)
+    assert (r["title"], r["balance"], r["match"]["received"]) == ("Trận 15/11 vs FC Moreh", 200000, 500000)
+    r = svc.matches.record_money(tid, OWNER, ahead, "paid", 100000, "cọc sân")  # a deposit for a match ahead
+    assert (r["title"], r["at"][:5], r["backdated"]) == ("Trận 22/11: cọc sân", "18/11", False)
+    svc.undo.undo(tid, OWNER, next(x for x in svc.undo.recent(tid, OWNER) if x["action"] == "match.money")["id"])
     nov = svc.money.history(tid, 10, "2026-11")
     assert sorted((x["amount"], x["at"][:5]) for x in nov) == [(300000, "15/11"), (500000, "15/11")], nov
     entry = next(x for x in svc.undo.recent(tid, OWNER) if x["action"] == "match.money")
