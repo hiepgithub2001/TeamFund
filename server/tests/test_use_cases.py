@@ -306,6 +306,13 @@ def test_web_pay_page(world):
     other = web.create_intent(token, [page["unpaid"][1]["member_id"]])
     clock.advance(hours=25)
     assert web.intent_status(token, other["code"])["status"] == "expired"
+    # paid late with the expired QR anyway: the code still names the bills, so it still counts
+    svc.jobs.clean_up()
+    assert svc.money.record_transfer(tid, key, IncomingTransfer("tx-late-qr", 200000, other["content"])) == "payment_confirmed"
+    assert web.page(token)["unpaid"] == []
+    # the same old QR paid a second time: nothing left to pay, so managers are asked
+    assert svc.money.record_transfer(tid, key, IncomingTransfer("tx-twice", 200000, other["content"])) == "unmatched_payment"
+    assert notifier.events[-1]["reason"] == "already_paid"
 
     new_url = teams.web_link(tid, OWNER, reset=True)["url"]
     assert new_url != url and code(web.page, token) == "not_found"
