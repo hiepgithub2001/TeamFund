@@ -30,6 +30,8 @@ const T = {
     shirt: "Áo số {n}", noMembers: "Đội chưa có thành viên.", readOnly: "Chỉ xem. Quản lý đội trong bot Telegram.",
     tabMatches: "Lịch đá", upcoming: "Trận sắp tới", noMatches: "Chưa có trận nào.", noOpp: "Chưa có đối",
     cancelled: "Huỷ", wd: ["T2", "T3", "T4", "T5", "T6", "T7", "CN"],
+    tabContacts: "Danh bạ", contacts: "Đội bạn", noContacts: "Chưa có đội nào trong danh bạ.",
+    history: "Đã đá {p} · huỷ {c}", lastMatch: "gần nhất {d}", nextMatch: "sắp tới {d}", call: "Gọi",
   },
   en: {
     title: "Team fund", month: "Month {p}", owing: "Still to pay", people: "{n} people", total: "Total owed",
@@ -58,6 +60,8 @@ const T = {
     shirt: "Shirt {n}", noMembers: "The team has no members yet.", readOnly: "Read-only. The team is managed in the Telegram bot.",
     tabMatches: "Matches", upcoming: "Upcoming matches", noMatches: "No matches yet.", noOpp: "No opponent yet",
     cancelled: "Cancelled", wd: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+    tabContacts: "Contacts", contacts: "Opposing teams", noContacts: "No teams in the contacts yet.",
+    history: "Played {p} · cancelled {c}", lastMatch: "last {d}", nextMatch: "next {d}", call: "Call",
   },
 };
 
@@ -66,7 +70,7 @@ const store = {  // per-device conveniences only; the page works without them
   get(k) { try { return JSON.parse(localStorage.getItem("tf." + k)); } catch { return null; } },
   set(k, v) { try { v == null ? localStorage.removeItem("tf." + k) : localStorage.setItem("tf." + k, JSON.stringify(v)); } catch { /* private mode */ } },
 };
-const S = { data: null, lang: store.get("lang"), tab: ["pay", "fund", "members", "matches"].includes(store.get("tab")) ? store.get("tab") : "pay", open: null, months: {}, selected: new Set(), query: "", intent: null, timer: null, install: null };
+const S = { data: null, lang: store.get("lang"), tab: ["pay", "fund", "members", "matches", "contacts"].includes(store.get("tab")) ? store.get("tab") : "pay", open: null, months: {}, selected: new Set(), query: "", intent: null, timer: null, install: null };
 
 const t = (k, p = {}) => (T[S.lang] || T.vi)[k].replace(/\{(\w+)\}/g, (_, x) => p[x] ?? "");
 const money = (n) => Number(n).toLocaleString(S.lang === "en" ? "en-US" : "vi-VN") + "đ";
@@ -146,7 +150,8 @@ function teamFees(d) {  // "200.000đ/tháng · hạn 20/11", or each package wi
   return fs.map((f) => t("feeN", { f: feeOf(f.amount, f.months), n: f.count }) + feeTerms(f)).join("\n");
 }
 
-const TABS = [["pay", "tabPay"], ["fund", "tabFund"], ["members", "tabMembers"], ["matches", "tabMatches"]];
+const TABS = [["pay", "tabPay"], ["fund", "tabFund"], ["members", "tabMembers"], ["matches", "tabMatches"],
+  ["contacts", "tabContacts"]];
 function tabs() {
   return h("nav", { class: "tabs", role: "tablist" }, TABS.map(([id, key]) =>
     h("button", { role: "tab", "aria-selected": S.tab === id ? "true" : "false", class: "tab", onclick: () => {
@@ -248,6 +253,21 @@ function matchesView() {
     footer());
 }
 
+function contactsView() {
+  // opposing teams: name, phone (tap to call), note, how often we played them
+  const cs = S.data.contacts || [];
+  const dm = (iso) => iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : null;
+  const phone = (p) => p && p.length === 10 ? `${p.slice(0, 4)} ${p.slice(4, 7)} ${p.slice(7)}` : p;
+  show(header(), tabs(),
+    section(`${t("contacts")} (${cs.length})`, cs.length ? h("ul", { class: "list" }, cs.map((c) => item(
+      c.name,
+      [c.note, [t("history", { p: c.played, c: c.cancelled }), c.last ? t("lastMatch", { d: dm(c.last) }) : null,
+        c.next ? t("nextMatch", { d: dm(c.next) }) : null].filter(Boolean).join(" · ")].filter(Boolean).join("\n"),
+      c.phone ? h("a", { class: "tel", href: "tel:" + c.phone, "aria-label": `${t("call")} ${c.name}` }, phone(c.phone)) : null))) :
+      h("p", { class: "muted" }, t("noContacts"))),
+    footer());
+}
+
 function listView() {
   const d = S.data;
   if (!d.has_bank) return show(header(), tabs(), h("div", { class: "card note" }, t("noBank")), footer());
@@ -345,7 +365,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden && S.
 function render() {
   if (S.intent) return qrView();
   if (!S.data) return;
-  ({ fund: fundView, members: membersView, matches: matchesView }[S.tab] || listView)();
+  ({ fund: fundView, members: membersView, matches: matchesView, contacts: contactsView }[S.tab] || listView)();
 }
 async function load() {
   stop();

@@ -89,7 +89,7 @@ footer a { color: var(--brand); }
 .offscreen { position: fixed; top: 0; left: 0; opacity: 0; pointer-events: none; }
 
 /* tabs and read-only views */
-.tabs { position: sticky; top: 0; z-index: 2; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;
+.tabs { position: sticky; top: 0; z-index: 2; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px;
         background: var(--bg); padding: 4px 0 12px; }
 .tab { border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 10px;
        padding: 8px 4px; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -104,6 +104,7 @@ ul.list { list-style: none; margin: 0; padding: 0; }
 .item .bills { font-size: 13px; color: var(--muted); }
 .item .amt { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 15px; }
 .item.owe .amt { color: var(--warn); }
+a.tel { color: var(--brand); font-weight: 600; text-decoration: none; white-space: nowrap; }
 .item.struck .name { text-decoration: line-through; color: var(--muted); }
 .item.ok .amt, .item.in .amt, .pos { color: var(--ok); }
 .item.out .amt, .neg { color: var(--danger); }

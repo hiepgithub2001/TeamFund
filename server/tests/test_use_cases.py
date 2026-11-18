@@ -839,3 +839,17 @@ def test_contacts():
     assert svc.matches.get(tid, OWNER, mid)["contact_id"] == moreh["id"]
     c.delete(tid, OWNER, moreh["id"])
     assert [x["name"] for x in c.search(tid, OWNER)] == ["FC Sóc Sơn"]
+
+
+def test_pay_page_shows_matches_and_contacts():
+    """The team chose to show contacts, phones included, on the pay page, next to the match calendar."""
+    from datetime import date
+    svc, clock, _ = make_services(datetime(2026, 11, 18, 10, 0))
+    tid = setup_team(svc)
+    svc.contacts.save_many(tid, OWNER, [{"name": "FC Moreh", "phone": "0912345678", "note": "fb: Dũng"}])
+    svc.matches.add(tid, OWNER, [{"day": date(2026, 11, 22), "at": "19:00", "opponent": "FC Moreh"}])
+    token = svc.teams.web_link(tid, OWNER)["url"].rstrip("/").rsplit("/", 1)[-1]
+    page = svc.web.page(token)
+    assert [(m["day"], m["opponent"]) for m in page["matches"]] == [("2026-11-22", "FC Moreh")]
+    assert page["contacts"] == [{"name": "FC Moreh", "phone": "0912345678", "note": "fb: Dũng", "played": 0,
+                                 "cancelled": 0, "last": None, "next": "2026-11-22"}]

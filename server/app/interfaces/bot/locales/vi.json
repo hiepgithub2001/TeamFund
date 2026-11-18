@@ -501,7 +501,7 @@
  "ct.history": "Đã đá {played} · huỷ {cancelled}",
  "ct.last": " · gần nhất {day}",
  "ct.next": " · sắp tới {day}",
- "ct.ask_add": "Gửi đội cần thêm, mỗi dòng một đội: tên (số điện thoại, ghi chú).",
+ "ct.ask_add": "Gửi tên đội cần thêm, ví dụ <code>FC Moreh</code>. Bot sẽ hỏi tiếp số điện thoại và ghi chú.\nCó thể gửi luôn cả dòng <code>FC Moreh (0912 345 678, fb: Dũng)</code>, hoặc nhiều đội, mỗi dòng một đội.",
  "ct.confirm_delete": "🗑 Xoá {name} khỏi danh bạ?",
  "ct.deleted": "🗑 Đã xoá {name}.",
  "ct.updated": "✅ Đã cập nhật.",
@@ -524,5 +524,9 @@
  "ct.ask_note": "Gửi ghi chú (fb, zalo, người liên hệ…). Gửi <code>-</code> để xoá.",
  "ct.btn_phone": "📞 SĐT",
  "ct.no_phone": "📞 chưa có số điện thoại",
- "ct.ask_phone": "Gửi số điện thoại, ví dụ <code>0912 345 678</code>. Gửi <code>-</code> để xoá."
+ "ct.ask_phone": "Gửi số điện thoại, ví dụ <code>0912 345 678</code>. Gửi <code>-</code> để xoá.",
+ "ct.new_phone": "📞 Số điện thoại của <b>{name}</b>?",
+ "ct.new_note": "📝 Ghi chú cho <b>{name}</b> (fb, zalo, người liên hệ, sân nhà…)?",
+ "ct.type_below": "Gõ ở đây, hoặc bấm Bỏ qua ở trên.",
+ "ct.skipped": "Đã bỏ qua."
 }

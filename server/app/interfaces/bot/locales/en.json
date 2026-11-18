@@ -501,7 +501,7 @@
  "ct.history": "Played {played} · cancelled {cancelled}",
  "ct.last": " · last {day}",
  "ct.next": " · next {day}",
- "ct.ask_add": "Send the teams to add, one per line: name (phone, note).",
+ "ct.ask_add": "Send the team's name, e.g. <code>FC Moreh</code>. The bot then asks for the phone and a note.\nYou can also send the whole line <code>FC Moreh (0912 345 678, fb: Dung)</code>, or several teams, one per line.",
  "ct.confirm_delete": "🗑 Delete {name} from contacts?",
  "ct.deleted": "🗑 Deleted {name}.",
  "ct.updated": "✅ Updated.",
@@ -524,5 +524,9 @@
  "ct.ask_note": "Send the note (fb, zalo, contact person…). <code>-</code> clears it.",
  "ct.btn_phone": "📞 Phone",
  "ct.no_phone": "📞 no phone number yet",
- "ct.ask_phone": "Send the phone number, e.g. <code>0912 345 678</code>. <code>-</code> clears it."
+ "ct.ask_phone": "Send the phone number, e.g. <code>0912 345 678</code>. <code>-</code> clears it.",
+ "ct.new_phone": "📞 <b>{name}</b>'s phone number?",
+ "ct.new_note": "📝 A note for <b>{name}</b> (fb, zalo, contact person, home pitch…)?",
+ "ct.type_below": "Type it here, or tap Skip above.",
+ "ct.skipped": "Skipped."
 }

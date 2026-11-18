@@ -734,6 +734,18 @@ async def main():
         await wait_sent(to(OWNER, "Send the note"), "note asked")
         await T(text_update(OWNER, "zalo: Dung, sân Mỹ Đình"))
         await wait_sent(lambda c: to(OWNER, "Updated")(c) and "📝 zalo: Dung, sân Mỹ Đình" in c["params"]["text"], "note saved")
+        # ➕ one team: name, then the bot asks phone and note; no confirm step
+        await T(cb_update(OWNER, "ct:l", found["message_id"]))
+        await T(cb_update(OWNER, "ct:a", found["message_id"]))
+        await wait_sent(to(OWNER, "Send the team's name"), "name asked")
+        await T(text_update(OWNER, "FC WQ"))
+        await wait_sent(to(OWNER, "<b>FC WQ</b>'s phone number"), "phone asked next")
+        await T(text_update(OWNER, "0911 222 333"))
+        nq = await wait_sent(to(OWNER, "A note for <b>FC WQ</b>"), "note asked next")
+        await T(cb_update(OWNER, "ct:skn", nq["message_id"]))
+        await wait_sent(lambda c: to(OWNER, "Saved to contacts")(c) and "📞 0911 222 333" in c["params"]["text"]
+                        and "FC WQ" in c["params"]["text"], "saved without a confirm step")
+
         await T(text_update(FAN, "/contacts"))
         await wait_sent(to(FAN, "manager"), "contacts are managers only")
 

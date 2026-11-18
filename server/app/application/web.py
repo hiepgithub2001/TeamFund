@@ -59,7 +59,24 @@ class WebUseCases:
                     "months": self._months(uow, team, period),
                     "history": self._history(uow, team, 30),
                     "members": self._members(uow, team),
-                    "matches": self._matches(uow, team)}
+                    "matches": self._matches(uow, team),
+                    "contacts": self._contacts(uow, team)}
+
+    def _contacts(self, uow: UnitOfWork, team: Team) -> list[dict]:
+        """Opposing teams A–Z with phone, note and their match history (the team chose to show phones here)."""
+        from ..domain.rules import fold
+        today = self.d.clock.local_now().date()
+        ms = uow.matches.all_of_team(team.id)
+        out = []
+        for c in sorted(uow.contacts.of_team(team.id), key=lambda c: fold(c.name)):
+            mine = [m for m in ms if fold(m.opponent) == fold(c.name)]
+            played = [m for m in mine if m.day < today and m.status == "scheduled"]
+            ahead = [m for m in mine if m.day >= today and m.status == "scheduled"]
+            out.append({"name": c.name, "phone": c.phone, "note": c.note, "played": len(played),
+                        "cancelled": sum(m.status == "cancelled" for m in mine),
+                        "last": played[-1].day.isoformat() if played else None,
+                        "next": ahead[0].day.isoformat() if ahead else None})
+        return out
 
     def _matches(self, uow: UnitOfWork, team: Team) -> list[dict]:
         """The next 10 matches still on (and cancelled ones between them), for the Calendar tab."""
