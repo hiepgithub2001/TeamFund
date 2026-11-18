@@ -528,5 +528,6 @@
  "ct.new_phone": "📞 <b>{name}</b>'s phone number?",
  "ct.new_note": "📝 A note for <b>{name}</b> (fb, zalo, contact person, home pitch…)?",
  "ct.type_below": "Type it here, or tap Skip above.",
- "ct.skipped": "Skipped."
+ "ct.skipped": "Skipped.",
+ "ct.help_view": "Search: <code>/contacts moreh</code>. Tap a team to see its phone. Team managers add and edit contacts."
 }

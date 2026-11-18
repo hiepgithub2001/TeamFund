@@ -15,7 +15,7 @@ from .i18n import t
 from .render import edit, is_private, kb, say
 from .run import call
 from .state import del_state, get_state, set_state
-from .team import FORCE, allow, broadcast, group_lang, input_key, tid
+from .team import FORCE, allow, broadcast, group_lang, input_key, role, tid
 
 router = Router()
 WD = {"vi": ["T2", "T3", "T4", "T5", "T6", "T7", "CN"], "en": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]}
@@ -402,27 +402,33 @@ async def add_save(ev, entry, lang, st: dict, opponent: str | None) -> None:
 
 # ---- /contacts --------------------------------------------------------------------------------------
 
-def contact_list(lang: str, items: list, query: str | None):
+async def is_manager(ev, entry) -> bool:
+    return await role(entry, ev.from_user) in ("owner", "manager")
+
+
+def contact_list(lang: str, items: list, query: str | None, can_edit: bool = True):
     head = t(lang, "ct.found", q=esc(query), n=len(items)) if query else t(lang, "ct.title", n=len(items))
     btn = [(c["name"][:30], f"ct:v:{c['id']}") for c in items[:40]]
     rows = [btn[i:i + 2] for i in range(0, len(btn), 2)]
     lines = [f"• <b>{esc(c['name'])}</b>" + (f" · 📞 {show_phone(c['phone'])}" if c.get("phone") else "")
              for c in items[:40]]
-    text = head + "\n" + ("\n".join(lines) if items else t(lang, "ct.empty")) + "\n\n" + t(lang, "ct.help")
-    return text, kb(*rows, [(t(lang, "ct.btn_add"), "ct:a")])
+    text = head + "\n" + ("\n".join(lines) if items else t(lang, "ct.empty")) + "\n\n" + \
+        t(lang, "ct.help" if can_edit else "ct.help_view")
+    return text, kb(*rows, [(t(lang, "ct.btn_add"), "ct:a")] if can_edit else [])
 
 
 @router.message(Command("contacts"))
 async def cmd_contacts(message: Message, command: CommandObject, entry, lang):
-    """Contacts of opposing teams: list, `/contacts moreh` to search, or paste lines to add."""
-    if not await allow(message, entry, lang, "manager"):
+    """Contacts of opposing teams, for everyone: list, `/contacts moreh` to search. Managers paste lines to add."""
+    if not is_private(message):
         return
     args = (command.args or "").strip()
     if args and ("\n" in args or "(" in args or re.search(r"\d{4}", args)):
-        await contacts_preview(message, entry, lang, args)
+        if await allow(message, entry, lang, "manager"):
+            await contacts_preview(message, entry, lang, args)
         return
     items = await call(S.contacts.search, tid(entry), message.from_user.id, args or None)
-    text, markup = contact_list(lang, items, args or None)
+    text, markup = contact_list(lang, items, args or None, await is_manager(message, entry))
     await message.answer(text, reply_markup=markup)
 
 
@@ -468,7 +474,7 @@ async def contact_next(ev, entry, lang, item: dict, asked_phone: bool = False, a
     await say(ev, f"{head}\n\n{text}", reply_markup=markup)
 
 
-def contact_view(lang: str, c: dict):
+def contact_view(lang: str, c: dict, can_edit: bool = True):
     lines = [f"📇 <b>{esc(c['name'])}</b>", f"📞 {show_phone(c['phone'])}" if c.get("phone") else t(lang, "ct.no_phone")]
     if c.get("note"):
         lines.append(f"📝 {esc(c['note'])}")
@@ -479,6 +485,8 @@ def contact_view(lang: str, c: dict):
         hist += t(lang, "ct.next", day=day_label(lang, date.fromisoformat(c["next"])))
     lines.append("⚽ " + hist)
     i = c["id"]
+    if not can_edit:
+        return "\n".join(lines), kb([(t(lang, "ct.btn_list"), "ct:l")])
     return "\n".join(lines), kb([(t(lang, "ct.btn_name"), f"ct:en:{i}"), (t(lang, "ct.btn_phone"), f"ct:ph:{i}"),
                                  (t(lang, "ct.btn_note"), f"ct:nt:{i}")],
                                 [(t(lang, "mt.btn_delete"), f"ct:d:{i}"), (t(lang, "ct.btn_list"), "ct:l")])
@@ -486,20 +494,22 @@ def contact_view(lang: str, c: dict):
 
 @router.callback_query(F.data.regexp(r"^ct:(\w+)(?::(\d+))?$").as_("m"))
 async def on_contacts(cq: CallbackQuery, m: re.Match, entry, lang):
+    action, a = m.group(1), m.group(2)
+    team, user = tid(entry), cq.from_user.id
+    if action in ("l", "v"):  # looking up is for everyone
+        await cq.answer()
+        can = await is_manager(cq, entry)
+        if action == "l":
+            text, markup = contact_list(lang, await call(S.contacts.search, team, user), None, can)
+        else:
+            text, markup = contact_view(lang, await call(S.contacts.get, team, user, int(a)), can)
+        await edit(cq, text, markup)
+        return
     if not await allow(cq, entry, lang, "manager"):
         return
     await cq.answer()
-    action, a = m.group(1), m.group(2)
-    team, user = tid(entry), cq.from_user.id
     pk = f"ctp:{cq.bot.id}:{cq.message.chat.id}"
-    if action == "l":
-        text, markup = contact_list(lang, await call(S.contacts.search, team, user), None)
-        await edit(cq, text, markup)
-    elif action == "v" and a:
-        c = await call(S.contacts.get, team, user, int(a))
-        text, markup = contact_view(lang, c)
-        await edit(cq, text, markup)
-    elif action == "a":
+    if action == "a":
         await ask(cq, lang, {"type": "ct_add"}, t(lang, "ct.ask_add"), "FC Moreh")
     elif action in ("skp", "skn"):  # skip the phone / the note while adding one team
         st = get_state(ikey(cq)) or {}

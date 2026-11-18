@@ -817,7 +817,7 @@ def test_contacts():
     tid = setup_team(svc)
     c = svc.contacts
     items = [{"name": "FC Moreh", "phone": "0367000000", "note": "fb: Dũng Minh"}, {"name": "FC Sóc Sơn"}]
-    assert code(c.search, tid, MEMBER) == "not_manager"
+    assert code(c.save_many, tid, MEMBER, items) == "not_manager"
     assert [p["update"] for p in c.preview(tid, OWNER, items)] == [False, False]
     assert c.save_many(tid, OWNER, items) == {"added": 2, "updated": 0}
     assert [p["update"] for p in c.preview(tid, OWNER, [{"name": "fc soc son", "phone": "0584000000"}])] == [True]
@@ -838,6 +838,8 @@ def test_contacts():
     mid = svc.matches.show(tid, OWNER)["matches"][0]["id"]
     got = svc.matches.get(tid, OWNER, mid)
     assert (got["contact_id"], got["contact_phone"]) == (moreh["id"], "0367000000")
+    assert c.get(tid, MEMBER, moreh["id"])["phone"] == "0367000000", "everyone can look a contact up"
+    assert code(c.delete, tid, MEMBER, moreh["id"]) == "not_manager"
     c.delete(tid, OWNER, moreh["id"])
     assert [x["name"] for x in c.search(tid, OWNER)] == ["FC Sóc Sơn"]
 

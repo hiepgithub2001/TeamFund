@@ -394,7 +394,7 @@
  "window.type_6": "✍️ Hoặc gõ khoảng thời gian theo nửa năm (<code>2027H1</code> là tháng 1–6, <code>2027H2</code> là tháng 7–12):\n• <code>{a} - {b}</code>: từ {a} đến hết {b}\n• <code>{a}</code>: từ {a}, không thời hạn\n• <code>- {b}</code>: từ kỳ này ({cur}) đến hết {b}",
  "window.type_12": "✍️ Hoặc gõ khoảng thời gian theo năm:\n• <code>{a} - {b}</code>: từ {a} đến hết {b}\n• <code>{a}</code>: từ {a}, không thời hạn\n• <code>- {b}</code>: từ năm nay ({cur}) đến hết {b}",
  "cmd.matches": "Lịch đá",
- "cmd.contacts": "Danh bạ đội bạn",
+ "cmd.contacts": "Danh bạ đội bạn (liên hệ đối)",
  "mt.title": "📅 <b>Trận sắp tới</b> ({n} trận gần nhất)",
  "mt.empty": "Chưa có trận nào.",
  "mt.help": "Thêm nhanh: <code>/matches 7/12 19h FC Moreh @Sân A</code>, hoặc dán nhiều dòng sau <code>/matches</code>. Huỷ: <code>/matches cancel 30/11 mưa</code>.",
@@ -528,5 +528,6 @@
  "ct.new_phone": "📞 Số điện thoại của <b>{name}</b>?",
  "ct.new_note": "📝 Ghi chú cho <b>{name}</b> (fb, zalo, người liên hệ, sân nhà…)?",
  "ct.type_below": "Gõ ở đây, hoặc bấm Bỏ qua ở trên.",
- "ct.skipped": "Đã bỏ qua."
+ "ct.skipped": "Đã bỏ qua.",
+ "ct.help_view": "Tìm: <code>/contacts moreh</code>. Bấm tên đội để xem số điện thoại. Quản lý đội thêm và sửa danh bạ."
 }

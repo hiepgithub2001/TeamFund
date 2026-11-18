@@ -1,9 +1,10 @@
 """Use cases: contacts of opposing teams: a name, a phone number (the usual way to reach them) and a free
-note (fb, zalo, contact person… as written). Other people's phone numbers, so managers only."""
+note (fb, zalo, contact person… as written). Everyone in the team bot can look them up, to find an opponent
+and call them; only managers add, change or delete."""
 from ..domain.entities import Contact, Team
 from ..domain.errors import DomainError, invalid
 from ..domain.rules import fold
-from .access import manager_team
+from .access import get_team, manager_team
 from .people import audit
 from .ports import Deps, UnitOfWork
 
@@ -43,9 +44,9 @@ class ContactUseCases:
         return c
 
     def search(self, team_id: int, actor: int, query: str | None = None) -> list[dict]:
-        """All contacts A–Z, or those whose name, phone or note has the words (accents ignored)."""
+        """All contacts A–Z, or those whose name, phone or note has the words (accents ignored). Anyone."""
         with self.d.uow() as uow:
-            team = manager_team(uow, team_id, actor)
+            team = get_team(uow, team_id)
             items = sorted(uow.contacts.of_team(team.id), key=lambda c: fold(c.name))
             if query:
                 words = fold(query).split()
@@ -53,9 +54,9 @@ class ContactUseCases:
             return [contact_dict(c) for c in items]
 
     def get(self, team_id: int, actor: int, contact_id: int) -> dict:
-        """The contact and its matches: how many played and cancelled, the last one, the next one."""
+        """The contact and its matches: how many played and cancelled, the last one, the next one. Anyone."""
         with self.d.uow() as uow:
-            team = manager_team(uow, team_id, actor)
+            team = get_team(uow, team_id)
             c = self._contact(uow, team, contact_id)
             today = self.d.clock.local_now().date()
             mine = [m for m in uow.matches.all_of_team(team.id) if fold(m.opponent) == fold(c.name)]

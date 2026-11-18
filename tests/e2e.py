@@ -748,7 +748,14 @@ async def main():
                         and "FC WQ" in c["params"]["text"], "saved without a confirm step")
 
         await T(text_update(FAN, "/contacts"))
-        await wait_sent(to(FAN, "manager"), "contacts are managers only")
+        fan = await wait_sent(to(FAN, "Opposing teams"), "everyone can look contacts up")
+        assert "ct:a" not in buttons(fan), "only managers add"
+        await T(cb_update(FAN, next(d for d in buttons(fan) if d.startswith("ct:v:")), fan["message_id"]))
+        card = await wait_sent(lambda c: c["method"] == "editMessageText" and str(c["params"].get("chat_id")) == str(FAN)
+                               and "📇" in c["params"]["text"], "a member opens a contact")
+        assert buttons(card) == ["ct:l"], "read-only card"
+        await T(text_update(FAN, "/contacts\nFC Spam (0900 000 000)"))
+        await wait_sent(to(FAN, "manager"), "members can't add")
 
         print(f"e2e passed ({len(calls)} Telegram API calls)")
     finally:
