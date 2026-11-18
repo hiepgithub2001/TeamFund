@@ -387,5 +387,6 @@
  "btn.window_next": "⏭ Từ kỳ sau ({period})",
  "window.pick_start": "📆 Chọn <b>kỳ bắt đầu</b>:",
  "window.pick_end": "📆 Từ <b>{start}</b>. Chọn <b>kỳ kết thúc</b> (tính cả kỳ đó):",
- "btn.window_forever": "♾ Không thời hạn"
+ "btn.window_forever": "♾ Không thời hạn",
+ "btn.window_only": "1️⃣ Chỉ kỳ này ({period})"
 }

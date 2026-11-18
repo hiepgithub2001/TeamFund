@@ -387,5 +387,6 @@
  "btn.window_next": "⏭ From next period ({period})",
  "window.pick_start": "📆 Pick the <b>first period</b>:",
  "window.pick_end": "📆 From <b>{start}</b>. Pick the <b>last period</b> (included):",
- "btn.window_forever": "♾ For good"
+ "btn.window_forever": "♾ For good",
+ "btn.window_only": "1️⃣ This period only ({period})"
 }

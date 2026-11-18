@@ -915,7 +915,8 @@ def window_choices(p: dict) -> dict[str, tuple[str, str | None]]:
     """The quick choices for a plan's months, as (from, until): from next period (the usual for newcomers)
     or this period, each for good. Other ranges are picked period by period."""
     start = cycle_start(p["period"], p["months"])
-    return {"next": (add_months(start, p["months"]), None), "cur": (start, None)}
+    return {"next": (add_months(start, p["months"]), None), "cur": (start, None),
+            "only": (start, add_months(start, p["months"] - 1))}
 
 
 async def open_window_menu(ev, lang, p: dict, members: list[dict], edit_in_place: bool = False) -> None:
@@ -927,7 +928,8 @@ async def open_window_menu(ev, lang, p: dict, members: list[dict], edit_in_place
               {"plan_id": p["id"], "ids": [m["id"] for m in members]}, 600)
     cur = period_name(c["cur"][0], p["months"])
     rows = [[(t(lang, "btn.window_next", period=period_name(c["next"][0], p["months"])), "w:next")],
-            [(t(lang, "btn.window_cur", period=cur), "w:cur")]]
+            [(t(lang, "btn.window_cur", period=cur), "w:cur")],
+            [(t(lang, "btn.window_only", period=cur), "w:only")]]
     rows += [[(t(lang, "btn.window_in"), "w:in")], [(t(lang, "btn.window_keep"), "w:x")]]
     text = t(lang, "window.ask", fee=fee_text(lang, p["amount"], p["months"]),
              names=", ".join(esc(m["name"]) for m in members), cur=cur)
@@ -964,7 +966,7 @@ def range_rows(p: dict, first: str, prefix: str, end: bool) -> list:
     return [buttons[i:i + RANGE_ROW[n]] for i in range(0, len(buttons), RANGE_ROW[n])]
 
 
-@router.callback_query(F.data.regexp(r"^w:(next|cur|in|x|s\d{6}|e\d{6}|e0)$").as_("m"))
+@router.callback_query(F.data.regexp(r"^w:(next|cur|only|in|x|s\d{6}|e\d{6}|e0)$").as_("m"))
 async def on_window(cq: CallbackQuery, m: re.Match, entry, lang):
     """The months menu: from next / this period, or a range picked period by period (start, then end)."""
     if not await allow(cq, entry, lang, "manager"):

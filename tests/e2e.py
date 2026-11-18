@@ -628,7 +628,7 @@ async def main():
             await T(cb_update(OWNER, "k:ok", pick["message_id"]))
             menu = await until(lambda: next((c for c in calls[mark:] if c["method"] == "editMessageText"
                                              and "From which period" in c["params"]["text"]), None), "window menu")
-            assert buttons(menu) == ["w:next", "w:cur", "w:in", "w:x"], buttons(menu)
+            assert buttons(menu) == ["w:next", "w:cur", "w:only", "w:in", "w:x"], buttons(menu)
             for d in steps:
                 mark = len(calls)
                 await T(cb_update(OWNER, d, pick["message_id"]))
@@ -648,7 +648,7 @@ async def main():
         await wait_sent(saved(f"Cường ({next_q}–{after_q})"), "two quarters")
         await set_window(1, "w:next")
         await wait_sent(saved(f"Dũng (from {next_q})"), "from next quarter")
-        await set_window(1, "w:in", qm(today.year, cur_q).format("s"), end_of(today.year, cur_q))
+        await set_window(1, "w:only")
         await wait_sent(lambda c: saved(f"Dũng (until {this_q})")(c) and f"Months set: {this_q}." in c["params"]["text"],
                         "this quarter only")
 
