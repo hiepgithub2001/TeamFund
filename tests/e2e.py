@@ -720,6 +720,7 @@ async def main():
         await wait_sent(to(OWNER, "Saved: 2 new, 0 updated"), "contacts saved")
         await T(text_update(OWNER, "/contacts moreh"))
         found = await wait_sent(to(OWNER, '"moreh": 1 found'), "search")
+        assert "• <b>FC Moreh</b> · 📞 0912 345 678" in found["params"]["text"], "phones show in the list"
         cid = next(d for d in buttons(found) if d.startswith("ct:v:"))
         await T(cb_update(OWNER, cid, found["message_id"]))
         card = await wait_sent(lambda c: c["method"] == "editMessageText" and "Played 0 · cancelled 1" in c["params"]["text"],

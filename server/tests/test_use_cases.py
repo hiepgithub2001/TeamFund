@@ -836,7 +836,8 @@ def test_contacts():
     info = c.get(tid, OWNER, moreh["id"])
     assert (info["played"], info["last"], info["next"]) == (1, "2026-11-08", "2026-12-06")
     mid = svc.matches.show(tid, OWNER)["matches"][0]["id"]
-    assert svc.matches.get(tid, OWNER, mid)["contact_id"] == moreh["id"]
+    got = svc.matches.get(tid, OWNER, mid)
+    assert (got["contact_id"], got["contact_phone"]) == (moreh["id"], "0367000000")
     c.delete(tid, OWNER, moreh["id"])
     assert [x["name"] for x in c.search(tid, OWNER)] == ["FC Sóc Sơn"]
 

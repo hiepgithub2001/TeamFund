@@ -92,6 +92,8 @@ async def show_list(ev, entry, lang, limit: int = 5, edit_in_place: bool = False
 
 def match_view(lang: str, x: dict):
     lines = [t(lang, "mt.view"), match_line(lang, x)]
+    if x.get("contact_phone") and x.get("opponent"):
+        lines.append(f"📞 {esc(x['opponent'])}: {show_phone(x['contact_phone'])}")
     if x.get("schedule_id"):
         lines.append(t(lang, "mt.from_sched"))
     i = x["id"]
@@ -404,7 +406,9 @@ def contact_list(lang: str, items: list, query: str | None):
     head = t(lang, "ct.found", q=esc(query), n=len(items)) if query else t(lang, "ct.title", n=len(items))
     btn = [(c["name"][:30], f"ct:v:{c['id']}") for c in items[:40]]
     rows = [btn[i:i + 2] for i in range(0, len(btn), 2)]
-    text = head + ("" if items else "\n" + t(lang, "ct.empty")) + "\n\n" + t(lang, "ct.help")
+    lines = [f"• <b>{esc(c['name'])}</b>" + (f" · 📞 {show_phone(c['phone'])}" if c.get("phone") else "")
+             for c in items[:40]]
+    text = head + "\n" + ("\n".join(lines) if items else t(lang, "ct.empty")) + "\n\n" + t(lang, "ct.help")
     return text, kb(*rows, [(t(lang, "ct.btn_add"), "ct:a")])
 
 

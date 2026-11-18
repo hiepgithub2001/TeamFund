@@ -131,6 +131,7 @@ class MatchUseCases:
             key = fold(m.opponent)
             c = next((c for c in uow.contacts.of_team(team.id) if key and fold(c.name) == key), None)
             out["contact_id"] = c.id if c else None
+            out["contact_phone"] = c.phone if c else None
             return out
 
     def suggest_days(self, team_id: int, actor: int, n: int = 4) -> list[str]:
