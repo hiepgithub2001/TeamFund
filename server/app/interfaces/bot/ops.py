@@ -136,8 +136,20 @@ def _local(dt: datetime) -> str:
 
 async def collect(actor: int | None) -> dict:
     return {"db": await call(S.ops.db_ok), "teams": await call(S.ops.teams, actor), "disk": disk(),
-            "mem": memory(), "backup": newest_backup(), "bots": await webhooks(),
+            "mem": memory(), "backup": newest_backup(), "bots": await webhooks(), "sepay": await _sepay(actor),
             "errors": errors.since(86400), "uptime": timedelta(seconds=time.time() - STARTED)}
+
+
+async def _sepay(actor) -> list[dict]:
+    try:
+        return await call(S.ops.sepay_usage, actor)
+    except Exception as e:
+        log.warning("sepay usage: %s", e)
+        return []
+
+
+def _teams(names: list[str]) -> str:
+    return esc(", ".join(names))
 
 
 def problems(lang: str, r: dict) -> list[str]:
@@ -158,6 +170,10 @@ def problems(lang: str, r: dict) -> list[str]:
                          error=esc(bot["error"] or "—")))
     if r["errors"]:
         out.append(t(lang, "ops.p_errors", n=len(r["errors"]), last=esc(r["errors"][-1][1])))
+    for s in r.get("sepay", []):
+        if s["near"]:
+            out.append(t(lang, "ops.p_quota", teams=_teams(s["teams"]), used=s["used"], quota=s["quota"],
+                         pct=s["pct"], resets=s["resets"]))
     for x in r["teams"]:
         if x["unmatched_stale"]:
             out.append(t(lang, "ops.p_unmatched", team=esc(x["name"]), n=x["unmatched"],
@@ -196,6 +212,17 @@ def report(lang: str, r: dict) -> str:
         elif bot.get("old_error_at"):
             extra += " · " + t(lang, "ops.bot_restart_error", at=_local(bot["old_error_at"]))
         lines.append(f"{mark} {esc(bot['name'])}{extra}")
+    if r.get("sepay"):
+        lines += ["", t(lang, "ops.sepay")]
+        for s in r["sepay"]:
+            if s["error"]:
+                body = t(lang, "ops.sepay_error", error=esc(s["error"]))
+            elif s["quota"]:
+                body = t(lang, "ops.sepay_used", used=s["used"], quota=s["quota"], pct=s["pct"], since=s["since"],
+                         resets=s["resets"])
+            else:
+                body = t(lang, "ops.sepay_count", used=s["used"], since=s["since"])
+            lines.append(f"{'⚠️' if s['near'] or s['error'] else '✅'} {_teams(s['teams'])}: {body}")
     lines += ["", t(lang, "ops.teams")]
     for x in r["teams"]:
         last = (t(lang, "ops.last_transfer", at=x["last_transfer"], days=x["last_transfer_days"])

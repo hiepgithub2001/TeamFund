@@ -87,6 +87,12 @@ class FakeSepay:
         self._auth(token); self.calls.append("accounts")
         return list(self.accounts)
 
+    transactions: list = []   # dates of the transactions SePay recorded
+
+    def count_transactions(self, token, since):
+        self._auth(token); self.calls.append("count")
+        return sum(d >= since for d in self.transactions)
+
     def virtual_accounts(self, token, bank_account_xid):
         self._auth(token); self.calls.append("vas")
         return list(self.vas.get(bank_account_xid, []))

@@ -288,3 +288,18 @@ def test_a_bot_that_fails_at_startup_is_retried(monkeypatch):
     finally:
         registry.by_team.pop(77, None)
         registry.down.pop(77, None)
+
+
+
+def test_ops_warns_when_the_sepay_plan_is_nearly_used():
+    from datetime import timedelta
+    from app.interfaces.bot import ops
+    r = {"db": True, "teams": [], "disk": {"pct": 10, "used_gb": 1, "total_gb": 10}, "mem": None, "backup": None,
+         "bots": [], "errors": [], "uptime": timedelta(hours=1),
+         "sepay": [{"teams": ["FC37it", "KCU Prime"], "quota": 50, "used": 41, "pct": 82, "near": True,
+                    "since": "01/11", "resets": "01/12", "error": None}]}
+    assert ops.problems("en", r) == ["SePay plan of FC37it, KCU Prime nearly used up: 41 / 50 (82%), restarts 01/12. "
+                                     "Upgrade on my.sepay.vn, or payments stop confirming by themselves."]
+    assert "⚠️ FC37it, KCU Prime: 41 / 50 transactions (82%) since 01/11, restarts 01/12" in ops.report("en", r)
+    r["sepay"][0].update(used=10, pct=20, near=False)
+    assert ops.problems("en", r) == []

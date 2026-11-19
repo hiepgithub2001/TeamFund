@@ -160,7 +160,7 @@
  "lang.done": "✅ Language: English",
  "help.everyone": "<b>Commands</b>\n/start Pay the team fee\n/donate Give to the team fund (any amount)\n/status Who has paid this month\n/fund Fund balance\n/history Latest transactions (/history 10/2026: one month)\n/bank Team bank account\n/weblink Pay page link (no Telegram needed)\n/notify Turn team announcements on or off\n/requestmanager Ask to become a manager\n/guide How to use the bot and the web page\n/lang Language",
  "help.manager": "\n\n<b>Manager</b>\n/members View, add and edit members\n/plans Fee packages: amount, cycle, deadline and late fee for groups of people\n/charge One-off charge or shared cost\n/markpaid Record cash payments\n/expense Record an expense\n/income Record income (prizes, sponsors, an old balance)\n/undo Undo a recent action\n/money How to write amounts and dates\n/followers Who has opened the bot (gets reminders)\n/remind Send the unpaid list to everyone\n/unmatched Payments to check\n/export Excel file\n/settings Team settings\n/teamlang Announcement language",
- "help.owner": "\n\n<b>Owner</b>\n/sepaytoken Connect SePay (API token)\n/setbank Choose the bank account (from SePay)\n/requests Review manager requests\n/managers Managers\n/transferowner Give the team to a manager\n/log Audit log",
+ "help.owner": "\n\n<b>Owner</b>\n/sepaytoken Connect SePay (API token)\n/setbank Choose the bank account (from SePay)\n/sepayplan SePay plan limit (warns before it runs out)\n/requests Review manager requests\n/managers Managers\n/transferowner Give the team to a manager\n/log Audit log",
  "cmd.start": "Pay the team fee",
  "cmd.status": "Who has paid this month",
  "cmd.fund": "Fund balance",
@@ -663,5 +663,16 @@
  "tip.transferowner": "💡 Not listed? They need to be a manager first: /requests",
  "tip.log": "💡 ↩️ = undone. Take back a recent action: /undo",
  "mtip.myteams": "💡 Another team: /requestteam",
- "mtip.ops": "💡 You also get a message at 08:00 when something needs you; nothing comes when all is well."
+ "mtip.ops": "💡 You also get a message at 08:00 when something needs you; nothing comes when all is well.",
+ "cmd.sepayplan": "SePay plan limit, for warnings",
+ "usage.sepayplan": "Tell the bot your SePay plan so the system admin is warned before it runs out (SePay doesn't share it):\n<code>/sepayplan 50</code>: 50 transactions a cycle, restarting on the 1st\n<code>/sepayplan 50 15</code>: restarting on the 15th\n<code>/sepayplan off</code>: forget it\nThe limit and the day are under Gói dịch vụ on my.sepay.vn.",
+ "sepayplan.now": "📦 SePay plan: <b>{quota}</b> transactions a cycle, restarting on day {day}.",
+ "sepayplan.none": "📦 SePay plan: not set yet.",
+ "sepayplan.done": "✅ SePay plan: {quota} transactions a cycle, restarting on day {day}. /ops warns from 80%.",
+ "sepayplan.off": "✅ SePay plan forgotten: /ops shows the count only.",
+ "ops.sepay": "<b>SePay plan</b>",
+ "ops.sepay_used": "{used} / {quota} transactions ({pct}%) since {since}, restarts {resets}",
+ "ops.sepay_count": "{used} transactions since {since} · limit unknown: the owner sends /sepayplan in the team bot",
+ "ops.sepay_error": "couldn't read from SePay: {error}",
+ "ops.p_quota": "SePay plan of {teams} nearly used up: {used} / {quota} ({pct}%), restarts {resets}. Upgrade on my.sepay.vn, or payments stop confirming by themselves."
 }

@@ -67,7 +67,8 @@ async def fake_telegram(request: web.Request):
 
 SEPAY_TOKEN = "S" * 40
 sepay_hooks: dict[str, dict] = {}
-sepay_down = {"writes": False}  # make webhook writes fail, to see how the bot reports it
+sepay_down = {"writes": False}
+sepay_tx = {"n": 3}  # transactions SePay recorded this cycle (for the plan usage in /ops)  # make webhook writes fail, to see how the bot reports it
 
 
 async def fake_sepay(request: web.Request):
@@ -83,6 +84,10 @@ async def fake_sepay(request: web.Request):
         return web.json_response({"status": "success", "data": [
             {"id": "acc-1", "account_number": "0123456789", "bank_short_name": "MBBank", "bank_code": "MB",
              "account_holder_name": "NGUYEN VAN A", "active": "1", "va_only": False}], **page})
+    if path == "transactions":
+        assert request.query.get("transaction_date_from"), "counted from the cycle's start"
+        return web.json_response({"status": "success", "data": [], "meta": {"pagination": {
+            "total": sepay_tx["n"], "current_page": 1, "last_page": 1, "has_more": False}}})
     if path == "webhooks" and method == "GET":
         return web.json_response({"status": "success", "data": [
             {"id": i, "webhook_url": h["url"]} for i, h in sepay_hooks.items()], **page})
@@ -228,6 +233,19 @@ async def main():
         deletes = sum(c["method"] == "deleteMessage" for c in calls)
         await T(text_update(OWNER, f"/sepaytoken {SEPAY_TOKEN}"))
         await wait_sent(to(OWNER, "SePay token saved"), "token saved")
+        # the SePay plan: the count comes from SePay, the limit from the owner; /ops warns from 80%
+        await M(text_update(SUPER, "/ops"))
+        ops = await wait_sent(lambda c: to(SUPER, "System health")(c) and "SePay plan" in c["params"]["text"], "ops sepay")
+        assert "FC Test: 3 transactions since" in ops["params"]["text"] and "/sepayplan" in ops["params"]["text"]
+        await T(text_update(OWNER, "/sepayplan"))
+        await wait_sent(to(OWNER, "SePay plan: not set yet"), "plan usage")
+        await T(text_update(OWNER, "/sepayplan 50 15"))
+        await wait_sent(to(OWNER, "50 transactions a cycle, restarting on day 15"), "plan saved")
+        sepay_tx["n"] = 45
+        await M(text_update(SUPER, "/ops"))
+        ops = await wait_sent(lambda c: to(SUPER, "System health")(c) and "45 / 50" in c["params"]["text"], "ops near quota")
+        assert "SePay plan of FC Test nearly used up: 45 / 50 (90%)" in ops["params"]["text"], ops["params"]["text"]
+        sepay_tx["n"] = 3
         assert sum(c["method"] == "deleteMessage" for c in calls) == deletes + 1, "token message deleted"
         picker = await wait_sent(lambda c: c["method"] == "editMessageText" and "Choose the team's bank account"
                                  in c["params"]["text"], "bank picker opens after the token")

@@ -9,7 +9,7 @@ from typing import Callable
 
 from ..domain.entities import MANAGER, OWNER, Follower, ManagerRequest, Team, TeamAdmin
 from ..domain.errors import DomainError, invalid
-from ..domain.rules import (CYCLES, LANGS, MAX_DUE_DAYS, MAX_FEE, MAX_LATE_FEE, due_date, hash_secret, new_public_token,
+from ..domain.rules import (MAX_SEPAY_QUOTA, CYCLES, LANGS, MAX_DUE_DAYS, MAX_FEE, MAX_LATE_FEE, due_date, hash_secret, new_public_token,
                             schedule, terms, valid_bank)
 from .access import get_team, is_super, manager_team, owner_team, role_of
 from .billing import reprice_current_month, update_late_fees
@@ -112,6 +112,23 @@ class TeamUseCases:
                     "due_days": days,
                     "late_fee": team.late_fee or 0,
                     "due": due_date(terms(team), self.d.clock.current_period()).strftime("%d/%m")}
+
+    def sepay_plan(self, team_id: int, actor: int) -> dict:
+        with self.d.uow() as uow:
+            team = owner_team(uow, team_id, actor)
+            return {"quota": team.sepay_quota, "day": team.sepay_cycle_day or 1}
+
+    def set_sepay_plan(self, team_id: int, actor: int, quota: int | None, day: int | None = None) -> dict:
+        """The owner's SePay plan: how many transactions a cycle allows and the day it restarts (None: forget it).
+        Only for /ops: SePay's API doesn't tell the plan, only how many transactions it recorded."""
+        if quota is not None and not (1 <= quota <= MAX_SEPAY_QUOTA and (day is None or 1 <= day <= 31)):
+            raise invalid()
+        with self.d.uow() as uow:
+            team = owner_team(uow, team_id, actor)
+            team.sepay_quota, team.sepay_cycle_day = quota, (day if quota is not None and day != 1 else None)
+            audit(uow, self.d.clock, team.id, actor, "team.sepay_plan", target=str(quota or "-"))
+            uow.commit()
+            return {"quota": team.sepay_quota, "day": team.sepay_cycle_day or 1}
 
     def sepay_info(self, team_id: int, actor: int) -> dict:
         with self.d.uow() as uow:

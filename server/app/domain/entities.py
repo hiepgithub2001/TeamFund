@@ -60,6 +60,8 @@ class Team:
     sepay_webhook_id: str | None = None    # the team's one webhook in that SePay account
     public_token: str | None = None        # secret part of the team's pay page URL (/p/<token>/)
     pay_account: str | None = None         # VA to pay into, for banks that only report transfers to a VA
+    sepay_quota: int | None = None         # transactions the owner's SePay plan allows per cycle (None: not told)
+    sepay_cycle_day: int | None = None     # day of the month that plan's cycle restarts (None: the 1st)
     last_billed_period: str | None = None
     active: bool = True
     created_at: datetime | None = None

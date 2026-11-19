@@ -80,6 +80,11 @@ class SepayUserApi:
             "active": True,
         }
 
+    def count_transactions(self, token: str, since) -> int:
+        # only a start date: a date-only end means its midnight, which would leave that day out
+        data = self._call(token, "GET", f"/transactions?{urlencode({'per_page': 1, 'transaction_date_from': since.isoformat()})}")
+        return int(((data.get("meta") or {}).get("pagination") or {}).get("total") or 0)
+
     def _pages(self, token: str, path: str, size: str = "limit") -> list[dict]:
         items, page = [], 1
         while True:

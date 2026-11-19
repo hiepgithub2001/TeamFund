@@ -1744,6 +1744,30 @@ def step_text(lang: str, step: str, info: dict) -> str:
     return t(lang, f"step.{step}", **{k: esc(str(v)) for k, v in info.items()})
 
 
+@router.message(Command("sepayplan"))
+async def cmd_sepayplan(message: Message, command: CommandObject, entry, lang):
+    """The owner's SePay plan (transactions per cycle, and the day it restarts), so /ops can warn before it runs out."""
+    if not await allow(message, entry, lang, "owner"):
+        return
+    args = (command.args or "").split()
+    if not args:
+        p = await call(S.teams.sepay_plan, tid(entry), message.from_user.id)
+        now = t(lang, "sepayplan.now", quota=p["quota"], day=p["day"]) if p["quota"] else t(lang, "sepayplan.none")
+        await message.answer(now + "\n\n" + t(lang, "usage.sepayplan"))
+        return
+    if args[0].lower() in ("off", "tắt", "tat", "0"):
+        await call(S.teams.set_sepay_plan, tid(entry), message.from_user.id, None)
+        await message.answer(t(lang, "sepayplan.off"))
+        return
+    quota = parse_amount(args[0]) if not args[0].isdigit() else int(args[0])
+    day = int(args[1]) if len(args) > 1 and args[1].isdigit() else (None if len(args) == 1 else 0)
+    if not quota or day == 0 or len(args) > 2:
+        await message.answer(t(lang, "usage.sepayplan"))
+        return
+    p = await call(S.teams.set_sepay_plan, tid(entry), message.from_user.id, quota, day)
+    await message.answer(t(lang, "sepayplan.done", quota=p["quota"], day=p["day"]))
+
+
 @router.message(Command("sepaytoken"))
 async def cmd_sepaytoken(message: Message, command: CommandObject, entry, lang):
     """/sepaytoken <SePay API token>: save the owner's token, then pick the account. No token: how to get one."""

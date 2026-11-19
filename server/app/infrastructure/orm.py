@@ -41,6 +41,7 @@ teams = Table(
     Column("public_token", String(32), unique=True), Column("pay_account", String(32)),
     Column("notify_day", Integer), Column("due_days", Integer), Column("late_fee", Integer),
     Column("late_fee_since", Date), Column("fee_months", Integer),
+    Column("sepay_quota", Integer), Column("sepay_cycle_day", Integer),
     Column("active", Boolean, nullable=False), Column("created_at", DateTime, nullable=False),
 )
 

@@ -310,3 +310,23 @@ def schedule_dates(s, start: date, end: date) -> list[date]:
                 out.append(d)
             y, m = (y + 1, 1) if m == 12 else (y, m + 1)
     return out
+
+
+MAX_SEPAY_QUOTA = 1_000_000
+SEPAY_NEAR = 0.8   # warn the admins from 80% of the plan's transactions
+
+
+def _on_day(year: int, month: int, day: int) -> date:
+    return date(year, month, min(day, calendar.monthrange(year, month)[1]))
+
+
+def sepay_cycle(today: date, day: int | None) -> tuple[date, date]:
+    """(start, next start) of the SePay plan cycle containing today, restarting on `day` of each month
+    (the last day in shorter months)."""
+    day = day or 1
+    start = _on_day(today.year, today.month, day)
+    if start > today:
+        y, m = (today.year, today.month - 1) if today.month > 1 else (today.year - 1, 12)
+        start = _on_day(y, m, day)
+    y, m = (start.year, start.month + 1) if start.month < 12 else (start.year + 1, 1)
+    return start, _on_day(y, m, day)
