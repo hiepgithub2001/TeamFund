@@ -4,8 +4,10 @@ import hashlib
 import time
 from datetime import timedelta
 
-from ..domain.rules import SEPAY_NEAR, sepay_cycle
+from ..domain.errors import invalid
+from ..domain.rules import MAX_SEPAY_QUOTA, SEPAY_NEAR, sepay_cycle
 from .access import require_super
+from .people import audit
 from .ports import Deps, SepayError
 
 UNMATCHED_STALE = timedelta(days=3)     # money nobody assigned for this long gets flagged
@@ -54,28 +56,51 @@ class OpsUseCases:
                             "qr_made_7d": made, "qr_paid_7d": paid, "qr_open": open_qr, "sepay_quiet": quiet})
         return out
 
+    def _sepay_groups(self, uow) -> list[dict]:
+        """The SePay accounts the active teams use, oldest team first: teams sharing a token share one plan."""
+        groups: dict[str, dict] = {}
+        for team in sorted(uow.teams.active(), key=lambda t: t.id):
+            if not team.sepay_token_enc:
+                continue
+            token = self.d.cipher.decrypt(team.sepay_token_enc)
+            g = groups.setdefault(hashlib.sha256(token.encode()).hexdigest(),
+                                  {"token": token, "teams": [], "team_objs": [], "plans": []})
+            g["teams"].append(team.name)
+            g["team_objs"].append(team)
+            if team.sepay_quota:
+                g["plans"].append((team.sepay_quota, team.sepay_cycle_day))
+        return list(groups.values())
+
+    def set_sepay_plan(self, actor: int, account: int, quota: int | None, day: int | None = None) -> dict:
+        """System admins: the plan of one SePay account (its index in sepay_usage), for every team using it."""
+        require_super(self.d.config, actor)
+        if quota is not None and not (1 <= quota <= MAX_SEPAY_QUOTA and (day is None or 1 <= day <= 31)):
+            raise invalid()
+        with self.d.uow() as uow:
+            groups = self._sepay_groups(uow)
+            if not 0 <= account < len(groups):
+                raise invalid()
+            for team in groups[account]["team_objs"]:
+                team.sepay_quota = quota
+                team.sepay_cycle_day = day if quota is not None and day not in (None, 1) else None
+                audit(uow, self.d.clock, team.id, actor, "team.sepay_plan", target=str(quota or "-"))
+            uow.commit()
+            return {"teams": groups[account]["teams"], "quota": quota, "day": (day or 1) if quota else 1}
+
     def sepay_usage(self, actor: int | None) -> list[dict]:
         """Each SePay account the teams use (teams sharing a token share one plan): transactions recorded this
-        cycle against the plan's limit, when the owner told it (/sepayplan). SePay's API gives the count but
-        not the plan, so without a limit we still show the count."""
+        cycle against the plan's limit, when it was told (/sepayplan). SePay's API gives the count but not
+        the plan, so without a limit we still show the count."""
         if actor is not None:
             require_super(self.d.config, actor)
         today = self.d.clock.local_now().date()
-        groups: dict[str, dict] = {}
         with self.d.uow() as uow:
-            for team in uow.teams.active():
-                if not team.sepay_token_enc:
-                    continue
-                token = self.d.cipher.decrypt(team.sepay_token_enc)
-                g = groups.setdefault(hashlib.sha256(token.encode()).hexdigest(), {"token": token, "teams": [], "plans": []})
-                g["teams"].append(team.name)
-                if team.sepay_quota:
-                    g["plans"].append((team.sepay_quota, team.sepay_cycle_day))
+            groups = self._sepay_groups(uow)
         out = []
-        for n, g in enumerate(groups.values()):
+        for n, g in enumerate(groups):
             quota, day = min(g["plans"]) if g["plans"] else (None, None)
             start, reset = sepay_cycle(today, day)
-            row = {"teams": g["teams"], "quota": quota, "since": start.strftime("%d/%m"),
+            row = {"teams": g["teams"], "quota": quota, "day": day or 1, "since": start.strftime("%d/%m"),
                    "resets": reset.strftime("%d/%m"), "used": None, "pct": None, "near": False, "error": None}
             if n:
                 time.sleep(0.4)  # SePay allows 3 requests a second

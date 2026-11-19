@@ -3,7 +3,7 @@ import logging
 import re
 
 from aiogram import Dispatcher, F, Router
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandObject
 from aiogram.types import CallbackQuery, Message, Update
 
 from . import registry, tips
@@ -15,7 +15,7 @@ from .fmt import esc
 from .i18n import t
 from .lang import lang_for, lang_of, set_lang
 from ...domain.errors import DomainError
-from .render import edit, error_text, kb, report_error
+from .render import edit, error_text, kb, report_error, say
 from .state import del_state, get_state, set_state
 
 log = logging.getLogger("master")
@@ -172,6 +172,61 @@ async def cmd_ops(message: Message, lang):
     await message.answer(ops.report(lang, await ops.collect(message.from_user.id)))
 
 
+def _plan_line(lang, i, s) -> str:
+    teams = esc(", ".join(s["teams"]))
+    if s["quota"]:
+        used = f"{s['used']} / {s['quota']}" if s["used"] is not None else f"? / {s['quota']}"
+        return t(lang, "m.plan_line", n=i + 1, teams=teams, used=used, day=s["day"], since=s["since"])
+    return t(lang, "m.plan_line_none", n=i + 1, teams=teams, used=s["used"] if s["used"] is not None else "?",
+             since=s["since"])
+
+
+@router.message(Command("sepayplan"))
+async def cmd_sepayplan(message: Message, command: CommandObject, lang):
+    """System admins: the SePay plan's limit per SePay account, so /ops can warn before it runs out."""
+    if not is_super(message.from_user.id):
+        await message.answer(t(lang, "err.not_super"))
+        return
+    usage = await call(S.ops.sepay_usage, message.from_user.id)
+    if not usage:
+        await message.answer(t(lang, "m.plan_no_sepay"))
+        return
+    args = (command.args or "").split()
+    if not args:
+        await message.answer("\n".join([t(lang, "m.plan_title"), *[_plan_line(lang, i, s) for i, s in enumerate(usage)],
+                                        "", t(lang, "m.plan_usage")]))
+        return
+    off = args[0].lower() in ("off", "tắt", "tat")
+    quota = None if off else (int(args[0]) if args[0].isdigit() else None)
+    day = int(args[1]) if len(args) == 2 and args[1].isdigit() else None
+    if (not off and not quota) or len(args) > 2 or (len(args) == 2 and day is None):
+        await message.answer(t(lang, "m.plan_usage"))
+        return
+    if len(usage) == 1:
+        await _save_plan(message, lang, message.from_user.id, 0, quota, day)
+        return
+    q, d = quota or 0, day or 0
+    await message.answer(t(lang, "m.plan_pick"), reply_markup=kb(
+        *[[(", ".join(s["teams"])[:60], f"sp:{i}:{q}:{d}")] for i, s in enumerate(usage)]))
+
+
+async def _save_plan(ev, lang, actor, account, quota, day) -> None:
+    r = await call(S.ops.set_sepay_plan, actor, account, quota, day)
+    teams = esc(", ".join(r["teams"]))
+    text = (t(lang, "m.plan_done", teams=teams, quota=quota, day=r["day"]) if quota
+            else t(lang, "m.plan_off", teams=teams))
+    await say(ev, text)
+
+
+@router.callback_query(F.data.regexp(r"^sp:(\d+):(\d+):(\d+)$").as_("m"))
+async def on_plan_pick(cq: CallbackQuery, m: re.Match, lang):
+    if not is_super(cq.from_user.id):
+        await cq.answer()
+        return
+    await cq.answer()
+    await _save_plan(cq, lang, cq.from_user.id, int(m.group(1)), int(m.group(2)) or None, int(m.group(3)) or None)
+
+
 @router.message(Command("myteams"))
 async def cmd_myteams(message: Message, lang):
     teams = await call(S.registration.my_teams, message.from_user.id)
@@ -199,7 +254,10 @@ async def on_text(message: Message, lang):
     text = message.text.strip()
     # A pasted token is accepted even without a prompt, so it never sits in the chat.
     st = get_state(input_key(message.chat.id)) or ({"type": "token"} if TOKEN_RE.match(text) else None)
-    if not st or text.startswith("/"):
+    if text.startswith("/"):
+        await message.answer(t(lang, "m.unknown_command", cmd=esc(text.split()[0][:40])))
+        return
+    if not st:
         return
     del_state(input_key(message.chat.id))
 

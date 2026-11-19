@@ -246,6 +246,16 @@ async def main():
         ops = await wait_sent(lambda c: to(SUPER, "System health")(c) and "45 / 50" in c["params"]["text"], "ops near quota")
         assert "SePay plan of FC Test nearly used up: 45 / 50 (90%)" in ops["params"]["text"], ops["params"]["text"]
         sepay_tx["n"] = 3
+        # the system admin sets it from the master bot too (the plan belongs to the SePay account)
+        await M(text_update(SUPER, "/sepayplan"))
+        await wait_sent(lambda c: to(SUPER, "SePay plans")(c) and "1. FC Test: 3 / 50 transactions since" in c["params"]["text"] and "restarts on day 15" in c["params"]["text"],
+                        "plans listed in the master bot")
+        await M(text_update(SUPER, "/sepayplan 200"))
+        await wait_sent(to(SUPER, "SePay plan of FC Test: 200 transactions a cycle, restarting on day 1"), "plan set by admin")
+        await M(text_update(OWNER, "/sepayplan 10"))
+        await wait_sent(to(OWNER, "system admin"), "master /sepayplan is admin-only")
+        await M(text_update(SUPER, "/nosuchthing"))
+        await wait_sent(to(SUPER, "I don't know /nosuchthing here"), "unknown commands get an answer")
         assert sum(c["method"] == "deleteMessage" for c in calls) == deletes + 1, "token message deleted"
         picker = await wait_sent(lambda c: c["method"] == "editMessageText" and "Choose the team's bank account"
                                  in c["params"]["text"], "bank picker opens after the token")

@@ -1132,5 +1132,11 @@ def test_sepay_plan_usage(world):
         assert svc.ops.sepay_usage(None)[0]["used"] == 42
         svc.teams.set_sepay_plan(tid, OWNER, None)
         assert svc.teams.sepay_plan(tid, OWNER) == {"quota": None, "day": 1}
+        # the system admin sets it per SePay account, from the master bot
+        assert code(svc.ops.set_sepay_plan, OWNER, 0, 50) == "not_super"
+        assert code(svc.ops.set_sepay_plan, SUPER, 1, 50) == "invalid"
+        assert svc.ops.set_sepay_plan(SUPER, 0, 100, 15)["day"] == 15
+        assert svc.teams.sepay_plan(tid, OWNER) == {"quota": 100, "day": 15}
+        assert svc.ops.sepay_usage(None)[0]["quota"] == 100
     finally:
         FakeSepay.transactions = []

@@ -190,7 +190,7 @@
  "cmd.myteams": "Your teams",
  "cmd.teams": "All teams (admin)",
  "m.welcome": "👋 <b>Team Fund</b> gives your team its own Telegram bot that collects the monthly fee and confirms payments automatically through SePay.\n\n<b>How to start</b>\n1. Send /requestteam and wait for approval.\n2. Create a bot in @BotFather with /newbot and copy its token.\n3. Send /newteam here and paste the token.\n\n/myteams Your teams\n/lang Language",
- "m.admin": "\n\n<b>Admin</b>\n/requests Pending team requests\n/teams All teams\n/ops System health",
+ "m.admin": "\n\n<b>Admin</b>\n/requests Pending team requests\n/teams All teams\n/ops System health\n/sepayplan SePay plan limit (warns before it runs out)",
  "m.ask_team_name": "What is your team's name?",
  "m.request_sent": "⏳ Request for <b>{team}</b> sent. You will get a message when it is approved.",
  "m.request_card": "🆕 <b>Team request</b>\nTeam: {team}\nFrom: {name}{username}\nTelegram ID: <code>{id}</code>\nTime: {at}",
@@ -672,7 +672,16 @@
  "sepayplan.off": "✅ SePay plan forgotten: /ops shows the count only.",
  "ops.sepay": "<b>SePay plan</b>",
  "ops.sepay_used": "{used} / {quota} transactions ({pct}%) since {since}, restarts {resets}",
- "ops.sepay_count": "{used} transactions since {since} · limit unknown: the owner sends /sepayplan in the team bot",
+ "ops.sepay_count": "{used} transactions since {since} · limit not set: send /sepayplan",
  "ops.sepay_error": "couldn't read from SePay: {error}",
- "ops.p_quota": "SePay plan of {teams} nearly used up: {used} / {quota} ({pct}%), restarts {resets}. Upgrade on my.sepay.vn, or payments stop confirming by themselves."
+ "ops.p_quota": "SePay plan of {teams} nearly used up: {used} / {quota} ({pct}%), restarts {resets}. Upgrade on my.sepay.vn, or payments stop confirming by themselves.",
+ "m.plan_title": "📦 <b>SePay plans</b> (one per SePay account; teams on the same account share it)",
+ "m.plan_line": "{n}. {teams}: {used} transactions since {since} · cycle restarts on day {day}",
+ "m.plan_line_none": "{n}. {teams}: {used} transactions since {since} · limit not set",
+ "m.plan_usage": "Set the limit from Gói dịch vụ on my.sepay.vn (SePay's API doesn't share it):\n<code>/sepayplan 50</code>: 50 transactions a cycle, restarting on the 1st\n<code>/sepayplan 50 15</code>: restarting on the 15th\n<code>/sepayplan off</code>: forget it\n/ops and the 08:00 check warn from 80%.",
+ "m.plan_pick": "Which SePay account is this plan for?",
+ "m.plan_done": "✅ SePay plan of {teams}: {quota} transactions a cycle, restarting on day {day}. /ops warns from 80%.",
+ "m.plan_off": "✅ SePay plan of {teams} forgotten: /ops shows the count only.",
+ "m.plan_no_sepay": "No team has connected SePay yet.",
+ "m.unknown_command": "I don't know {cmd} here. /help lists what this bot does (team commands are in each team's own bot)."
 }

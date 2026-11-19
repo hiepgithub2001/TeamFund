@@ -16,7 +16,7 @@ EVERYONE = ["start", "donate", "status", "fund", "history", "bank", "weblink", "
 MANAGER = ["start", "donate", "status", "fund", "history", "bank", "notify", "weblink", "members", "plans", "charge", "markpaid", "expense", "income", "matches", "contacts", "undo", "money", "remind", "followers", "unmatched", "export", "settings", "teamlang", "lang", "guide", "help"]
 OWNER = MANAGER + ["sepaytoken", "setbank", "sepayplan", "requests", "managers", "transferowner", "log"]
 MASTER = ["start", "requestteam", "newteam", "myteams", "lang", "help"]
-MASTER_ADMIN = MASTER + ["requests", "teams", "ops"]
+MASTER_ADMIN = MASTER + ["requests", "teams", "ops", "sepayplan"]
 
 LANGS = [("en", None), ("vi", "vi")]
 

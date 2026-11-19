@@ -190,7 +190,7 @@
  "cmd.myteams": "Đội của bạn",
  "cmd.teams": "Tất cả đội (admin)",
  "m.welcome": "👋 <b>Team Fund</b> tạo cho đội bạn một bot Telegram riêng để thu quỹ hằng tháng và tự xác nhận thanh toán qua SePay.\n\n<b>Bắt đầu</b>\n1. Gửi /requestteam và chờ duyệt.\n2. Tạo bot trong @BotFather bằng /newbot và sao chép token.\n3. Gửi /newteam ở đây và dán token.\n\n/myteams Đội của bạn\n/lang Ngôn ngữ",
- "m.admin": "\n\n<b>Admin</b>\n/requests Yêu cầu tạo đội đang chờ\n/teams Tất cả đội\n/ops Tình trạng hệ thống",
+ "m.admin": "\n\n<b>Admin</b>\n/requests Yêu cầu tạo đội đang chờ\n/teams Tất cả đội\n/ops Tình trạng hệ thống\n/sepayplan Hạn mức gói SePay (cảnh báo trước khi hết)",
  "m.ask_team_name": "Tên đội của bạn là gì?",
  "m.request_sent": "⏳ Đã gửi yêu cầu cho <b>{team}</b>. Bạn sẽ nhận được tin nhắn khi được duyệt.",
  "m.request_card": "🆕 <b>Yêu cầu tạo đội</b>\nĐội: {team}\nNgười gửi: {name}{username}\nTelegram ID: <code>{id}</code>\nThời gian: {at}",
@@ -672,7 +672,16 @@
  "sepayplan.off": "✅ Đã bỏ gói SePay: /ops chỉ hiện số giao dịch.",
  "ops.sepay": "<b>Gói SePay</b>",
  "ops.sepay_used": "{used} / {quota} giao dịch ({pct}%) từ {since}, bắt đầu lại {resets}",
- "ops.sepay_count": "{used} giao dịch từ {since} · chưa biết hạn mức: chủ đội gửi /sepayplan trong bot đội",
+ "ops.sepay_count": "{used} giao dịch từ {since} · chưa đặt hạn mức: gửi /sepayplan",
  "ops.sepay_error": "không đọc được từ SePay: {error}",
- "ops.p_quota": "Gói SePay của {teams} sắp hết: {used} / {quota} ({pct}%), bắt đầu lại {resets}. Nâng gói trên my.sepay.vn, nếu không bot sẽ không tự xác nhận thanh toán."
+ "ops.p_quota": "Gói SePay của {teams} sắp hết: {used} / {quota} ({pct}%), bắt đầu lại {resets}. Nâng gói trên my.sepay.vn, nếu không bot sẽ không tự xác nhận thanh toán.",
+ "m.plan_title": "📦 <b>Gói SePay</b> (mỗi tài khoản SePay một gói; các đội dùng chung tài khoản thì chung gói)",
+ "m.plan_line": "{n}. {teams}: {used} giao dịch từ {since} · chu kỳ bắt đầu lại ngày {day}",
+ "m.plan_line_none": "{n}. {teams}: {used} giao dịch từ {since} · chưa đặt hạn mức",
+ "m.plan_usage": "Đặt hạn mức theo mục Gói dịch vụ trên my.sepay.vn (API SePay không cho biết):\n<code>/sepayplan 50</code>: 50 giao dịch mỗi chu kỳ, bắt đầu lại ngày 1\n<code>/sepayplan 50 15</code>: bắt đầu lại ngày 15\n<code>/sepayplan off</code>: bỏ\n/ops và kiểm tra lúc 8:00 sẽ cảnh báo từ 80%.",
+ "m.plan_pick": "Gói này của tài khoản SePay nào?",
+ "m.plan_done": "✅ Gói SePay của {teams}: {quota} giao dịch mỗi chu kỳ, bắt đầu lại ngày {day}. /ops sẽ cảnh báo từ 80%.",
+ "m.plan_off": "✅ Đã bỏ gói SePay của {teams}: /ops chỉ hiện số giao dịch.",
+ "m.plan_no_sepay": "Chưa đội nào kết nối SePay.",
+ "m.unknown_command": "Bot này không có lệnh {cmd}. /help liệt kê các lệnh (lệnh của đội nằm trong bot riêng của từng đội)."
 }
