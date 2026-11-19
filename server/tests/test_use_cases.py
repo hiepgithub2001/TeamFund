@@ -1111,32 +1111,27 @@ def test_sepay_cycle():
 
 
 def test_sepay_plan_usage(world):
-    """The owner tells the plan; /ops counts this cycle's transactions once per SePay account."""
+    """The system admin tells the plan (master bot); /ops counts this cycle's transactions once per SePay account."""
     from datetime import date
     from .fakes import FakeSepay
     svc, clock, _ = world
     tid = setup_team(svc)
-    assert code(svc.teams.set_sepay_plan, tid, MEMBER, 50) == "not_owner"
-    assert code(svc.teams.set_sepay_plan, tid, OWNER, 50, 32) == "invalid"
     assert svc.ops.sepay_usage(SUPER) == [], "no token, nothing to read"
     link_bank(svc, tid)
     FakeSepay.transactions = [date(2026, 10, 25)] + [date(2026, 11, 2)] * 41
     try:
         assert code(svc.ops.sepay_usage, OWNER) == "not_super"
+        assert code(svc.ops.set_sepay_plan, OWNER, 0, 50) == "not_super", "the team owner can't"
+        assert code(svc.ops.set_sepay_plan, SUPER, 1, 50) == "invalid"
+        assert code(svc.ops.set_sepay_plan, SUPER, 0, 50, 32) == "invalid"
         row = svc.ops.sepay_usage(SUPER)[0]
         assert (row["used"], row["quota"], row["near"]) == (41, None, False), "a count without a limit"
-        assert svc.teams.set_sepay_plan(tid, OWNER, 50) == {"quota": 50, "day": 1}
+        assert svc.ops.set_sepay_plan(SUPER, 0, 50)["day"] == 1
         row = svc.ops.sepay_usage(None)[0]
         assert (row["used"], row["pct"], row["near"], row["resets"]) == (41, 82, True, "01/12")
-        svc.teams.set_sepay_plan(tid, OWNER, 50, 21)  # cycle from 21/10: the October one counts too
+        svc.ops.set_sepay_plan(SUPER, 0, 50, 21)  # cycle from 21/10: the October one counts too
         assert svc.ops.sepay_usage(None)[0]["used"] == 42
-        svc.teams.set_sepay_plan(tid, OWNER, None)
-        assert svc.teams.sepay_plan(tid, OWNER) == {"quota": None, "day": 1}
-        # the system admin sets it per SePay account, from the master bot
-        assert code(svc.ops.set_sepay_plan, OWNER, 0, 50) == "not_super"
-        assert code(svc.ops.set_sepay_plan, SUPER, 1, 50) == "invalid"
-        assert svc.ops.set_sepay_plan(SUPER, 0, 100, 15)["day"] == 15
-        assert svc.teams.sepay_plan(tid, OWNER) == {"quota": 100, "day": 15}
-        assert svc.ops.sepay_usage(None)[0]["quota"] == 100
+        svc.ops.set_sepay_plan(SUPER, 0, None)
+        assert svc.ops.sepay_usage(None)[0]["quota"] is None
     finally:
         FakeSepay.transactions = []

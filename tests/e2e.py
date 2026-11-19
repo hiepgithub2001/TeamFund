@@ -237,10 +237,9 @@ async def main():
         await M(text_update(SUPER, "/ops"))
         ops = await wait_sent(lambda c: to(SUPER, "System health")(c) and "SePay plan" in c["params"]["text"], "ops sepay")
         assert "FC Test: 3 transactions since" in ops["params"]["text"] and "/sepayplan" in ops["params"]["text"]
-        await T(text_update(OWNER, "/sepayplan"))
-        await wait_sent(to(OWNER, "SePay plan: not set yet"), "plan usage")
-        await T(text_update(OWNER, "/sepayplan 50 15"))
-        await wait_sent(to(OWNER, "50 transactions a cycle, restarting on day 15"), "plan saved")
+        await M(text_update(SUPER, "/sepayplan 50 15"))
+        await wait_sent(to(SUPER, "SePay plan of FC Test: 50 transactions a cycle, restarting on day 15"), "plan saved")
+        await T(text_update(OWNER, "/sepayplan 7"))  # not a team bot command: changes nothing (checked below)
         sepay_tx["n"] = 45
         await M(text_update(SUPER, "/ops"))
         ops = await wait_sent(lambda c: to(SUPER, "System health")(c) and "45 / 50" in c["params"]["text"], "ops near quota")
