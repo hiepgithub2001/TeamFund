@@ -207,7 +207,7 @@ async def donate(token: str, request: Request, body: dict = Body(...)):
     if not pay_limit.allow(client_ip(request)):
         return _too_many()
     try:
-        return _json(await call(S.web.donate, token, body.get("amount"), body.get("name")))
+        return _json(await call(S.web.donate, token, body.get("amount"), body.get("name"), body.get("reason")))
     except DomainError as e:
         return _error(e)
 

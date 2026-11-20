@@ -683,10 +683,16 @@ async def ask_donation(ev, lang) -> None:
     await say(ev, t(lang, "donate.ask"), reply_markup=kb(buttons[:2], buttons[2:]))
 
 
-async def send_donation_qr(ev, entry, lang, amount: int) -> None:
+def donation_args(text: str) -> tuple[int | None, str | None]:
+    """'50k' -> (50000, None); '50k đá giao lưu 20/11' -> (50000, 'đá giao lưu 20/11')."""
+    amount = parse_amount(text)
+    return (amount, None) if amount else amount_and_title(text)
+
+
+async def send_donation_qr(ev, entry, lang, amount: int, reason: str | None = None) -> None:
     user = ev.from_user
     try:
-        r = await call(S.money.donate, tid(entry), user.id, amount, user.full_name)
+        r = await call(S.money.donate, tid(entry), user.id, amount, user.full_name, reason)
     except DomainError as e:
         if e.code != "donation_amount":
             raise
@@ -698,6 +704,8 @@ async def send_donation_qr(ev, entry, lang, amount: int) -> None:
     caption = t(lang, "donate.qr_caption", amount=money(r["amount"], lang), bank=esc(r["bank_name"]),
                 account=esc(r["bank_account"]), holder=esc(r["bank_holder"] or ""), code=esc(r["content"]),
                 expires=r["expires_at"])
+    if r.get("reason"):
+        caption = caption.replace("\n", f"\n{t(lang, 'donate.reason', reason=esc(r['reason']))}\n", 1)
     chat_id = ev.message.chat.id if isinstance(ev, CallbackQuery) else ev.chat.id
     try:
         await ev.bot.send_photo(chat_id, r["qr_url"], caption=caption)
@@ -707,14 +715,15 @@ async def send_donation_qr(ev, entry, lang, amount: int) -> None:
 
 @router.message(Command("donate"))
 async def cmd_donate(message: Message, command: CommandObject, entry, lang):
-    """Give money to the fund: `/donate` asks how much, `/donate 50k` makes the QR at once."""
+    """Give money to the fund: `/donate` asks how much, `/donate 50k` (or `/donate 50k đá giao lưu`, with
+    the reason) makes the QR at once."""
     if not is_private(message):
         return
     args = (command.args or "").strip()
     if args:
-        amount = parse_amount(args)
+        amount, reason = donation_args(args)
         if amount:
-            await send_donation_qr(message, entry, lang, amount)
+            await send_donation_qr(message, entry, lang, amount, reason)
             return
     await ask_donation(message, lang)
 
@@ -1840,12 +1849,12 @@ async def on_text(message: Message, entry, lang):
         return
     del_state(key)
     if st["type"] == "donate":  # open to everyone
-        amount = parse_amount(message.text.strip())
+        amount, reason = donation_args(message.text.strip())
         if not amount:
             set_state(key, st, 600)
             await message.answer(t(lang, "err.donation_amount"))
             return
-        await send_donation_qr(message, entry, lang, amount)
+        await send_donation_qr(message, entry, lang, amount, reason)
         return
     if not await allow(message, entry, lang, "manager"):
         return

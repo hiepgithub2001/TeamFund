@@ -188,6 +188,7 @@ class PaymentIntent:
     status: str = "pending"  # pending|paid|expired
     payment_id: int | None = None
     kind: str | None = None  # None: bills; "donation": money given to the fund (member_names: the donor)
+    note: str | None = None  # a donation's reason, optional ("đá giao lưu 20/11")
     created_at: datetime | None = None
     expires_at: datetime | None = None
     id: int | None = None

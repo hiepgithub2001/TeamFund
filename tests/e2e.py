@@ -326,17 +326,30 @@ async def main():
         assert "/donate 50k" in ask["params"]["text"], "a bare command ends with its tip"
         await T(text_update(MEMBER, "1500"))
         await wait_sent(to(MEMBER, "multiple of 1,000đ"), "odd amount refused")
-        await T(text_update(MEMBER, "30k"))
+        await T(text_update(MEMBER, "10k"))
         dq = await until(lambda: next((c for c in calls if c["method"] == "sendPhoto"
                                        and "Donation:" in c["params"].get("caption", "")), None), "donation qr")
-        assert "amount=30000" in dq["params"]["photo"]
+        assert "amount=10000" in dq["params"]["photo"]
         dcode = re.search(r"<code>(TF[A-Z0-9]{8})</code>", dq["params"]["caption"]).group(1)
         async with http.post(f"http://127.0.0.1:{PORT}/sepay/1", headers=sepay_headers, json={
-                "id": 41, "gateway": "MBBank", "transferType": "in", "transferAmount": 30000,
+                "id": 41, "gateway": "MBBank", "transferType": "in", "transferAmount": 10000,
                 "content": f"{dcode} ung ho"}) as r:
             assert await r.json() == {"success": True}
-        await wait_sent(to(MEMBER, r"Received <b>30,000đ</b> for the fund"), "donor thanked")
-        await wait_sent(to(OWNER, r"gave 30,000đ to the fund"), "followers told")
+        await wait_sent(to(MEMBER, r"Received <b>10,000đ</b> for the fund"), "donor thanked")
+        await wait_sent(to(OWNER, r"gave 10,000đ to the fund"), "followers told")
+        # with a reason (10k + 20k: the fund gets the same 30k as before): on the QR, in the thank-you to followers and in the history
+        await T(text_update(MEMBER, "/donate 20k đá giao lưu 20/11"))
+        rq = await until(lambda: next((c for c in calls if c["method"] == "sendPhoto"
+                                       and "For: <i>đá giao lưu 20/11</i>" in c["params"].get("caption", "")), None),
+                         "donation qr with its reason")
+        rcode = re.search(r"<code>(TF[A-Z0-9]{8})</code>", rq["params"]["caption"]).group(1)
+        async with http.post(f"http://127.0.0.1:{PORT}/sepay/1", headers=sepay_headers, json={
+                "id": 42, "transferType": "in", "transferAmount": 20000, "content": rcode}) as r:
+            assert await r.json() == {"success": True}
+        await wait_sent(lambda c: to(OWNER, r"gave 20,000đ to the fund")(c)
+                        and "For: <i>đá giao lưu 20/11</i>" in c["params"]["text"], "reason told to followers")
+        await T(text_update(MEMBER, "/history"))
+        await wait_sent(to(MEMBER, r"<b>20,000đ</b> · [^\n]+ · đá giao lưu 20/11 \(donation\)"), "reason in /history")
 
         # 5. status, an unmatched transfer, assign it
         await T(text_update(MEMBER, "/status"))

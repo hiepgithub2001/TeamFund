@@ -48,7 +48,10 @@ async def deliver(ev: dict) -> bool:
         if ev.get("payer_tg_id"):
             L = await lang_for(ev["payer_tg_id"], G)
             await _send(bot, ev["payer_tg_id"], t(L, "donate.receipt", amount=money(ev["amount"], L)))
-        await _tell(entry, to, t(G, "group.donated", donor=donor, amount=money(ev["amount"], G)),
+        said = t(G, "group.donated", donor=donor, amount=money(ev["amount"], G))
+        if ev.get("reason"):
+            said += "\n" + t(G, "donate.reason", reason=esc(ev["reason"]))
+        await _tell(entry, to, said,
                     skip=ev.get("payer_tg_id"))
     elif kind == "unmatched_payment":
         if ev.get("reason") == "expired" and ev.get("payer_tg_id"):

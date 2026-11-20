@@ -25,6 +25,7 @@ def is_owner(role: str | None) -> bool:
 MAX_FEE = 100_000_000
 MAX_DONATION = 50_000_000  # one donation QR: any multiple of 1.000đ up to this
 DONOR_NAME_MAX = 60
+DONATION_REASON_MAX = 100
 
 
 def donation_ok(amount) -> bool:

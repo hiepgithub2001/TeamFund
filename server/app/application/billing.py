@@ -3,7 +3,7 @@ from datetime import date, timedelta
 
 from ..domain.entities import Bill, IncomingTransfer, Member, Payment, PaymentIntent, Team
 from ..domain.errors import DomainError
-from ..domain.rules import (DONOR_NAME_MAX, MAX_DONATION, donation_ok, CYCLES, add_months, covers, cycle_bill, cycle_start, due_date, find_payment_codes, late_days,
+from ..domain.rules import (DONATION_REASON_MAX, DONOR_NAME_MAX, MAX_DONATION, donation_ok, CYCLES, add_months, covers, cycle_bill, cycle_start, due_date, find_payment_codes, late_days,
                             member_fee, new_payment_code, notify_date, on_plan, period_label, split_share, terms,
                             transfer_content)
 from .ports import Conflict, Deps, UnitOfWork
@@ -279,27 +279,34 @@ def create_intent(uow: UnitOfWork, d: Deps, team: Team, member_ids: list[int], p
             "members": intent.member_names, "expires_at": d.clock.fmt(intent.expires_at)}
 
 
+def donation_label(donor: str, reason: str | None) -> str:
+    """How a donation reads in the history: "Hiệp · đá giao lưu 20/11"."""
+    return f"{donor} · {reason}" if reason else donor
+
+
 def create_donation(uow: UnitOfWork, d: Deps, team: Team, amount, donor: str | None,
-                    payer_tg_id: int | None) -> dict:
-    """A QR code to give `amount` (a multiple of 1.000đ) to the fund. Anyone may; no bills involved."""
+                    payer_tg_id: int | None, reason: str | None = None) -> dict:
+    """A QR code to give `amount` (a multiple of 1.000đ) to the fund. Anyone may; no bills involved.
+    `reason` (optional) says what for; it shows next to the donor in the history."""
     if not team.has_bank():
         raise DomainError(400, "bank_not_set")
     if not donation_ok(amount):
         raise DomainError(400, "donation_amount")
     donor = " ".join(str(donor or "").split())[:DONOR_NAME_MAX] or ("Anonymous" if team.lang == "en" else "Ẩn danh")
+    reason = " ".join(str(reason or "").split())[:DONATION_REASON_MAX] or None
     code = new_payment_code()
     while uow.intents.code_exists(code):
         code = new_payment_code()
     now = d.clock.now()
     intent = PaymentIntent(team_id=team.id, code=code, amount=amount, payer_tg_id=payer_tg_id, bill_ids=[],
-                           member_names=[donor], kind="donation", created_at=now, expires_at=now + INTENT_TTL)
+                           member_names=[donor], kind="donation", note=reason, created_at=now, expires_at=now + INTENT_TTL)
     uow.intents.add(intent)
     uow.commit()
     content = transfer_content(team.bank_name, code)
     return {"code": code, "content": content, "amount": amount, "donation": True,
             "qr_url": d.qr.url(team.bank_name, team.pay_to(), amount, content),
             "bank_name": team.bank_name, "bank_account": team.pay_to(), "bank_holder": team.bank_holder,
-            "members": [donor], "expires_at": d.clock.fmt(intent.expires_at)}
+            "members": [donor], "reason": reason, "expires_at": d.clock.fmt(intent.expires_at)}
 
 
 def _mark_paid(bills: list[Bill], payment: Payment, d: Deps) -> None:
@@ -335,11 +342,11 @@ def record_transfer(uow: UnitOfWork, d: Deps, team: Team, transfer: IncomingTran
     if intent and intent.kind == "donation":  # whatever arrived is given to the fund
         donor = (intent.member_names or [""])[0]
         payment.intent_id, payment.payer_tg_id = intent.id, intent.payer_tg_id
-        payment.source, payment.status, payment.note = "donation", "matched", donor
+        payment.source, payment.status, payment.note = "donation", "matched", donation_label(donor, intent.note)
         intent.status, intent.payment_id = "paid", payment.id
         uow.commit()
         return {"type": "donation_received", "team_id": team.id, "payer_tg_id": intent.payer_tg_id, "donor": donor,
-                "amount": transfer.amount, "to": uow.followers.active_ids(team.id)}
+                "reason": intent.note, "amount": transfer.amount, "to": uow.followers.active_ids(team.id)}
 
     needed, reason, names = 0, "no_code", []
     if intent:

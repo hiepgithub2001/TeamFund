@@ -32,10 +32,10 @@ class MoneyUseCases:
         with self.d.uow() as uow:
             return billing.create_intent(uow, self.d, get_team(uow, team_id), _ids(member_ids), actor)
 
-    def donate(self, team_id: int, actor: int | None, amount, donor: str | None) -> dict:
-        """A donation QR. Anyone who opens the bot may make one."""
+    def donate(self, team_id: int, actor: int | None, amount, donor: str | None, reason: str | None = None) -> dict:
+        """A donation QR. Anyone who opens the bot may make one; `reason` (optional) says what for."""
         with self.d.uow() as uow:
-            return billing.create_donation(uow, self.d, get_team(uow, team_id), amount, donor, actor)
+            return billing.create_donation(uow, self.d, get_team(uow, team_id), amount, donor, actor, reason)
 
     def status(self, team_id: int) -> dict:
         with self.d.uow() as uow:

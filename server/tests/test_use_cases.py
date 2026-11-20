@@ -990,6 +990,13 @@ def test_donation(world):
     assert code(svc.web.donate, token, 12345, None) == "donation_amount"
     w = svc.web.donate(token, 20000, "")
     assert w["members"] == ["Ẩn danh"] and w["donation"]
+    r = svc.web.donate(token, 30000, "Hiệp", "  đá   giao lưu 20/11 ")
+    assert r["reason"] == "đá giao lưu 20/11"
+    assert code(svc.web.donate, token, 30000, "Hiệp", 5) == "invalid"
+    svc.money.record_transfer(tid, key, IncomingTransfer("tx-dn-r", 30000, f"ck {r['content']}"))
+    assert ("in", "donation", "Hiệp · đá giao lưu 20/11", 30000) in {(x["type"], x["kind"], x["title"], x["amount"])
+                                                                   for x in svc.web.page(token)["history"]}
+    assert svc.money.history(tid, 10)[0]["title"] == "Hiệp · đá giao lưu 20/11"
     svc.money.record_transfer(tid, key, IncomingTransfer("tx-dn2", 20000, w["content"]))
     st = svc.web.intent_status(token, w["code"])
     assert st["status"] == "paid" and st["donation"]

@@ -135,7 +135,7 @@ class WebUseCases:
         names = uow.intents.members_of([p.intent_id for p in payments if p.intent_id])
         items = []
         for p in payments:
-            who = names.get(p.intent_id) if p.intent_id else None
+            who = names.get(p.intent_id) if p.intent_id and p.source != "donation" else None  # a donation: its note, with the reason
             label = ", ".join(who) if who else (p.note if p.status != "unmatched" else None)
             items.append({"type": "in", "amount": p.amount, "kind": "unassigned" if label is None else p.source,
                           "title": label or "", "ts": p.created_at})
@@ -169,14 +169,14 @@ class WebUseCases:
             return {k: r[k] for k in ("code", "content", "amount", "qr_url", "bank_name", "bank_account",
                                       "bank_holder", "members", "expires_at")}
 
-    def donate(self, token: str, amount, name) -> dict:
-        """A donation QR from the pay page: any multiple of 1.000đ, an optional name."""
-        if name is not None and not isinstance(name, str):
+    def donate(self, token: str, amount, name, reason=None) -> dict:
+        """A donation QR from the pay page: any multiple of 1.000đ, an optional name and reason."""
+        if any(v is not None and not isinstance(v, str) for v in (name, reason)):
             raise invalid()
         with self.d.uow() as uow:
-            r = billing.create_donation(uow, self.d, _team(uow, token), amount, name, None)
+            r = billing.create_donation(uow, self.d, _team(uow, token), amount, name, None, reason)
             return {k: r[k] for k in ("code", "content", "amount", "qr_url", "bank_name", "bank_account",
-                                      "bank_holder", "members", "expires_at", "donation")}
+                                      "bank_holder", "members", "reason", "expires_at", "donation")}
 
     def intent_status(self, token: str, code: str) -> dict:
         """pending | paid | expired, for the page to poll while the payer transfers."""

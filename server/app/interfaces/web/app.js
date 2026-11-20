@@ -10,7 +10,7 @@ const T = {
     noBank: "Đội chưa cài tài khoản ngân hàng. Nhờ quản lý đội gửi /setbank trong bot Telegram.",
     donate: "💝 Ủng hộ quỹ", donateTitle: "Ủng hộ quỹ đội",
     donateSub: "Đá giao lưu, đi xem, hay chỉ muốn góp cho đội? Số tiền tuỳ bạn, bội số của 1.000đ.",
-    donateAmount: "Số tiền (đ)", donateName: "Tên bạn (không bắt buộc)", donateBad: "Số tiền phải là bội số của 1.000đ, từ 1.000đ đến 50.000.000đ.",
+    donateAmount: "Số tiền (đ)", donateName: "Tên bạn (không bắt buộc)", donateReason: "Lý do (không bắt buộc)", reason: "Lý do", donateReasonHint: "Ví dụ: đá giao lưu 20/11", donateBad: "Số tiền phải là bội số của 1.000đ, từ 1.000đ đến 50.000.000đ.",
     donateFrom: "Ủng hộ: {n}", donor: "Người ủng hộ", donatedSub: "Cảm ơn {m} đã ủng hộ quỹ đội!",
     for: "Đóng cho", amount: "Số tiền", bank: "Ngân hàng", account: "Số tài khoản", holder: "Chủ tài khoản",
     content: "Nội dung chuyển khoản", copy: "Chép", copied: "Đã chép",
@@ -49,7 +49,7 @@ const T = {
     noBank: "The team's bank account isn't set yet. Ask a manager to send /setbank in the Telegram bot.",
     donate: "💝 Donate", donateTitle: "Give to the team fund",
     donateSub: "Joined a game, came to watch, or just want to chip in? Any amount, in multiples of 1,000đ.",
-    donateAmount: "Amount (đ)", donateName: "Your name (optional)", donateBad: "The amount must be a multiple of 1,000đ, from 1,000đ to 50,000,000đ.",
+    donateAmount: "Amount (đ)", donateName: "Your name (optional)", donateReason: "Reason (optional)", reason: "Reason", donateReasonHint: "e.g. friendly match 20/11", donateBad: "The amount must be a multiple of 1,000đ, from 1,000đ to 50,000,000đ.",
     donateFrom: "Donation: {n}", donor: "From", donatedSub: "Thank you {m} for supporting the team!",
     for: "Paying for", amount: "Amount", bank: "Bank", account: "Account number", holder: "Account holder",
     content: "Transfer content", copy: "Copy", copied: "Copied",
@@ -358,12 +358,14 @@ function donateView() {
     placeholder: "50000", "aria-label": t("donateAmount"), value: S.donateAmount || "" });
   const name = h("input", { class: "search", id: "dn-name", type: "text", maxlength: 60, autocomplete: "name",
     placeholder: t("donateName"), "aria-label": t("donateName"), value: store.get("donor") || "" });
+  const reason = h("input", { class: "search", id: "dn-reason", type: "text", maxlength: 100,
+    placeholder: t("donateReasonHint"), "aria-label": t("donateReason") });
   const go = async (e) => {
     const btn = e.currentTarget, a = Number(amount.value);
     if (!Number.isInteger(a) || a < 1000 || a > 50000000 || a % 1000) return toast(t("donateBad"));
     btn.disabled = true; S.donateAmount = a; store.set("donor", name.value.trim());
     try {
-      const intent = await api("donate", { method: "POST", body: JSON.stringify({ amount: a, name: name.value.trim() }) });
+      const intent = await api("donate", { method: "POST", body: JSON.stringify({ amount: a, name: name.value.trim(), reason: reason.value.trim() }) });
       S.intent = intent; store.set("intent", intent); S.donating = false; qrView(); toTop(); poll();
     } catch (err) { btn.disabled = false; toast(t(err.message)); }
   };
@@ -372,6 +374,7 @@ function donateView() {
       h("div", { class: "chips" }, DONATE_CHOICES.map((v) => h("button", { class: "pill", onclick: () => { amount.value = v; } }, money(v)))),
       h("label", { class: "small muted", for: "dn-amount" }, t("donateAmount")), amount,
       h("label", { class: "small muted", for: "dn-name" }, t("donateName")), name,
+      h("label", { class: "small muted", for: "dn-reason" }, t("donateReason")), reason,
       h("button", { class: "btn block", onclick: go }, t("pay"))),
     h("button", { class: "btn ghost block", onclick: () => { S.donating = false; render(); } }, t("back")), footer());
 }
@@ -396,6 +399,7 @@ function qrView() {
       h("div", { class: "wait", role: "status" }, h("span", { class: "dot" }), t("waiting"))),
     h("div", { class: "card" },
       row(t(i.donation ? "donor" : "for"), i.members.join(", "), { copyable: false }),
+      i.reason ? row(t("reason"), i.reason, { copyable: false }) : null,
       row(t("amount"), money(i.amount)),
       row(t("content"), i.content, { code: true }),
       row(t("bank"), i.bank_name, { copyable: false }),
