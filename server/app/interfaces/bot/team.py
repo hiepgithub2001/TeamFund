@@ -1540,13 +1540,19 @@ def entry_line(lang: str, i: dict) -> str:
     return f"{'➕' if i['type'] == 'in' else '➖'} {i['at'][:5]} · {money(i['amount'], lang)} · {i['title']}"
 
 
-async def show_editable(ev, entry, lang, edit_in_place: bool = False) -> None:
-    """Recent expenses, income and donations, one button each, to change their text."""
-    items = await call(S.money.editable, tid(entry), ev.from_user.id)
+EDIT_SIZES = (5, 10, 20, 50)
+
+
+async def show_editable(ev, entry, lang, edit_in_place: bool = False, limit: int = EDIT_SIZES[0]) -> None:
+    """Recent expenses, income and donations, one button each, to change their text. 5 at first; buttons show
+    10, 20 or 50 when there may be more."""
+    items = await call(S.money.editable, tid(entry), ev.from_user.id, limit)
     if items:
-        text = t(lang, "entry.pick")
+        text = t(lang, "entry.pick", n=len(items))
+        more = [(t(lang, "btn.show_n", n=n), f"ed:n:{n}") for n in EDIT_SIZES if n > limit] \
+            if len(items) == limit else []
         markup = kb(*[[(entry_line(lang, i)[:60], f"ed:{i['kind']}:{i['id']}")] for i in items],
-                    [(t(lang, "btn.cancel"), "ed:x")])
+                    *([more] if more else []), [(t(lang, "btn.cancel"), "ed:x")])
     else:
         text, markup = t(lang, "entry.nothing"), None
     if edit_in_place:
@@ -1556,21 +1562,30 @@ async def show_editable(ev, entry, lang, edit_in_place: bool = False) -> None:
 
 
 @router.message(Command("edit"))
-async def cmd_edit(message: Message, entry, lang):
-    """Change the text of an expense, an income or a donation."""
-    if await allow(message, entry, lang, "manager"):
-        await show_editable(message, entry, lang)
+async def cmd_edit(message: Message, command: CommandObject, entry, lang):
+    """Change the text of an expense, an income or a donation. `/edit 20`: the latest 20."""
+    if not await allow(message, entry, lang, "manager"):
+        return
+    arg = (command.args or "").strip()
+    if arg and not (arg.isdigit() and 1 <= int(arg) <= 50):
+        await message.answer(t(lang, "usage.edit"))
+        return
+    await show_editable(message, entry, lang, limit=int(arg) if arg else EDIT_SIZES[0])
 
 
-@router.callback_query(F.data.regexp(r"^ed:(x|[ep]):?(\d+)?$").as_("m"))
+@router.callback_query(F.data.regexp(r"^ed:(x|n|e|p)(?::(\d+))?$").as_("m"))
 async def on_edit_entry(cq: CallbackQuery, m: re.Match, entry, lang):
     if not await allow(cq, entry, lang, "manager"):
         return
     await cq.answer()
-    if m.group(1) == "x" or not m.group(2):
+    kind, arg = m.group(1), m.group(2)
+    if kind == "x" or not arg:
         await edit(cq, t(lang, "cancelled"))
         return
-    i = await call(S.money.entry, tid(entry), cq.from_user.id, m.group(1), int(m.group(2)))
+    if kind == "n":
+        await show_editable(cq, entry, lang, edit_in_place=True, limit=min(int(arg), 50))
+        return
+    i = await call(S.money.entry, tid(entry), cq.from_user.id, kind, int(arg))
     set_state(input_key(cq.bot.id, cq.message.chat.id), {"type": "entry_text", "kind": i["kind"], "id": i["id"]}, 600)
     await edit(cq, t(lang, "entry.chosen", line=esc(entry_line(lang, i))))
     await cq.message.answer(t(lang, "entry.ask", title=esc(i["title"])), reply_markup=FORCE)

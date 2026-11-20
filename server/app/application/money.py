@@ -195,11 +195,13 @@ class MoneyUseCases:
             raise DomainError(404, "not_found")
         return e
 
-    def editable(self, team_id: int, actor: int, limit: int = 10) -> list[dict]:
-        """The latest transactions whose text a manager can change, newest first."""
+    def editable(self, team_id: int, actor: int, limit: int = 5) -> list[dict]:
+        """The latest transactions whose text a manager can change, newest first (at most 50)."""
+        if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 50:
+            raise invalid()
         with self.d.uow() as uow:
             team = manager_team(uow, team_id, actor)
-            rows = [p for p in uow.payments.latest(team.id, 50) if self._editable(p)][:limit]
+            rows = [p for p in uow.payments.latest(team.id, 300) if self._editable(p)][:limit]
             rows += uow.expenses.latest(team.id, limit)
             rows.sort(key=lambda e: e.created_at, reverse=True)
             return [self._entry(e) for e in rows[:limit]]

@@ -682,11 +682,13 @@
  "m.unknown_command": "Bot này không có lệnh {cmd}. /help liệt kê các lệnh (lệnh của đội nằm trong bot riêng của từng đội).",
  "cmd.edit": "Sửa nội dung khoản chi, khoản thu, ủng hộ",
  "act.entry.edit": "Sửa nội dung",
- "entry.pick": "✏️ <b>Sửa nội dung giao dịch</b>\nChọn một giao dịch (khoản chi, khoản thu và ủng hộ; tiền đóng phí của thành viên được ghi theo khoản đã đóng nên không sửa ở đây):",
+ "entry.pick": "✏️ <b>Sửa nội dung giao dịch</b> ({n} gần nhất)\nChọn một giao dịch (khoản chi, khoản thu và ủng hộ; tiền đóng phí của thành viên được ghi theo khoản đã đóng nên không sửa ở đây):",
  "entry.nothing": "Chưa có khoản chi, khoản thu hay ủng hộ nào để sửa.",
  "entry.chosen": "✏️ Đang sửa: {line}",
  "entry.ask": "Nội dung hiện tại: <i>{title}</i>\n\nGửi nội dung mới (tối đa 200 ký tự). Với ủng hộ, ví dụ <code>Hoài Sơn · 500k từ FC23</code>.",
  "entry.done": "✅ Đã sửa nội dung ({amount}):\n<s>{old}</s>\n→ <b>{new}</b>\n\nHiện trong /history, trang thanh toán và file Excel. Đổi ý? /undo",
  "err.entry_text": "⚠️ Hãy gửi nội dung, tối đa 200 ký tự.",
- "tip.history.manager": "📅 Xem mọi giao dịch của một tháng: <code>/history {month}</code> (bấm để sao chép, đổi tháng tuỳ ý)\n✏️ Ghi nhầm tên hay nội dung? /edit sửa nội dung khoản chi, khoản thu, ủng hộ."
+ "tip.history.manager": "📅 Xem mọi giao dịch của một tháng: <code>/history {month}</code> (bấm để sao chép, đổi tháng tuỳ ý)\n✏️ Ghi nhầm tên hay nội dung? /edit sửa nội dung khoản chi, khoản thu, ủng hộ.",
+ "btn.show_n": "Xem {n}",
+ "usage.edit": "Cách dùng: <code>/edit</code> (5 gần nhất) hoặc <code>/edit 20</code> (20 gần nhất, tối đa 50)."
 }

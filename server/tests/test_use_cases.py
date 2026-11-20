@@ -1044,6 +1044,14 @@ def test_edit_text(world):
     act = next(a for a in svc.undo.recent(tid, OWNER) if a["action"] == "entry.edit" and "Hoài" in a["target"])
     svc.undo.undo(tid, OWNER, act["id"])
     assert "Ẩn danh" in {h["title"] for h in svc.money.history(tid)}
+    # 5 by default, more on request (up to 50)
+    for n in range(12):
+        clock.advance(minutes=1)
+        svc.money.add_expense(tid, OWNER, 1000, f"Nước {n}")
+    assert [i["title"] for i in svc.money.editable(tid, OWNER)] == [f"Nước {n}" for n in range(11, 6, -1)]
+    assert len(svc.money.editable(tid, OWNER, 10)) == 10 and len(svc.money.editable(tid, OWNER, 20)) == 15
+    for bad in (0, 51, "5", True):
+        assert code(svc.money.editable, tid, OWNER, bad) == "invalid"
 
 
 def test_two_teams_on_one_bank_account(world):

@@ -701,7 +701,11 @@ async def main():
 
         # 15b. fix the text of an income: /edit, pick it, type the new text; /history shows it; /undo offers it
         await T(text_update(OWNER, "/edit"))
-        ed = await wait_sent(to(OWNER, "Edit a transaction's text"), "edit list")
+        ed = await wait_sent(to(OWNER, r"Edit a transaction's text</b> \(latest 5\)"), "edit list: 5 at first")
+        assert [b for b in buttons(ed) if b.startswith("ed:n:")] == ["ed:n:10", "ed:n:20", "ed:n:50"], buttons(ed)
+        await T(cb_update(OWNER, "ed:n:10", ed["message_id"]))
+        ten = await wait_sent(lambda c: c["method"] == "editMessageText" and "(latest 10)" in c["params"]["text"], "show 10")
+        assert len([b for b in buttons(ten) if re.match(r"ed:[ep]:", b)]) == 10, buttons(ten)
         row = next(b for r in ed["params"]["reply_markup"]["inline_keyboard"] for b in r if "Keep" in b["text"])
         assert row["text"].startswith("➕") and "5,000đ" in row["text"], row
         await T(cb_update(OWNER, row["callback_data"], ed["message_id"]))

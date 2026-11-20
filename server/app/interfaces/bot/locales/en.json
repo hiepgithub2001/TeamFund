@@ -682,11 +682,13 @@
  "m.unknown_command": "I don't know {cmd} here. /help lists what this bot does (team commands are in each team's own bot).",
  "cmd.edit": "Edit the text of an expense, income or donation",
  "act.entry.edit": "Text edited",
- "entry.pick": "✏️ <b>Edit a transaction's text</b>\nPick one (expenses, income and donations; payments of members' fees are named after the bills they paid):",
+ "entry.pick": "✏️ <b>Edit a transaction's text</b> (latest {n})\nPick one (expenses, income and donations; payments of members' fees are named after the bills they paid):",
  "entry.nothing": "No expenses, income or donations to edit yet.",
  "entry.chosen": "✏️ Editing: {line}",
  "entry.ask": "Now it says: <i>{title}</i>\n\nSend the new text (up to 200 characters). For a donation, e.g. <code>Hoài Sơn · 500k from FC23</code>.",
  "entry.done": "✅ Text changed ({amount}):\n<s>{old}</s>\n→ <b>{new}</b>\n\nShown in /history, the pay page and the export. Changed your mind? /undo",
  "err.entry_text": "⚠️ Send some text, up to 200 characters.",
- "tip.history.manager": "📅 Every transaction of one month: <code>/history {month}</code> (tap to copy, change the month as you like)\n✏️ Wrong name or note? /edit fixes the text of an expense, income or donation."
+ "tip.history.manager": "📅 Every transaction of one month: <code>/history {month}</code> (tap to copy, change the month as you like)\n✏️ Wrong name or note? /edit fixes the text of an expense, income or donation.",
+ "btn.show_n": "Show {n}",
+ "usage.edit": "Usage: <code>/edit</code> (latest 5) or <code>/edit 20</code> (latest 20, up to 50)."
 }

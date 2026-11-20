@@ -178,7 +178,7 @@ Team bots don't work in groups. Everyone who opens a team bot privately **follow
 
 ### Undo
 
-`/edit` (managers) fixes the text of a transaction: it lists the latest 10 expenses, incomes (`/income`, transfers kept as income, match money) and donations; pick one, see its current text, send the new one (up to 200 characters). Only the text changes, never the amount or date; `/history`, the pay page and the export show the new text, the change is logged as “Text edited · old → new” and `/undo` takes it back. Payments of members' bills aren't offered: they're named after the bills they paid. Messages already sent to followers keep the old text. Managers see a hint for it under `/history`.
+`/edit` (managers) fixes the text of a transaction: it lists the latest 5 expenses (buttons **Show 10 / 20 / 50** go further back, or `/edit 20` straight away, up to 50), incomes (`/income`, transfers kept as income, match money) and donations; pick one, see its current text, send the new one (up to 200 characters). Only the text changes, never the amount or date; `/history`, the pay page and the export show the new text, the change is logged as “Text edited · old → new” and `/undo` takes it back. Payments of members' bills aren't offered: they're named after the bills they paid. Messages already sent to followers keep the old text. Managers see a hint for it under `/history`.
 
 `/undo` (managers) lists the recent actions you can take back, newest first, from the last 7 days. Pick any of them, not only the newest, confirm, and it's undone; **↩️ Undo another action** goes back to the list. Followers are told when an announced action is undone.
 
