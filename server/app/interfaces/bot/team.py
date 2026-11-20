@@ -1535,6 +1535,59 @@ async def on_undo(cq: CallbackQuery, m: re.Match, entry, lang):
             await broadcast(entry, t(G, "group.undone", action=action_text(G, r), by=esc(r["by"])))
 
 
+def entry_line(lang: str, i: dict) -> str:
+    """"➖ 20/11 · 300.000đ · Sân bóng"."""
+    return f"{'➕' if i['type'] == 'in' else '➖'} {i['at'][:5]} · {money(i['amount'], lang)} · {i['title']}"
+
+
+async def show_editable(ev, entry, lang, edit_in_place: bool = False) -> None:
+    """Recent expenses, income and donations, one button each, to change their text."""
+    items = await call(S.money.editable, tid(entry), ev.from_user.id)
+    if items:
+        text = t(lang, "entry.pick")
+        markup = kb(*[[(entry_line(lang, i)[:60], f"ed:{i['kind']}:{i['id']}")] for i in items],
+                    [(t(lang, "btn.cancel"), "ed:x")])
+    else:
+        text, markup = t(lang, "entry.nothing"), None
+    if edit_in_place:
+        await edit(ev, text, markup)
+    else:
+        await say(ev, text, reply_markup=markup)
+
+
+@router.message(Command("edit"))
+async def cmd_edit(message: Message, entry, lang):
+    """Change the text of an expense, an income or a donation."""
+    if await allow(message, entry, lang, "manager"):
+        await show_editable(message, entry, lang)
+
+
+@router.callback_query(F.data.regexp(r"^ed:(x|[ep]):?(\d+)?$").as_("m"))
+async def on_edit_entry(cq: CallbackQuery, m: re.Match, entry, lang):
+    if not await allow(cq, entry, lang, "manager"):
+        return
+    await cq.answer()
+    if m.group(1) == "x" or not m.group(2):
+        await edit(cq, t(lang, "cancelled"))
+        return
+    i = await call(S.money.entry, tid(entry), cq.from_user.id, m.group(1), int(m.group(2)))
+    set_state(input_key(cq.bot.id, cq.message.chat.id), {"type": "entry_text", "kind": i["kind"], "id": i["id"]}, 600)
+    await edit(cq, t(lang, "entry.chosen", line=esc(entry_line(lang, i))))
+    await cq.message.answer(t(lang, "entry.ask", title=esc(i["title"])), reply_markup=FORCE)
+
+
+async def entry_text_reply(message: Message, entry, lang, st: dict, text: str) -> None:
+    try:
+        r = await call(S.money.edit_text, tid(entry), message.from_user.id, st["kind"], st["id"], text)
+    except DomainError as e:
+        if e.code != "invalid":
+            raise
+        set_state(input_key(message.bot.id, message.chat.id), st, 600)
+        await message.answer(t(lang, "err.entry_text"), reply_markup=FORCE)
+        return
+    await message.answer(t(lang, "entry.done", old=esc(r["old"]), new=esc(r["title"]), amount=money(r["amount"], lang)))
+
+
 @router.message(Command("unmatched"))
 async def cmd_unmatched(message: Message, entry, lang):
     if not await allow(message, entry, lang, "manager"):
@@ -1863,6 +1916,8 @@ async def on_text(message: Message, entry, lang):
         await save_sepay_token(message, entry, lang, text)
     elif st["type"] in ("expense", "income"):
         await record_money(message, entry, lang, st["type"], text)
+    elif st["type"] == "entry_text":
+        await entry_text_reply(message, entry, lang, st, text)
     elif st["type"] == "member_pack":
         await member_pack_reply(message, entry, lang, st, text)
     elif st["type"] == "cash_amount":

@@ -307,6 +307,9 @@ class SqlPayments(_Repo):
 
 
 class SqlExpenses(_Repo):
+    def get(self, expense_id: int) -> Expense | None:
+        return self.s.get(Expense, expense_id)
+
     def total(self, team_id: int, start=None, end=None) -> int:
         q = select(func.coalesce(func.sum(Expense.amount), 0)).where(Expense.team_id == team_id)
         return int(self.s.scalar(_between(q, Expense.created_at, start, end)))

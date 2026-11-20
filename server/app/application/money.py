@@ -169,6 +169,63 @@ class MoneyUseCases:
             return {"amount": amount, "title": title, "by": display_name(uow, actor), "at": self.d.clock.fmt(at),
                     "backdated": on is not None, "balance": billing.fund(uow, team)["balance"]}
 
+    # ---- editing the text of a transaction ----
+    # expenses, income (/income, transfers kept as income) and donations; payments of members' bills are named
+    # after the bills they paid, so their text isn't edited here
+
+    @staticmethod
+    def _editable(p: Payment) -> bool:
+        return p.source in ("other", "donation") or p.status == "resolved"
+
+    def _entry(self, e: Expense | Payment) -> dict:
+        out = isinstance(e, Expense)
+        return {"kind": "e" if out else "p", "id": e.id, "type": "out" if out else "in", "amount": e.amount,
+                "title": (e.title if out else e.note or e.content) or "",
+                "source": "expense" if out else e.source, "at": self.d.clock.fmt(e.created_at)}
+
+    def _find(self, uow, team, kind: str, entry_id: int) -> Expense | Payment:
+        if kind == "e":
+            e = uow.expenses.get(entry_id)
+        elif kind == "p":
+            e = uow.payments.get(entry_id)
+            e = e if e and self._editable(e) else None
+        else:
+            raise invalid()
+        if not e or e.team_id != team.id:
+            raise DomainError(404, "not_found")
+        return e
+
+    def editable(self, team_id: int, actor: int, limit: int = 10) -> list[dict]:
+        """The latest transactions whose text a manager can change, newest first."""
+        with self.d.uow() as uow:
+            team = manager_team(uow, team_id, actor)
+            rows = [p for p in uow.payments.latest(team.id, 50) if self._editable(p)][:limit]
+            rows += uow.expenses.latest(team.id, limit)
+            rows.sort(key=lambda e: e.created_at, reverse=True)
+            return [self._entry(e) for e in rows[:limit]]
+
+    def entry(self, team_id: int, actor: int, kind: str, entry_id: int) -> dict:
+        with self.d.uow() as uow:
+            return self._entry(self._find(uow, manager_team(uow, team_id, actor), kind, entry_id))
+
+    def edit_text(self, team_id: int, actor: int, kind: str, entry_id: int, text: str) -> dict:
+        """Change what a transaction says in the history ("Ủng hộ: Hoài Sơn · 500k from FC23"). Undoable."""
+        text = " ".join(text.split()) if isinstance(text, str) else ""
+        if not text or len(text) > 200:
+            raise invalid()
+        with self.d.uow() as uow:
+            team = manager_team(uow, team_id, actor)
+            e = self._find(uow, team, kind, entry_id)
+            old = self._entry(e)["title"]
+            if isinstance(e, Expense):
+                e.title = text
+            else:
+                e.note = text
+            audit(uow, self.d.clock, team.id, actor, "entry.edit", target=f"{old} → {text}",
+                  before={"title": old}, after={"amount": e.amount, "title": text})
+            uow.commit()
+            return {**self._entry(e), "old": old}
+
     def unmatched(self, team_id: int, actor: int) -> list[dict]:
         with self.d.uow() as uow:
             team = manager_team(uow, team_id, actor)

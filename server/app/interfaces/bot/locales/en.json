@@ -159,7 +159,7 @@
  "lang.choose": "Choose your language:",
  "lang.done": "✅ Language: English",
  "help.everyone": "<b>Commands</b>\n/start Pay the team fee\n/donate Give to the team fund (any amount)\n/status Who has paid this month\n/fund Fund balance\n/history Latest transactions (/history 10/2026: one month)\n/bank Team bank account\n/weblink Pay page link (no Telegram needed)\n/notify Turn team announcements on or off\n/requestmanager Ask to become a manager\n/guide How to use the bot and the web page\n/lang Language",
- "help.manager": "\n\n<b>Manager</b>\n/members View, add and edit members\n/plans Fee packages: amount, cycle, deadline and late fee for groups of people\n/charge One-off charge or shared cost\n/markpaid Record cash payments\n/expense Record an expense\n/income Record income (prizes, sponsors, an old balance)\n/undo Undo a recent action\n/money How to write amounts and dates\n/followers Who has opened the bot (gets reminders)\n/remind Send the unpaid list to everyone\n/unmatched Payments to check\n/export Excel file\n/settings Team settings\n/teamlang Announcement language",
+ "help.manager": "\n\n<b>Manager</b>\n/members View, add and edit members\n/plans Fee packages: amount, cycle, deadline and late fee for groups of people\n/charge One-off charge or shared cost\n/markpaid Record cash payments\n/expense Record an expense\n/income Record income (prizes, sponsors, an old balance)\n/edit Fix the text of an expense, income or donation\n/undo Undo a recent action\n/money How to write amounts and dates\n/followers Who has opened the bot (gets reminders)\n/remind Send the unpaid list to everyone\n/unmatched Payments to check\n/export Excel file\n/settings Team settings\n/teamlang Announcement language",
  "help.owner": "\n\n<b>Owner</b>\n/sepaytoken Connect SePay (API token)\n/setbank Choose the bank account (from SePay)\n/requests Review manager requests\n/managers Managers\n/transferowner Give the team to a manager\n/log Audit log",
  "cmd.start": "Pay the team fee",
  "cmd.status": "Who has paid this month",
@@ -679,5 +679,14 @@
  "m.plan_done": "✅ SePay plan of {teams}: {quota} transactions a cycle, restarting on day {day}. /ops warns from 80%.",
  "m.plan_off": "✅ SePay plan of {teams} forgotten: /ops shows the count only.",
  "m.plan_no_sepay": "No team has connected SePay yet.",
- "m.unknown_command": "I don't know {cmd} here. /help lists what this bot does (team commands are in each team's own bot)."
+ "m.unknown_command": "I don't know {cmd} here. /help lists what this bot does (team commands are in each team's own bot).",
+ "cmd.edit": "Edit the text of an expense, income or donation",
+ "act.entry.edit": "Text edited",
+ "entry.pick": "✏️ <b>Edit a transaction's text</b>\nPick one (expenses, income and donations; payments of members' fees are named after the bills they paid):",
+ "entry.nothing": "No expenses, income or donations to edit yet.",
+ "entry.chosen": "✏️ Editing: {line}",
+ "entry.ask": "Now it says: <i>{title}</i>\n\nSend the new text (up to 200 characters). For a donation, e.g. <code>Hoài Sơn · 500k from FC23</code>.",
+ "entry.done": "✅ Text changed ({amount}):\n<s>{old}</s>\n→ <b>{new}</b>\n\nShown in /history, the pay page and the export. Changed your mind? /undo",
+ "err.entry_text": "⚠️ Send some text, up to 200 characters.",
+ "tip.history.manager": "📅 Every transaction of one month: <code>/history {month}</code> (tap to copy, change the month as you like)\n✏️ Wrong name or note? /edit fixes the text of an expense, income or donation."
 }

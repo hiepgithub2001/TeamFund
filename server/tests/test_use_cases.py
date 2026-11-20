@@ -1004,6 +1004,48 @@ def test_donation(world):
                                                      for x in svc.web.page(token)["history"]}
 
 
+def test_edit_text(world):
+    """Managers fix the text of expenses, income and donations; the history shows it; /undo puts it back.
+    Payments of members' bills aren't offered: they are named after the bills."""
+    svc, clock, _ = world
+    tid = setup_team(svc)
+    link_bank(svc, tid)
+    an, = [m["id"] for m in svc.members.add_members(tid, OWNER, [{"name": "An"}])]
+    svc.teams.update_settings(tid, OWNER, fee=100000)
+    svc.money.unpaid(tid)
+    svc.money.markpaid(tid, OWNER, [an])
+    svc.money.add_expense(tid, OWNER, 300000, "Sân")
+    svc.money.add_income(tid, OWNER, 50000, "Thưởng")
+    q = svc.money.donate(tid, MEMBER, 500000, None)
+    svc.money.record_transfer(tid, sepay_key(svc, tid), IncomingTransfer("tx-ed", 500000, q["content"]))
+    items = svc.money.editable(tid, OWNER)
+    assert {(i["source"], i["title"]) for i in items} == {("expense", "Sân"), ("other", "Thưởng"),
+                                                          ("donation", "Ẩn danh")}
+    assert code(svc.money.editable, tid, MEMBER) == "not_manager"
+    dn = next(i for i in items if i["source"] == "donation")
+    cash = next(p for p in svc.money.history(tid) if p["source"] == "cash")
+    assert cash
+    r = svc.money.edit_text(tid, OWNER, dn["kind"], dn["id"], "  Hoài Sơn ·  500k from FC23 ")
+    assert (r["old"], r["title"], r["amount"]) == ("Ẩn danh", "Hoài Sơn · 500k from FC23", 500000)
+    assert svc.money.history(tid)[0]["title"] == "Hoài Sơn · 500k from FC23"
+    ex = next(i for i in items if i["source"] == "expense")
+    svc.money.edit_text(tid, OWNER, ex["kind"], ex["id"], "Sân bóng 15/11")
+    assert "Sân bóng 15/11" in {h["title"] for h in svc.money.history(tid)}
+    assert svc.money.fund(tid)["balance"] == 100000 + 50000 + 500000 - 300000, "only the text changes"
+    for bad in ("", "   ", "x" * 201, None):
+        assert code(svc.money.edit_text, tid, OWNER, ex["kind"], ex["id"], bad) == "invalid"
+    assert code(svc.money.edit_text, tid, OWNER, "e", 9999, "x") == "not_found"
+    assert code(svc.money.edit_text, tid, OWNER, "z", ex["id"], "x") == "invalid"
+    assert code(svc.money.edit_text, tid, MEMBER, ex["kind"], ex["id"], "x") == "not_manager"
+    # a fee payment can't be edited here
+    fee_payment = [p for p in svc.money.editable(tid, OWNER, 50)]
+    assert all(i["source"] != "cash" for i in fee_payment)
+    # undo the donation edit
+    act = next(a for a in svc.undo.recent(tid, OWNER) if a["action"] == "entry.edit" and "Hoài" in a["target"])
+    svc.undo.undo(tid, OWNER, act["id"])
+    assert "Ẩn danh" in {h["title"] for h in svc.money.history(tid)}
+
+
 def test_two_teams_on_one_bank_account(world):
     """Two teams linked to the same bank account both hear every transfer. A transfer with the other team's
     code is that team's, and one with no code at all is ignored too: only this team's QR codes count here."""

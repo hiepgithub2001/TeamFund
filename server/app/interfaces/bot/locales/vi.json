@@ -159,7 +159,7 @@
  "lang.choose": "Chọn ngôn ngữ:",
  "lang.done": "✅ Ngôn ngữ: Tiếng Việt",
  "help.everyone": "<b>Lệnh</b>\n/start Đóng quỹ\n/donate Ủng hộ quỹ đội (số tiền tuỳ bạn)\n/status Ai đã đóng tháng này\n/fund Số dư quỹ\n/history Giao dịch gần đây (/history 10/2026: theo tháng)\n/bank Tài khoản ngân hàng của đội\n/weblink Link trang đóng quỹ (không cần Telegram)\n/notify Bật/tắt thông báo của đội\n/requestmanager Xin làm quản lý\n/guide Hướng dẫn dùng bot và trang web\n/lang Ngôn ngữ",
- "help.manager": "\n\n<b>Quản lý</b>\n/members Xem, thêm và sửa thành viên\n/plans Gói phí: mức, chu kỳ, hạn đóng và phạt trễ cho từng nhóm người\n/charge Khoản thu riêng hoặc chia tiền\n/markpaid Ghi nhận tiền mặt\n/expense Ghi khoản chi\n/income Ghi khoản thu (thưởng, tài trợ, số dư cũ)\n/undo Hoàn tác một thao tác gần đây\n/money Cách nhập số tiền và ngày\n/followers Ai đã mở bot (nhận nhắc nhở)\n/remind Gửi danh sách chưa đóng cho mọi người\n/unmatched Khoản cần kiểm tra\n/export Xuất Excel\n/settings Cài đặt đội\n/teamlang Ngôn ngữ thông báo",
+ "help.manager": "\n\n<b>Quản lý</b>\n/members Xem, thêm và sửa thành viên\n/plans Gói phí: mức, chu kỳ, hạn đóng và phạt trễ cho từng nhóm người\n/charge Khoản thu riêng hoặc chia tiền\n/markpaid Ghi nhận tiền mặt\n/expense Ghi khoản chi\n/income Ghi khoản thu (thưởng, tài trợ, số dư cũ)\n/edit Sửa nội dung khoản chi, khoản thu, ủng hộ\n/undo Hoàn tác một thao tác gần đây\n/money Cách nhập số tiền và ngày\n/followers Ai đã mở bot (nhận nhắc nhở)\n/remind Gửi danh sách chưa đóng cho mọi người\n/unmatched Khoản cần kiểm tra\n/export Xuất Excel\n/settings Cài đặt đội\n/teamlang Ngôn ngữ thông báo",
  "help.owner": "\n\n<b>Chủ đội</b>\n/sepaytoken Kết nối SePay (API token)\n/setbank Chọn tài khoản ngân hàng (từ SePay)\n/requests Duyệt yêu cầu làm quản lý\n/managers Quản lý\n/transferowner Chuyển chủ đội\n/log Nhật ký thao tác",
  "cmd.start": "Đóng quỹ",
  "cmd.status": "Ai đã đóng tháng này",
@@ -679,5 +679,14 @@
  "m.plan_done": "✅ Gói SePay của {teams}: {quota} giao dịch mỗi chu kỳ, bắt đầu lại ngày {day}. /ops sẽ cảnh báo từ 80%.",
  "m.plan_off": "✅ Đã bỏ gói SePay của {teams}: /ops chỉ hiện số giao dịch.",
  "m.plan_no_sepay": "Chưa đội nào kết nối SePay.",
- "m.unknown_command": "Bot này không có lệnh {cmd}. /help liệt kê các lệnh (lệnh của đội nằm trong bot riêng của từng đội)."
+ "m.unknown_command": "Bot này không có lệnh {cmd}. /help liệt kê các lệnh (lệnh của đội nằm trong bot riêng của từng đội).",
+ "cmd.edit": "Sửa nội dung khoản chi, khoản thu, ủng hộ",
+ "act.entry.edit": "Sửa nội dung",
+ "entry.pick": "✏️ <b>Sửa nội dung giao dịch</b>\nChọn một giao dịch (khoản chi, khoản thu và ủng hộ; tiền đóng phí của thành viên được ghi theo khoản đã đóng nên không sửa ở đây):",
+ "entry.nothing": "Chưa có khoản chi, khoản thu hay ủng hộ nào để sửa.",
+ "entry.chosen": "✏️ Đang sửa: {line}",
+ "entry.ask": "Nội dung hiện tại: <i>{title}</i>\n\nGửi nội dung mới (tối đa 200 ký tự). Với ủng hộ, ví dụ <code>Hoài Sơn · 500k từ FC23</code>.",
+ "entry.done": "✅ Đã sửa nội dung ({amount}):\n<s>{old}</s>\n→ <b>{new}</b>\n\nHiện trong /history, trang thanh toán và file Excel. Đổi ý? /undo",
+ "err.entry_text": "⚠️ Hãy gửi nội dung, tối đa 200 ký tự.",
+ "tip.history.manager": "📅 Xem mọi giao dịch của một tháng: <code>/history {month}</code> (bấm để sao chép, đổi tháng tuỳ ý)\n✏️ Ghi nhầm tên hay nội dung? /edit sửa nội dung khoản chi, khoản thu, ủng hộ."
 }

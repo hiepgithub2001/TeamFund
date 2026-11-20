@@ -699,6 +699,23 @@ async def main():
         await wait_sent(lambda c: c["method"] == "editMessageText" and "Pick an action to undo" in c["params"]["text"]
                         and "Typo" not in json.dumps(c["params"].get("reply_markup")), "the list without it")
 
+        # 15b. fix the text of an income: /edit, pick it, type the new text; /history shows it; /undo offers it
+        await T(text_update(OWNER, "/edit"))
+        ed = await wait_sent(to(OWNER, "Edit a transaction's text"), "edit list")
+        row = next(b for r in ed["params"]["reply_markup"]["inline_keyboard"] for b in r if "Keep" in b["text"])
+        assert row["text"].startswith("➕") and "5,000đ" in row["text"], row
+        await T(cb_update(OWNER, row["callback_data"], ed["message_id"]))
+        await wait_sent(to(OWNER, r"Now it says: <i>Keep</i>"), "asks for the new text")
+        await T(text_update(OWNER, "Kept from last season"))
+        await wait_sent(to(OWNER, r"Text changed \(5,000đ\):\n<s>Keep</s>\n→ <b>Kept from last season</b>"), "edited")
+        await T(text_update(OWNER, "/history"))
+        h = await wait_sent(to(OWNER, r"<b>5,000đ</b> · Kept from last season \(income\)"), "new text in /history")
+        assert "/edit" in h["params"]["text"], "managers get the /edit tip under /history"
+        await T(text_update(OWNER, "/undo"))
+        await wait_sent(lambda c: to(OWNER, "Pick an action to undo")(c)
+                        and "Text edited · Keep → Kept from last season" in json.dumps(c["params"].get("reply_markup"), ensure_ascii=False),
+                        "the edit can be undone")
+
         # 16. how long a package applies, in whole periods: Cường for 2027Q1–Q2, Dũng from next quarter, then this one only
         from datetime import date as _date
         today = _date.today()
