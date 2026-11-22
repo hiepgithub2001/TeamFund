@@ -217,7 +217,18 @@ async def opponent_kb(ev, entry, lang, prefix: str, back: str):
     contacts = await call(S.contacts.search, tid(entry), ev.from_user.id)
     btn = [(c["name"][:30], f"{prefix}{c['id']}") for c in contacts[:12]]
     rows = [btn[i:i + 2] for i in range(0, len(btn), 2)]
-    return kb(*rows, [(t(lang, "mt.btn_no_opp"), f"{prefix}0")], [(t(lang, "btn.cancel"), back)])
+    return kb(*rows, [(t(lang, "mt.btn_new_opp"), f"{prefix}n")], [(t(lang, "mt.btn_no_opp"), f"{prefix}0")],
+              [(t(lang, "btn.cancel"), back)])
+
+
+async def new_opponent(ev, entry, lang, text: str) -> str | None:
+    """A new opponent typed with its details ("FC Moreh (0912 345 678, anh Dũng)"): saved to the contacts too.
+    Returns the name for the match, or None if nothing usable was typed."""
+    p = parse_contact(text)
+    if not p:
+        return None
+    await call(S.contacts.save_many, tid(entry), ev.from_user.id, [p])
+    return p["name"]
 
 
 @router.callback_query(F.data.regexp(r"^mt:(\w+)(?::(\w+))?(?::(\w+))?$").as_("m"))
@@ -284,6 +295,9 @@ async def on_matches(cq: CallbackQuery, m: re.Match, entry, lang):
         if st.get("type") != "mt_add_opp":
             await edit(cq, t(lang, "err.menu_expired"))
             return
+        if a == "n":  # a new team: name and phone at once, saved to the contacts with the match
+            await ask(cq, lang, {**st, "type": "mt_add_opp_new"}, t(lang, "mt.ask_new_opp"), "FC Moreh 0912 345 678")
+            return
         name = None
         if a != "0":
             c = next((c for c in await call(S.contacts.search, team, user) if c["id"] == int(a)), None)
@@ -302,6 +316,8 @@ async def on_matches(cq: CallbackQuery, m: re.Match, entry, lang):
     elif action == "eo" and a:
         await edit(cq, t(lang, "mt.ask_opp"), await opponent_kb(cq, entry, lang, f"mt:eop:{a}:", f"mt:v:{a}"))
         await ask(cq, lang, {"type": "mt_opp", "id": int(a)}, t(lang, "mt.type_opp"), "FC Moreh")
+    elif action == "eop" and a and b == "n":
+        await ask(cq, lang, {"type": "mt_opp_new", "id": int(a)}, t(lang, "mt.ask_new_opp"), "FC Moreh 0912 345 678")
     elif action == "eop" and a and b is not None:
         del_state(ikey(cq))
         name = None
@@ -439,11 +455,11 @@ async def add_opponent(ev, entry, lang, st: dict) -> None:
     await ask(ev, lang, st, t(lang, "mt.type_opp"), "FC Moreh")
 
 
-async def add_save(ev, entry, lang, st: dict, opponent: str | None) -> None:
+async def add_save(ev, entry, lang, st: dict, opponent: str | None, head: str = "mt.added") -> None:
     del_state(ikey(ev))
     item = {"day": date.fromisoformat(st["day"]), "at": st.get("at"), "place": st.get("place"), "opponent": opponent}
     x = (await call(S.matches.add, tid(entry), ev.from_user.id, [item]))[0]
-    await show_match(ev, entry, lang, x["id"], t(lang, "mt.added") + "\n\n", edit_in_place=False)
+    await show_match(ev, entry, lang, x["id"], t(lang, head) + "\n\n", edit_in_place=False)
 
 
 # ---- /contacts --------------------------------------------------------------------------------------
@@ -630,8 +646,14 @@ async def on_reply(message: Message, entry, lang):
         p = parse_match(f"{date.fromisoformat(st['day']):%d/%m/%Y} {text}", today)
         st.update({"at": p["at"], "place": p["place"]})
         await add_opponent(message, entry, lang, st)
-    elif kind == "mt_add_opp":
+    elif kind == "mt_add_opp" and not parse_phone(text):
         await add_save(message, entry, lang, st, text)
+    elif kind in ("mt_add_opp", "mt_add_opp_new"):  # with a phone, or after ➕: saved to the contacts too
+        name = await new_opponent(message, entry, lang, text)
+        if not name:
+            await again("mt.ask_new_opp", "FC Moreh 0912 345 678")
+            return
+        await add_save(message, entry, lang, st, name, "mt.added_contact")
     elif kind == "mt_when":
         x = await call(S.matches.get, team, user, st["id"])
         p = parse_match(text, today) or parse_match(f"{date.fromisoformat(x['day']):%d/%m/%Y} {text}", today)
@@ -645,7 +667,14 @@ async def on_reply(message: Message, entry, lang):
             changes["place"] = p["place"]
         await call(S.matches.update, team, user, st["id"], changes)
         await show_match(message, entry, lang, st["id"], t(lang, "mt.updated") + "\n\n", edit_in_place=False)
-    elif kind == "mt_opp":
+    elif kind in ("mt_opp", "mt_opp_new") and (kind == "mt_opp_new" or parse_phone(text)) and text != "-":
+        name = await new_opponent(message, entry, lang, text)
+        if not name:
+            await again("mt.ask_new_opp", "FC Moreh 0912 345 678")
+            return
+        await call(S.matches.update, team, user, st["id"], {"opponent": name})
+        await show_match(message, entry, lang, st["id"], t(lang, "mt.updated_contact") + "\n\n", edit_in_place=False)
+    elif kind in ("mt_opp", "mt_opp_new"):
         await call(S.matches.update, team, user, st["id"], {"opponent": None if text == "-" else text})
         await show_match(message, entry, lang, st["id"], t(lang, "mt.updated") + "\n\n", edit_in_place=False)
     elif kind == "mt_fee":

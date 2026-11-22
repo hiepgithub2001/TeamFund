@@ -882,6 +882,19 @@ async def main():
         assert "FC Moreh · @Pitch A" in added["params"]["text"] and "19:00" in added["params"]["text"]
         assert any(d.startswith("ct:v:") for d in buttons(added)) is False  # not in contacts yet: offer to save
         assert any(d.startswith("mt:sc:") for d in buttons(added))
+        # another match against a team not in contacts yet: ➕ New team saves it to contacts at once, with its phone
+        await T(cb_update(OWNER, "mt:a", lst["message_id"]))
+        days = await wait_sent(to(OWNER, "Add a match"), "day buttons again")
+        await T(cb_update(OWNER, buttons(days)[1], days["message_id"]))
+        tm = await wait_sent(lambda c: to(OWNER, "time and pitch\\?")(c) and c is not tm, "time step again")
+        await T(cb_update(OWNER, "mt:at:d", tm["message_id"]))
+        opp = await wait_sent(lambda c: to(OWNER, "Against which team")(c) and "mt:ao:n" in buttons(c), "➕ offered")
+        await T(cb_update(OWNER, "mt:ao:n", opp["message_id"]))
+        await wait_sent(to(OWNER, "saved to /contacts"), "name and phone asked")
+        await T(text_update(OWNER, "FC Rang Dong (0987 654 321, anh Nam)"))
+        both = await wait_sent(to(OWNER, "Match added, and the team saved to contacts"), "match and contact at once")
+        assert "FC Rang Dong" in both["params"]["text"] and "0987 654 321" in both["params"]["text"], both["params"]["text"]
+        assert any(d.startswith("ct:v:") for d in buttons(both)) and not any(d.startswith("mt:sc:") for d in buttons(both))
 
         # money after a played match: the 26/10 one, we paid 300k
         await T(cb_update(OWNER, "mt:p", lst["message_id"]))

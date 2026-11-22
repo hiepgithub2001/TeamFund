@@ -427,7 +427,7 @@
  "mt.btn_usual": "As usual: {usual}",
  "mt.btn_skip": "Skip",
  "mt.ask_opp": "⚔️ Against which team?",
- "mt.type_opp": "Or type the team's name.",
+ "mt.type_opp": "Or type the team's name (add a phone to save it to contacts too).",
  "mt.btn_no_opp": "No opponent yet",
  "mt.added": "✅ Match added.",
  "mt.updated": "✅ Updated.",
@@ -690,5 +690,9 @@
  "err.entry_text": "⚠️ Send some text, up to 200 characters.",
  "tip.history.manager": "📅 Every transaction of one month: <code>/history {month}</code> (tap to copy, change the month as you like)\n✏️ Wrong name or note? /edit fixes the text of an expense, income or donation.",
  "btn.show_n": "Show {n}",
- "usage.edit": "Usage: <code>/edit</code> (latest 5) or <code>/edit 20</code> (latest 20, up to 50)."
+ "usage.edit": "Usage: <code>/edit</code> (latest 5) or <code>/edit 20</code> (latest 20, up to 50).",
+ "mt.btn_new_opp": "➕ New team (also save to contacts)",
+ "mt.ask_new_opp": "Send the team's name, and the phone if you have it, e.g. <code>FC Moreh 0912 345 678</code> or <code>FC Moreh (0912 345 678, anh Dũng)</code>. It's set as the opponent and saved to /contacts.",
+ "mt.added_contact": "✅ Match added, and the team saved to contacts.",
+ "mt.updated_contact": "✅ Updated, and the team saved to contacts."
 }

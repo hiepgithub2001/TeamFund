@@ -427,7 +427,7 @@
  "mt.btn_usual": "Như mọi khi: {usual}",
  "mt.btn_skip": "Bỏ qua",
  "mt.ask_opp": "⚔️ Đá với đội nào?",
- "mt.type_opp": "Hoặc gõ tên đội.",
+ "mt.type_opp": "Hoặc gõ tên đội (kèm SĐT thì lưu luôn vào danh bạ).",
  "mt.btn_no_opp": "Chưa có đối",
  "mt.added": "✅ Đã thêm trận.",
  "mt.updated": "✅ Đã cập nhật.",
@@ -690,5 +690,9 @@
  "err.entry_text": "⚠️ Hãy gửi nội dung, tối đa 200 ký tự.",
  "tip.history.manager": "📅 Xem mọi giao dịch của một tháng: <code>/history {month}</code> (bấm để sao chép, đổi tháng tuỳ ý)\n✏️ Ghi nhầm tên hay nội dung? /edit sửa nội dung khoản chi, khoản thu, ủng hộ.",
  "btn.show_n": "Xem {n}",
- "usage.edit": "Cách dùng: <code>/edit</code> (5 gần nhất) hoặc <code>/edit 20</code> (20 gần nhất, tối đa 50)."
+ "usage.edit": "Cách dùng: <code>/edit</code> (5 gần nhất) hoặc <code>/edit 20</code> (20 gần nhất, tối đa 50).",
+ "mt.btn_new_opp": "➕ Đội mới (lưu luôn vào danh bạ)",
+ "mt.ask_new_opp": "Gửi tên đội, kèm SĐT nếu có, ví dụ <code>FC Moreh 0912 345 678</code> hoặc <code>FC Moreh (0912 345 678, anh Dũng)</code>. Đội này thành đối của trận và được lưu vào /contacts.",
+ "mt.added_contact": "✅ Đã thêm trận và lưu đội vào danh bạ.",
+ "mt.updated_contact": "✅ Đã cập nhật và lưu đội vào danh bạ."
 }
