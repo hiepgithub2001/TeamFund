@@ -1004,6 +1004,29 @@ def test_donation(world):
                                                      for x in svc.web.page(token)["history"]}
 
 
+def test_team_rules(world):
+    """Managers write the rules (several lines kept, tidied), everyone reads them, the web page shows them,
+    /undo brings the old text back, and clearing hides them."""
+    svc, clock, _ = world
+    tid = setup_team(svc)
+    assert svc.teams.rules(tid, MEMBER)["rules"] is None
+    r = svc.teams.set_rules(tid, OWNER, "1. Đóng quỹ trước ngày 5   \r\n\n\n\n2. Trễ: 10k/ngày\n")
+    assert r["rules"] == "1. Đóng quỹ trước ngày 5\n\n2. Trễ: 10k/ngày" and r["old"] is None and r["updated"]
+    got = svc.teams.rules(tid, MEMBER)
+    assert got["rules"] == r["rules"] and got["role"] is None
+    assert code(svc.teams.set_rules, tid, MEMBER, "x") == "not_manager"
+    assert code(svc.teams.set_rules, tid, OWNER, "x" * 3501) == "rules_too_long"
+    page = svc.web.page(svc.teams.web_link(tid, OWNER)["url"].rstrip("/").split("/")[-1])
+    assert page["rules"] == r["rules"] and page["rules_updated_at"]
+    clock.advance(minutes=1)
+    svc.teams.set_rules(tid, OWNER, "Luật mới")
+    entry = next(x for x in svc.undo.recent(tid, OWNER) if x["action"] == "rules.edit")
+    svc.undo.undo(tid, OWNER, entry["id"])
+    assert svc.teams.rules(tid)["rules"] == r["rules"], "undo puts the old text back"
+    assert svc.teams.set_rules(tid, OWNER, "  \n ")["rules"] is None, "empty clears"
+    assert svc.teams.rules(tid)["updated"] is None
+
+
 def test_edit_text(world):
     """Managers fix the text of expenses, income and donations; the history shows it; /undo puts it back.
     Payments of members' bills aren't offered: they are named after the bills."""

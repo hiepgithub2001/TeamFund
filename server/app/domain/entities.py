@@ -63,6 +63,8 @@ class Team:
     sepay_quota: int | None = None         # transactions the owner's SePay plan allows per cycle (None: not told)
     sepay_cycle_day: int | None = None     # day of the month that plan's cycle restarts (None: the 1st)
     last_billed_period: str | None = None
+    rules: str | None = None               # the team's rules, free text managers write; everyone reads them
+    rules_updated_at: datetime | None = None
     active: bool = True
     created_at: datetime | None = None
     id: int | None = None

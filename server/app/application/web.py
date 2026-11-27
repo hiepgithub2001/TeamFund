@@ -61,7 +61,9 @@ class WebUseCases:
                     "history": self._history(uow, team, 30),
                     "members": self._members(uow, team, {u["member_id"]: u["total"] for u in unpaid}),
                     "matches": self._matches(uow, team),
-                    "contacts": self._contacts(uow, team)}
+                    "contacts": self._contacts(uow, team),
+                    "rules": team.rules,
+                    "rules_updated_at": self.d.clock.fmt(team.rules_updated_at) if team.rules and team.rules_updated_at else None}
 
     def _contacts(self, uow: UnitOfWork, team: Team) -> list[dict]:
         """Opposing teams A–Z with phone, note and their match history (the team chose to show phones here)."""

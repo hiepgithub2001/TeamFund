@@ -42,6 +42,7 @@ teams = Table(
     Column("notify_day", Integer), Column("due_days", Integer), Column("late_fee", Integer),
     Column("late_fee_since", Date), Column("fee_months", Integer),
     Column("sepay_quota", Integer), Column("sepay_cycle_day", Integer),
+    Column("rules", Text), Column("rules_updated_at", DateTime),
     Column("active", Boolean, nullable=False), Column("created_at", DateTime, nullable=False),
 )
 

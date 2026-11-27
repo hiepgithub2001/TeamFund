@@ -17,6 +17,14 @@ from .people import audit, display_name, user_info
 from .ports import Conflict, Deps, SepayError, SepayWebhookSpec, UnitOfWork
 
 REQUEST_COOLDOWN = timedelta(hours=24)
+MAX_RULES = 3500  # characters: fits one Telegram message with its heading
+
+
+def clean_rules(text: str | None) -> str | None:
+    """Rules as typed, tidied: Windows line ends, trailing spaces and runs of blank lines go. Empty: None."""
+    lines = [ln.rstrip() for ln in (text or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")]
+    out = re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip("\n")
+    return out if out.strip() else None
 log = logging.getLogger("teams")
 Progress = Callable[[str, dict], None]  # (step, details), called as each step of /setbank finishes
 SEPAY_TOKEN_RE = re.compile(r"^[A-Za-z0-9_\-.]{20,200}$")
@@ -67,6 +75,29 @@ class TeamUseCases:
                     "bank_holder": t.bank_holder, "sepay_connected": bool(t.sepay_key_hash),
                     "sepay_url": self._webhook_url(t), "followers": len(uow.followers.active_ids(t.id)),
                     "role": role_of(uow, t.id, actor)}
+
+    def rules(self, team_id: int, actor: int | None = None) -> dict:
+        """The team's rules, for everyone."""
+        with self.d.uow() as uow:
+            t = get_team(uow, team_id)
+            return {"rules": t.rules, "role": role_of(uow, t.id, actor),
+                    "updated": self.d.clock.fmt(t.rules_updated_at) if t.rules and t.rules_updated_at else None}
+
+    def set_rules(self, team_id: int, actor: int, text: str | None) -> dict:
+        """Managers write (or, with nothing, clear) the team's rules. Undoable."""
+        if text is not None and not isinstance(text, str):
+            raise invalid()
+        new = clean_rules(text)
+        if new and len(new) > MAX_RULES:
+            raise DomainError(400, "rules_too_long", n=len(new), max=MAX_RULES)
+        with self.d.uow() as uow:
+            team = manager_team(uow, team_id, actor)
+            old = team.rules
+            team.rules, team.rules_updated_at = new, self.d.clock.now()
+            audit(uow, self.d.clock, team.id, actor, "rules.edit", target=f"{len(old or '')} → {len(new or '')}",
+                  before={"rules": old}, after={"rules": new})
+            uow.commit()
+            return {"rules": new, "old": old, "updated": self.d.clock.fmt(team.rules_updated_at)}
 
     def role(self, team_id: int, actor: int | None) -> dict:
         with self.d.uow() as uow:

@@ -486,6 +486,38 @@ async def main():
             assert r.status == 200 and any(i["title"] == "Dũng" for i in mm["items"]), mm
         async with http.get(base + "api/month/2026-13") as r:
             assert r.status == 422
+        READER = 777  # not a manager
+        # team rules: a member sees none; the owner writes them (several lines); members and the page see them
+        await T(text_update(READER, "/rules"))
+        nr = await wait_sent(to(READER, "no written rules yet"), "no rules for a member")
+        assert "Write them here" not in nr["params"]["text"] and not buttons(nr), nr
+        await T(text_update(OWNER, "/rules"))
+        ru = await wait_sent(to(OWNER, "Write them here"), "no rules, manager")
+        assert buttons(ru) == ["ru:e"], buttons(ru)
+        await T(cb_update(OWNER, "ru:e", ru["message_id"]))
+        await wait_sent(to(OWNER, "Send the whole rules text"), "rules asked")
+        await T(text_update(OWNER, "1. Pay by the 5th\n2. Late: 10k <per day>"))
+        await wait_sent(to(OWNER, "Team rules saved"), "rules saved")
+        await T(text_update(READER, "/rules"))
+        mr = await wait_sent(to(READER, "Rules of FC Test"), "member reads the rules")
+        assert "1. Pay by the 5th\n2. Late: 10k &lt;per day&gt;" in mr["params"]["text"] and not buttons(mr)
+        url_btn = [b.get("url") for row in mr["params"]["reply_markup"]["inline_keyboard"] for b in row]
+        assert url_btn and url_btn[0].endswith("/#rules"), url_btn
+        await T(text_update(READER, "/notify"))  # stays out of the follower counts below
+        await wait_sent(to(READER, "announcements are off"), "reader muted")
+        await T(text_update(MEMBER, "/rules", chat_id=GROUP))
+        await wait_sent(to(GROUP, "Rules of FC Test"), "rules in the group")
+        async with http.get(base + "api/state") as r:
+            assert (await r.json())["rules"] == "1. Pay by the 5th\n2. Late: 10k <per day>"
+        await T(text_update(OWNER, "/rules"))
+        ru = await wait_sent(lambda c: to(OWNER, "Rules of FC Test")(c) and "ru:c" in buttons(c), "manager card")
+        await T(cb_update(OWNER, "ru:c", ru["message_id"]))
+        cf = await wait_sent(to(OWNER, "Clear the team rules"), "clear asked")
+        await T(cb_update(OWNER, "ru:c!", cf["message_id"]))
+        await wait_sent(to(OWNER, "rules were cleared"), "rules cleared")
+        async with http.get(base + "api/state") as r:
+            assert (await r.json())["rules"] is None
+
         # a new link: the old one stops working
         await T(cb_update(OWNER, "w:reset", 90))
         await T(cb_update(OWNER, "w:reset!", 91))

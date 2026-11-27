@@ -24,7 +24,7 @@ const T = {
     guide: "Hướng dẫn", guideTitle: "Cách dùng trang này", close: "Đóng lại",
     g1: "Đóng quỹ: chọn tên (của mình hoặc đóng hộ) → Tạo mã QR.",
     g2: "Quét QR bằng app ngân hàng, giữ nguyên số tiền và nội dung. Tự xác nhận trong vài phút.",
-    g3: "Quỹ: thu chi, số dư · Thành viên: ai còn nợ · Lịch đá · Danh bạ (bấm số để gọi).",
+    g3: "Quỹ: thu chi, số dư · Thành viên: ai còn nợ · Lịch đá · Danh bạ (bấm số để gọi) · Nội quy.",
     g4: "Thêm trang vào màn hình chính để mở như app.", gBot: "Dùng Telegram: mở bot {b}, bấm Start.",
     monthly: "Quỹ tháng {p}", retry: "Thử lại", telegram: "Dùng Telegram? Mở bot",
     tabPay: "Đóng quỹ", tabFund: "Quỹ", tabMembers: "Thành viên", owingPeople: "Còn nợ",
@@ -41,6 +41,7 @@ const T = {
     cancelled: "Huỷ", wd: ["T2", "T3", "T4", "T5", "T6", "T7", "CN"],
     tabContacts: "Danh bạ", contacts: "Đội bạn", noContacts: "Chưa có đội nào trong danh bạ.",
     history: "Đã đá {p} · huỷ {c}", lastMatch: "gần nhất {d}", nextMatch: "sắp tới {d}", call: "Gọi",
+    tabRules: "Nội quy", rules: "Nội quy của đội", rulesUpdated: "Cập nhật {d}",
   },
   en: {
     title: "Team fund", month: "Month {p}", owing: "Still to pay", people: "{n} people", total: "Total owed",
@@ -63,7 +64,7 @@ const T = {
     guide: "Guide", guideTitle: "How to use this page", close: "Close",
     g1: "Pay: pick names (yours, or pay for others) → Get QR code.",
     g2: "Scan the QR in your bank app, keep the amount and message as they are. Confirmed in a few minutes.",
-    g3: "Fund: income, expenses, balance · Members: who owes · Matches · Contacts (tap a number to call).",
+    g3: "Fund: income, expenses, balance · Members: who owes · Matches · Contacts (tap a number to call) · Rules.",
     g4: "Add this page to your home screen to open it like an app.", gBot: "On Telegram: open the bot {b}, tap Start.",
     monthly: "Monthly fee {p}", retry: "Try again", telegram: "Use Telegram? Open the bot",
     tabPay: "Pay", tabFund: "Fund", tabMembers: "Members", owingPeople: "Owing",
@@ -80,6 +81,7 @@ const T = {
     cancelled: "Cancelled", wd: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
     tabContacts: "Contacts", contacts: "Opposing teams", noContacts: "No teams in the contacts yet.",
     history: "Played {p} · cancelled {c}", lastMatch: "last {d}", nextMatch: "next {d}", call: "Call",
+    tabRules: "Rules", rules: "Team rules", rulesUpdated: "Updated {d}",
   },
 };
 
@@ -88,7 +90,7 @@ const store = {  // per-device conveniences only; the page works without them
   get(k) { try { return JSON.parse(localStorage.getItem("tf." + k)); } catch { return null; } },
   set(k, v) { try { v == null ? localStorage.removeItem("tf." + k) : localStorage.setItem("tf." + k, JSON.stringify(v)); } catch { /* private mode */ } },
 };
-const S = { donating: false, donateAmount: null, data: null, lang: store.get("lang"), tab: ["pay", "fund", "members", "matches", "contacts"].includes(store.get("tab")) ? store.get("tab") : "pay", open: null, months: {}, selected: new Set(), query: "", intent: null, timer: null, install: null };
+const S = { donating: false, donateAmount: null, data: null, lang: store.get("lang"), tab: ["pay", "fund", "members", "matches", "contacts", "rules"].includes(store.get("tab")) ? store.get("tab") : "pay", open: null, months: {}, selected: new Set(), query: "", intent: null, timer: null, install: null };
 
 const t = (k, p = {}) => (T[S.lang] || T.vi)[k].replace(/\{(\w+)\}/g, (_, x) => p[x] ?? "");
 const money = (n) => Number(n).toLocaleString(S.lang === "en" ? "en-US" : "vi-VN") + "đ";
@@ -189,11 +191,14 @@ function teamFees(d) {  // "200.000đ/tháng · hạn 20/11", or each package wi
 }
 
 const TABS = [["pay", "tabPay"], ["fund", "tabFund"], ["members", "tabMembers"], ["matches", "tabMatches"],
-  ["contacts", "tabContacts"]];
+  ["contacts", "tabContacts"], ["rules", "tabRules"]];
+// the Rules tab shows only once the managers have written rules
+const shownTabs = () => TABS.filter(([id]) => id !== "rules" || (S.data && S.data.rules));
 // a link can open one tab on its own: …/#contacts, …/#matches
 if (TABS.some(([id]) => id === location.hash.slice(1))) S.tab = location.hash.slice(1);
 function tabs() {
-  return h("nav", { class: "tabs", role: "tablist" }, TABS.map(([id, key]) =>
+  const list = shownTabs();
+  return h("nav", { class: "tabs", role: "tablist", style: `grid-template-columns: repeat(${list.length}, 1fr)` }, list.map(([id, key]) =>
     h("button", { role: "tab", "aria-selected": S.tab === id ? "true" : "false", class: "tab", onclick: () => {
       S.tab = id; store.set("tab", id); try { history.replaceState(null, "", "#" + id); } catch { /* old browsers */ }
       render(); toTop();
@@ -308,6 +313,15 @@ function contactsView() {
         c.next ? t("nextMatch", { d: dm(c.next) }) : null].filter(Boolean).join(" · ")].filter(Boolean).join("\n"),
       c.phone ? h("a", { class: "tel", href: "tel:" + c.phone, "aria-label": `${t("call")} ${c.name}` }, phone(c.phone)) : null))) :
       h("p", { class: "muted" }, t("noContacts"))),
+    footer());
+}
+
+function rulesView() {
+  // the team's rules as the managers typed them (plain text, line breaks kept)
+  const d = S.data;
+  show(header(), tabs(),
+    section(t("rules"), h("div", { class: "rules" }, d.rules || ""),
+      d.rules_updated_at ? h("p", { class: "muted small" }, t("rulesUpdated", { d: d.rules_updated_at })) : null),
     footer());
 }
 
@@ -440,7 +454,8 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden && S.
 function render() {
   if (S.intent) return qrView();
   if (!S.data) return;
-  ({ fund: fundView, members: membersView, matches: matchesView, contacts: contactsView }[S.tab] || listView)();
+  if (S.tab === "rules" && !S.data.rules) S.tab = "pay";  // a saved tab whose rules were cleared
+  ({ fund: fundView, members: membersView, matches: matchesView, contacts: contactsView, rules: rulesView }[S.tab] || listView)();
 }
 async function load() {
   stop();

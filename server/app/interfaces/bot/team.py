@@ -8,13 +8,15 @@ from datetime import date
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
 from aiogram.exceptions import TelegramForbiddenError
-from aiogram.types import BufferedInputFile, CallbackQuery, ChatMemberUpdated, ForceReply, Message
+from aiogram.types import (BufferedInputFile, CallbackQuery, ChatMemberUpdated, ForceReply, InlineKeyboardButton,
+                           InlineKeyboardMarkup, Message)
 
 from ..deps import S
 from .commands import clear_admin_commands, set_admin_commands
 from .fmt import amount_and_title, esc, money, parse_amount, parse_periods, split_date, strip_tags
 from .i18n import has, t
 from .lang import lang_for, set_lang
+from ...application.teams import MAX_RULES
 from ...domain.errors import DomainError
 from ...domain.rules import MAX_DONATION, add_months, cycle_start, period_end, period_name, split_share
 from .render import (bill_label, edit, error_text, fee_text, is_private, kb, owes_lines, pay_keyboard, say,
@@ -776,6 +778,73 @@ async def cmd_bank(message: Message, entry, lang):
     if is_private(message) and s["role"] in ("owner", "manager"):
         text += "\n" + t(lang, "bank.sepay_on" if s["sepay_connected"] else "bank.sepay_off")
     await message.answer(text)
+
+
+# ---- team rules ------------------------------------------------------------------------------------
+
+async def rules_view(ev, entry, lang, edit_in_place: bool = False) -> None:
+    """The rules for everyone (groups too); in private, managers also get Edit / Clear and the web link."""
+    user = ev.from_user if ev.from_user else None
+    r = await call(S.teams.rules, tid(entry), user.id if user else None)
+    manager = is_private(ev) and r["role"] in ("owner", "manager")
+    if r["rules"]:
+        text = t(lang, "rules.title", team=esc(entry.team["name"])) + "\n\n" + esc(r["rules"]) \
+            + "\n\n" + t(lang, "rules.updated", at=r["updated"])
+    else:
+        text = t(lang, "rules.none_manager" if manager else "rules.none")
+    rows = []
+    if manager:
+        rows.append([InlineKeyboardButton(text=t(lang, "rules.btn_edit" if r["rules"] else "rules.btn_write"),
+                                          callback_data="ru:e")]
+                    + ([InlineKeyboardButton(text=t(lang, "rules.btn_clear"), callback_data="ru:c")] if r["rules"] else []))
+    url = await call(S.teams.public_link, tid(entry)) if r["rules"] else None
+    if url:
+        rows.append([InlineKeyboardButton(text=t(lang, "rules.btn_web"), url=url + "#rules")])
+    markup = InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
+    if edit_in_place and isinstance(ev, CallbackQuery):
+        await edit(ev, text, reply_markup=markup)
+    else:
+        await say(ev, text, reply_markup=markup, disable_web_page_preview=True)
+
+
+@router.message(Command("rules"))
+async def cmd_rules(message: Message, entry, lang):
+    """The team's rules. Everyone reads them, in the group too; managers edit them in private."""
+    await rules_view(message, entry, lang)
+
+
+@router.callback_query(F.data.in_({"ru:e", "ru:c", "ru:c!", "ru:x"}))
+async def on_rules(cq: CallbackQuery, entry, lang):
+    if not await allow(cq, entry, lang, "manager"):
+        return
+    await cq.answer()
+    if cq.data == "ru:x":
+        await edit(cq, t(lang, "cancelled"))
+    elif cq.data == "ru:c":  # ask first
+        await say(cq, t(lang, "rules.clear_confirm"), reply_markup=kb(
+            [(t(lang, "rules.btn_clear_yes"), "ru:c!"), (t(lang, "btn.cancel"), "ru:x")]))
+    elif cq.data == "ru:c!":
+        await call(S.teams.set_rules, tid(entry), cq.from_user.id, None)
+        await edit(cq, t(lang, "rules.cleared"))
+    else:
+        r = await call(S.teams.rules, tid(entry), cq.from_user.id)
+        set_state(input_key(cq.bot.id, cq.message.chat.id), {"type": "rules"}, 1800)
+        if r["rules"]:  # the current text in a block: one tap copies it, to change and send back
+            await cq.message.answer(t(lang, "rules.current") + "\n<pre>" + esc(r["rules"]) + "</pre>")
+        await cq.message.answer(t(lang, "rules.ask", max=MAX_RULES), reply_markup=FORCE)
+
+
+async def rules_reply(message: Message, entry, lang, text: str) -> None:
+    try:
+        await call(S.teams.set_rules, tid(entry), message.from_user.id, text)
+    except DomainError as e:
+        if e.code != "rules_too_long":
+            raise
+        set_state(input_key(message.bot.id, message.chat.id), {"type": "rules"}, 1800)
+        await message.answer(t(lang, "err.rules_too_long", **e.extra), reply_markup=FORCE)
+        return
+    await message.answer(t(lang, "rules.saved"))
+    await rules_view(message, entry, lang)
 
 
 @router.message(Command("history"))
@@ -1933,6 +2002,8 @@ async def on_text(message: Message, entry, lang):
         await record_money(message, entry, lang, st["type"], text)
     elif st["type"] == "entry_text":
         await entry_text_reply(message, entry, lang, st, text)
+    elif st["type"] == "rules":  # several lines: kept as typed
+        await rules_reply(message, entry, lang, message.text)
     elif st["type"] == "member_pack":
         await member_pack_reply(message, entry, lang, st, text)
     elif st["type"] == "cash_amount":
