@@ -509,16 +509,25 @@ async def sched_save(ev, entry, lang, st: dict, at, place, opponent: str | None 
             raise
         x = e.extra
         days = ", ".join(day_label(lang, date.fromisoformat(d)) for d in x["days"])
-        await say(ev, t(lang, "mt.sched_overlap", other=schedule_line(lang, x["schedule"]), days=days, n=x["count"]),
+        await say(ev, t(lang, "mt.sched_overlap", other=schedule_line(lang, x["schedule"]), days=days, n=x["count"])
+                  + "\n" + t(lang, f"mt.sched_overlap_{x.get('why', 'time')}"),
                   reply_markup=kb([(t(lang, "mt.btn_open_sched"), f"mt:sv:{x['schedule']['id']}")],
                                   [(t(lang, "mt.btn_sched_new"), "mt:sn")]))
         return
     if r["updated"]:
         await say(ev, t(lang, "mt.sched_merged", what=schedule_line(lang, r), n=r["moved"]))
     else:
-        await say(ev, t(lang, "mt.sched_saved") + (
-            "\n" + t(lang, "mt.sched_skipped", n=r["skipped"], days=", ".join(
-                day_label(lang, date.fromisoformat(d)) for d in r["skipped_days"][:3])) if r["skipped"] else ""))
+        lines = [t(lang, "mt.sched_saved")]
+        for sh in r.get("shared", []):  # days shared with a calendar at the same time: the fixed opponent's
+            key = "mt.sched_shared_ours" if sh["ours"] else "mt.sched_shared_theirs"
+            lines.append(t(lang, key, n=sh["count"], other=schedule_line(lang, sh["schedule"]),
+                           opp=esc(r["opponent"] if sh["ours"] else sh["schedule"].get("opponent") or "")))
+        if r.get("took"):
+            lines.append(t(lang, "mt.sched_took", n=r["took"]))
+        if r["skipped"]:
+            lines.append(t(lang, "mt.sched_skipped", n=r["skipped"], days=", ".join(
+                day_label(lang, date.fromisoformat(d)) for d in r["skipped_days"][:3])))
+        await say(ev, "\n".join(lines))
     await show_list(ev, entry, lang)
 
 

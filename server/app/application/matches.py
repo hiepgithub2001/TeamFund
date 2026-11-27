@@ -59,12 +59,13 @@ def schedule_dict(s: MatchSchedule) -> dict:
 
 def fill(uow: UnitOfWork, team: Team, today: date, now) -> int:
     """Add the matches each active calendar has in the next 8 weeks and doesn't have yet. A date whose match
-    was deleted or cancelled stays as it is, and a day that already has a match gets no second one.
-    Idempotent; the caller commits."""
+    was deleted or cancelled stays as it is, and a day that already has a match gets no second one. Calendars
+    with a fixed opponent go first, so on a day two calendars share (every Monday + Axon on the Monday of week 3)
+    the match is against that opponent. Idempotent; the caller commits."""
     added = 0
     end = today + timedelta(days=MATCH_FILL_DAYS)
     busy = {m.day for m in uow.matches.between(team.id, today, end)}
-    for s in uow.schedules.of_team(team.id):
+    for s in sorted(uow.schedules.of_team(team.id), key=lambda s: (s.opponent is None, s.id or 0)):
         have = {m.day for m in uow.matches.of_schedule(s.id)} | busy
         for d in schedule_dates(s, today, end):
             if d not in have:
@@ -77,6 +78,14 @@ def fill(uow: UnitOfWork, team: Team, today: date, now) -> int:
 
 
 OVERLAP_DAYS = 366  # how far ahead two calendars are compared for a shared match day
+
+
+def can_share(a: MatchSchedule, b: MatchSchedule) -> bool:
+    """Two calendars may share match days when they start at the same time (or one has no time) and at most
+    one of them has a fixed opponent (or both the same one): the shared days are that opponent's matches."""
+    same_time = a.at is None or b.at is None or a.at == b.at
+    one_opp = not a.opponent or not b.opponent or same(a.opponent) == same(b.opponent)
+    return same_time and one_opp
 
 
 def same_pattern(a: MatchSchedule, b: MatchSchedule) -> bool:
@@ -331,25 +340,48 @@ class MatchUseCases:
                       before=before, after={**clean, "matches": moved})
                 uow.commit()
                 return {**schedule_dict(old), "updated": True, "moved": moved, "skipped": 0}
-            # sharing a match day with another calendar: refused, with the first shared days
+            # sharing match days with another calendar: fine at the same time with one fixed opponent between
+            # them (that opponent gets the shared days), refused otherwise, with the first shared days
             end = today + timedelta(days=OVERLAP_DAYS)
             mine = set(schedule_dates(new, today, end))
+            shared = []
             for x in have:
                 both = sorted(mine & set(schedule_dates(x, today, end)))
-                if both:
+                if not both:
+                    continue
+                if not can_share(new, x):
                     raise DomainError(409, "schedule_overlap", schedule=schedule_dict(x),
-                                      days=[d.isoformat() for d in both[:3]], count=len(both))
+                                      days=[d.isoformat() for d in both[:3]], count=len(both),
+                                      why="time" if new.at and x.at and new.at != x.at else "opponent")
+                shared.append((x, both))
             if len(have) >= MAX_SCHEDULES:
                 raise DomainError(400, "too_many_schedules")
-            fill_end = today + timedelta(days=MATCH_FILL_DAYS)
-            taken = {m.day for m in uow.matches.between(team.id, today, fill_end)}
-            skipped = [d.isoformat() for d in schedule_dates(new, today, fill_end) if d in taken]
             uow.schedules.add(new)
             uow.flush()
+            # the shared days the other calendar already filled: the new calendar's opponent takes them over
+            fill_end = today + timedelta(days=MATCH_FILL_DAYS)
+            took = 0
+            for x, both in shared:
+                if new.opponent and not x.opponent:
+                    days = set(both)
+                    for m in uow.matches.of_schedule(x.id):
+                        if m.day in days and m.status == "scheduled" and not m.opponent and not m.note \
+                                and m.at == x.at and m.place == x.place:
+                            m.schedule_id, m.opponent = new.id, new.opponent
+                            m.at, m.place = new.at or m.at, new.place or m.place
+                            took += 1
+            uow.flush()
             fill(uow, team, today, self.d.clock.now())
-            audit(uow, self.d.clock, team.id, actor, "schedule.add", target=every, after=schedule_dict(new))
+            uow.flush()
+            ours = {m.day for m in uow.matches.of_schedule(new.id)}
+            theirs = {d for x, both in shared if x.opponent and not new.opponent for d in both}
+            skipped = [d.isoformat() for d in schedule_dates(new, today, fill_end) if d not in ours and d not in theirs]
+            audit(uow, self.d.clock, team.id, actor, "schedule.add", target=new.opponent or every,
+                  after={**schedule_dict(new), "took": took})
             uow.commit()
-            return {**schedule_dict(new), "updated": False, "skipped": len(skipped), "skipped_days": skipped}
+            return {**schedule_dict(new), "updated": False, "skipped": len(skipped), "skipped_days": skipped,
+                    "took": took, "shared": [{"schedule": schedule_dict(x), "count": len(both),
+                                              "ours": bool(new.opponent and not x.opponent)} for x, both in shared]}
 
     def _schedule(self, uow, team: Team, schedule_id) -> MatchSchedule:
         s = uow.schedules.get(schedule_id) if isinstance(schedule_id, int) and not isinstance(schedule_id, bool) else None

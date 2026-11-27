@@ -707,9 +707,14 @@
  "ct.sched_none": "None yet.",
  "ct.btn_sched_new": "➕ New fixed calendar with this team",
  "act.schedule.update": "Repeating calendar changed",
- "mt.sched_overlap": "⚠️ <b>Not created:</b> it shares {n} match day(s) in the next year with a calendar you already have:\n{other}\nFirst shared days: {days}.\n\nChange or stop that calendar, or pick other days.",
+ "mt.sched_overlap": "⚠️ <b>Not created:</b> it shares {n} match day(s) in the next year with a calendar you already have:\n{other}\nFirst shared days: {days}.",
  "err.schedule_overlap": "This calendar shares match days with another calendar. Change or stop that one first.",
  "mt.btn_open_sched": "🔁 Open that calendar",
  "mt.sched_merged": "♻️ You already had a calendar on these days, so it was updated instead of adding a new one:\n{what}\n{n} upcoming matches changed with it.",
- "mt.sched_skipped": "⚠️ {n} day(s) already had a match, so the calendar didn't add one there: {days}."
+ "mt.sched_skipped": "⚠️ {n} day(s) already had a match, so the calendar didn't add one there: {days}.",
+ "mt.sched_overlap_time": "Two calendars can share days only when they start at the same time. Use the same time, change or stop that calendar, or pick other days.",
+ "mt.sched_overlap_opponent": "Both calendars have a fixed opponent, so those days would have two matches. Change or stop that calendar, or pick other days.",
+ "mt.sched_shared_ours": "↪️ {n} day(s) shared with {other}: on those days the match is against {opp}.",
+ "mt.sched_shared_theirs": "↪️ {n} day(s) shared with {other}: those days stay against {opp}.",
+ "mt.sched_took": "{n} upcoming match(es) already on the calendar were switched to this opponent."
 }

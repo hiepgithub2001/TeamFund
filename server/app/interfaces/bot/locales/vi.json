@@ -707,9 +707,14 @@
  "ct.sched_none": "Chưa có.",
  "ct.btn_sched_new": "➕ Thêm lịch cố định với đội này",
  "act.schedule.update": "Sửa lịch cố định",
- "mt.sched_overlap": "⚠️ <b>Chưa tạo:</b> lịch mới trùng {n} ngày đá trong 1 năm tới với lịch cố định đã có:\n{other}\nNgày trùng đầu tiên: {days}.\n\nHãy sửa hoặc dừng lịch kia, hoặc chọn ngày khác.",
+ "mt.sched_overlap": "⚠️ <b>Chưa tạo:</b> lịch mới trùng {n} ngày đá trong 1 năm tới với lịch cố định đã có:\n{other}\nNgày trùng đầu tiên: {days}.",
  "err.schedule_overlap": "Lịch này trùng ngày đá với một lịch cố định khác. Hãy sửa hoặc dừng lịch kia trước.",
  "mt.btn_open_sched": "🔁 Mở lịch đang có",
  "mt.sched_merged": "♻️ Đã có lịch cố định vào đúng các ngày này, nên bot cập nhật lịch đó thay vì tạo lịch mới:\n{what}\n{n} trận sắp tới đổi theo.",
- "mt.sched_skipped": "⚠️ {n} ngày đã có trận khác nên lịch không thêm trận vào: {days}."
+ "mt.sched_skipped": "⚠️ {n} ngày đã có trận khác nên lịch không thêm trận vào: {days}.",
+ "mt.sched_overlap_time": "Hai lịch chỉ được trùng ngày khi cùng giờ bắt đầu. Hãy dùng cùng giờ, sửa hoặc dừng lịch kia, hoặc chọn ngày khác.",
+ "mt.sched_overlap_opponent": "Cả hai lịch đều có đội đối cố định nên những ngày đó sẽ thành hai trận. Hãy sửa hoặc dừng lịch kia, hoặc chọn ngày khác.",
+ "mt.sched_shared_ours": "↪️ {n} ngày trùng với lịch {other}: những ngày đó đá với {opp}.",
+ "mt.sched_shared_theirs": "↪️ {n} ngày trùng với lịch {other}: những ngày đó vẫn đá với {opp}.",
+ "mt.sched_took": "{n} trận sắp tới đã có trong lịch được chuyển sang đội đối này."
 }

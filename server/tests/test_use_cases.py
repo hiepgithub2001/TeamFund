@@ -1102,7 +1102,8 @@ def test_schedule_with_opponent():
         err = e
     assert err and err.code == "schedule_overlap" and err.extra["schedule"]["id"] == ax["id"]
     assert err.extra["days"][0] == "2026-12-07" and err.extra["count"] >= 12
-    assert code(m.add_schedule, tid, OWNER, "monthly", mday=7) == "schedule_overlap", "the 7th is a week-1 Monday sometimes"
+    assert code(m.add_schedule, tid, OWNER, "monthly", mday=7, at="21:00") == "schedule_overlap", \
+        "the 7th is a week-1 Monday sometimes, at another time"
     assert len(m.show(tid, OWNER)["schedules"]) == 2, "nothing created"
     # days with a match already are skipped and reported
     m.add(tid, OWNER, [{"day": date(2026, 12, 15), "opponent": "Giao hữu"}])
@@ -1117,6 +1118,46 @@ def test_schedule_with_opponent():
     assert code(m.get_schedule, tid, OWNER, kcu["id"]) == "not_found"
     m.stop_schedule(tid, OWNER, ax["id"])
     assert [x["opponent"] for x in m.show(tid, OWNER, 200)["matches"]] == ["FC Moreh"]
+
+
+def test_calendar_layering():
+    """Every Monday at 19:00, and Axon on the Monday of week 3 at 19:00: allowed, and those Mondays are Axon's
+    (the matches already there are taken over). Another time, or a second fixed opponent, is refused."""
+    from datetime import date
+    svc, clock, _ = make_services(datetime(2026, 11, 27, 10, 0))
+    tid = setup_team(svc)
+    m = svc.matches
+    mon = m.add_schedule(tid, OWNER, "weekly", weekday=0, at="19:00", place="ĐHSP")
+    assert code(m.add_schedule, tid, OWNER, "monthly", weekday=0, nth=3, at="20:00", opponent="Axon") == "schedule_overlap"
+    ax = m.add_schedule(tid, OWNER, "monthly", weekday=0, nth=3, at="19:00", opponent="Axon")
+    assert ax["took"] == 2 and ax["skipped"] == 0, ax  # 21/12 and 18/01 were already filled by every Monday
+    assert ax["shared"][0]["schedule"]["id"] == mon["id"] and ax["shared"][0]["ours"]
+    ms = {x["day"]: x for x in m.show(tid, OWNER, 200)["matches"]}
+    assert (ms["2026-12-21"]["opponent"], ms["2026-12-21"]["place"], ms["2026-12-21"]["schedule_id"]) == ("Axon", "ĐHSP", ax["id"])
+    assert ms["2026-12-14"]["opponent"] is None and ms["2026-12-14"]["schedule_id"] == mon["id"]
+    assert len([d for d in ms if d.startswith("2026-12-21")]) == 1, "one match that day"
+    # a second fixed opponent on those days is refused, even at the same time
+    err = None
+    try:
+        m.add_schedule(tid, OWNER, "monthly", mday=21, at="19:00", opponent="KCU")
+    except DomainError as e:
+        err = e
+    assert err and err.code == "schedule_overlap" and err.extra["schedule"]["id"] == ax["id"] and err.extra["why"] == "opponent"
+    # stopping Axon's calendar gives those Mondays back to every Monday
+    m.stop_schedule(tid, OWNER, ax["id"])
+    ms = {x["day"]: x for x in m.show(tid, OWNER, 200)["matches"]}
+    assert ms["2026-12-21"]["opponent"] is None and ms["2026-12-21"]["schedule_id"] == mon["id"]
+    # the general calendar added after the specific one: the specific keeps its days
+    m.stop_schedule(tid, OWNER, mon["id"])
+    kcu = m.add_schedule(tid, OWNER, "monthly", weekday=1, nth=2, opponent="KCU")
+    tue = m.add_schedule(tid, OWNER, "weekly", weekday=1)
+    assert tue["skipped"] == 0 and not tue["shared"][0]["ours"]
+    ms = {x["day"]: x for x in m.show(tid, OWNER, 200)["matches"]}
+    assert ms["2026-12-08"]["opponent"] == "KCU" and ms["2026-12-15"]["schedule_id"] == tue["id"]
+    # undo the general one: KCU's stay
+    entry = next(x for x in svc.undo.recent(tid, OWNER) if x["action"] == "schedule.add")
+    svc.undo.undo(tid, OWNER, entry["id"])
+    assert kcu["id"] in [x["id"] for x in m.show(tid, OWNER)["schedules"]]
 
 
 def test_two_teams_on_one_bank_account(world):

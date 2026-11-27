@@ -1002,6 +1002,17 @@ async def main():
         await T(cb_update(OWNER, "mt:sp:0", so["message_id"]))
         ov = await wait_sent(to(OWNER, "Not created:</b> it shares"), "overlap refused")
         assert "vs FC Moreh" in ov["params"]["text"] and any(b.startswith("mt:sv:") for b in buttons(ov))
+        assert "only when they start at the same time" in ov["params"]["text"], "says why"
+        # every Monday at the same time as FC Moreh's Monday of week 1 (17:00): allowed, those Mondays stay FC Moreh's
+        for d in ("mt:sn", "mt:sf:weekly", "mt:sw:weekly:0"):
+            await T(cb_update(OWNER, d, lst["message_id"]))
+        await wait_sent(lambda c: to(OWNER, "Send them, e.g.")(c) and len(sent(to(OWNER, "Send them, e.g."))) >= 5, "time asked a 4th time")
+        await T(text_update(OWNER, "17h"))
+        so = await wait_sent(lambda c: to(OWNER, "A fixed opponent for this calendar")(c)
+                             and len(sent(to(OWNER, "A fixed opponent for this calendar"))) >= 4, "opponent asked a 4th time")
+        await T(cb_update(OWNER, "mt:sp:0", so["message_id"]))
+        await wait_sent(lambda c: to(OWNER, "Repeating calendar set")(c) and "those days stay against FC Moreh" in c["params"]["text"],
+                        "layered on the same time")
         # ➕ one team: the name saves it; phone and note are optional buttons, then Done
         await T(cb_update(OWNER, "ct:l", found["message_id"]))
         await T(cb_update(OWNER, "ct:a", found["message_id"]))
