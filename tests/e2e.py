@@ -983,6 +983,25 @@ async def main():
         await T(text_update(OWNER, "20h"))
         await wait_sent(lambda c: to(OWNER, r"Calendar updated; \d+ upcoming matches changed")(c)
                         and "20:00 @Pitch B · vs FC Moreh" in c["params"]["text"], "time changed, pitch kept")
+        # the same days again (Monday of week 1): that calendar is updated, not doubled
+        for d in ("mt:sn", "mt:sf:monthly", "mt:sm:1", "mt:smw:1:0"):
+            await T(cb_update(OWNER, d, lst["message_id"]))
+        await wait_sent(lambda c: to(OWNER, "Send them, e.g.")(c) and len(sent(to(OWNER, "Send them, e.g."))) >= 3, "time asked again")
+        await T(text_update(OWNER, "17h"))
+        so = await wait_sent(lambda c: to(OWNER, "A fixed opponent for this calendar")(c) and "mt:sp:n" in buttons(c)
+                             and len(sent(to(OWNER, "A fixed opponent for this calendar"))) >= 2, "opponent asked again")
+        await T(cb_update(OWNER, "mt:sp:0", so["message_id"]))
+        await wait_sent(to(OWNER, "already had a calendar on these days, so it was updated"), "merged, not doubled")
+        # every Monday shares days with Monday of week 1: refused with a warning
+        for d in ("mt:sn", "mt:sf:weekly", "mt:sw:weekly:0"):
+            await T(cb_update(OWNER, d, lst["message_id"]))
+        await wait_sent(lambda c: to(OWNER, "Send them, e.g.")(c) and len(sent(to(OWNER, "Send them, e.g."))) >= 4, "time asked a 3rd time")
+        await T(text_update(OWNER, "19h"))
+        so = await wait_sent(lambda c: to(OWNER, "A fixed opponent for this calendar")(c)
+                             and len(sent(to(OWNER, "A fixed opponent for this calendar"))) >= 3, "opponent asked a 3rd time")
+        await T(cb_update(OWNER, "mt:sp:0", so["message_id"]))
+        ov = await wait_sent(to(OWNER, "Not created:</b> it shares"), "overlap refused")
+        assert "vs FC Moreh" in ov["params"]["text"] and any(b.startswith("mt:sv:") for b in buttons(ov))
         # ➕ one team: the name saves it; phone and note are optional buttons, then Done
         await T(cb_update(OWNER, "ct:l", found["message_id"]))
         await T(cb_update(OWNER, "ct:a", found["message_id"]))

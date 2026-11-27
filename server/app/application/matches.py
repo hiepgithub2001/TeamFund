@@ -76,6 +76,22 @@ def fill(uow: UnitOfWork, team: Team, today: date, now) -> int:
 
 
 
+OVERLAP_DAYS = 366  # how far ahead two calendars are compared for a shared match day
+
+
+def same_pattern(a: MatchSchedule, b: MatchSchedule) -> bool:
+    """Two calendars that give the same days: a new one like this updates the old one instead."""
+    if a.every != b.every:
+        return False
+    if a.every == "weekly":
+        return a.weekday == b.weekday
+    if a.every == "biweekly":
+        return a.weekday == b.weekday and a.anchor and b.anchor and (a.anchor - b.anchor).days % 14 == 0
+    if a.mday or b.mday:
+        return a.mday == b.mday
+    return (a.nth, a.weekday) == (b.nth, b.weekday)
+
+
 def upcoming(uow: UnitOfWork, team: Team, today: date, limit: int) -> list[Match]:
     """The next `limit` matches still on, with the cancelled ones between them (they don't count)."""
     out, on = [], 0
@@ -284,7 +300,10 @@ class MatchUseCases:
                      mday: int | None = None, anchor: date | None = None, at: str | None = None,
                      place: str | None = None, opponent: str | None = None) -> dict:
         """A repeating calendar, optionally against one opponent (Axon every Monday of week 1); its matches
-        for the next 8 weeks appear at once."""
+        for the next 8 weeks appear at once. One with the same days as a calendar we have updates that calendar
+        instead (time, pitch, opponent given); one that shares any match day with another calendar in the next
+        year is refused (schedule_overlap, with that calendar and the first shared days). Days that already
+        have a match are skipped and counted."""
         ok = every in EVERY and (
             (every == "weekly" and weekday in range(7)) or
             (every == "biweekly" and isinstance(anchor, date)) or
@@ -294,20 +313,43 @@ class MatchUseCases:
             raise invalid()
         with self.d.uow() as uow:
             team = manager_team(uow, team_id, actor)
-            if len(uow.schedules.of_team(team.id)) >= MAX_SCHEDULES:
+            new = MatchSchedule(team_id=team.id, every=every, weekday=weekday if every != "biweekly" else anchor.weekday(),
+                                nth=nth if every == "monthly" and not mday else None,
+                                mday=mday if every == "monthly" else None,
+                                anchor=anchor if every == "biweekly" else None, at=_time(at),
+                                place=_text("place", place), opponent=_text("opponent", opponent),
+                                created_at=self.d.clock.now())
+            today = self._today()
+            have = uow.schedules.of_team(team.id)
+            # the same days as a calendar we already have: update that one (what was given replaces its values)
+            old = next((x for x in have if same_pattern(x, new)), None)
+            if old:
+                clean = {k: getattr(new, k) for k in ("at", "place", "opponent") if getattr(new, k) is not None}
+                before = {k: getattr(old, k) for k in clean}
+                moved = self._apply(uow, old, clean)
+                audit(uow, self.d.clock, team.id, actor, "schedule.update", target=old.opponent or old.every,
+                      before=before, after={**clean, "matches": moved})
+                uow.commit()
+                return {**schedule_dict(old), "updated": True, "moved": moved, "skipped": 0}
+            # sharing a match day with another calendar: refused, with the first shared days
+            end = today + timedelta(days=OVERLAP_DAYS)
+            mine = set(schedule_dates(new, today, end))
+            for x in have:
+                both = sorted(mine & set(schedule_dates(x, today, end)))
+                if both:
+                    raise DomainError(409, "schedule_overlap", schedule=schedule_dict(x),
+                                      days=[d.isoformat() for d in both[:3]], count=len(both))
+            if len(have) >= MAX_SCHEDULES:
                 raise DomainError(400, "too_many_schedules")
-            s = MatchSchedule(team_id=team.id, every=every, weekday=weekday if every != "biweekly" else anchor.weekday(),
-                              nth=nth if every == "monthly" and not mday else None,
-                              mday=mday if every == "monthly" else None,
-                              anchor=anchor if every == "biweekly" else None, at=_time(at),
-                              place=_text("place", place), opponent=_text("opponent", opponent),
-                              created_at=self.d.clock.now())
-            uow.schedules.add(s)
+            fill_end = today + timedelta(days=MATCH_FILL_DAYS)
+            taken = {m.day for m in uow.matches.between(team.id, today, fill_end)}
+            skipped = [d.isoformat() for d in schedule_dates(new, today, fill_end) if d in taken]
+            uow.schedules.add(new)
             uow.flush()
-            fill(uow, team, self._today(), self.d.clock.now())
-            audit(uow, self.d.clock, team.id, actor, "schedule.add", target=every, after=schedule_dict(s))
+            fill(uow, team, today, self.d.clock.now())
+            audit(uow, self.d.clock, team.id, actor, "schedule.add", target=every, after=schedule_dict(new))
             uow.commit()
-            return schedule_dict(s)
+            return {**schedule_dict(new), "updated": False, "skipped": len(skipped), "skipped_days": skipped}
 
     def _schedule(self, uow, team: Team, schedule_id) -> MatchSchedule:
         s = uow.schedules.get(schedule_id) if isinstance(schedule_id, int) and not isinstance(schedule_id, bool) else None
@@ -330,6 +372,23 @@ class MatchUseCases:
             key = same(opponent)
             return [schedule_dict(s) for s in uow.schedules.of_team(team.id) if key and same(s.opponent) == key]
 
+    def _apply(self, uow, s: MatchSchedule, clean: dict) -> int:
+        """Set a calendar's values; its matches still ahead that still have the old value follow.
+        Returns how many matches changed."""
+        today, moved = self._today(), 0
+        for m in uow.matches.of_schedule(s.id):
+            if m.day < today or m.status != "scheduled":
+                continue
+            hit = False
+            for k, v in clean.items():
+                if getattr(m, k) == getattr(s, k) and getattr(s, k) != v:
+                    setattr(m, k, v)
+                    hit = True
+            moved += hit
+        for k, v in clean.items():
+            setattr(s, k, v)
+        return moved
+
     def update_schedule(self, team_id: int, actor: int, schedule_id: int, changes: dict) -> dict:
         """Change a calendar's time, pitch or opponent (None clears). Its matches still ahead follow, unless
         that match was changed by hand (it no longer has the calendar's old value). Undoable."""
@@ -340,18 +399,7 @@ class MatchUseCases:
             s = self._schedule(uow, team, schedule_id)
             clean = {k: (_time(v) if k == "at" else _text(k, v)) for k, v in changes.items()}
             before = {k: getattr(s, k) for k in clean}
-            today, moved = self._today(), 0
-            for m in uow.matches.of_schedule(s.id):
-                if m.day < today or m.status != "scheduled":
-                    continue
-                hit = False
-                for k, v in clean.items():
-                    if getattr(m, k) == before[k] and before[k] != v:
-                        setattr(m, k, v)
-                        hit = True
-                moved += hit
-            for k, v in clean.items():
-                setattr(s, k, v)
+            moved = self._apply(uow, s, clean)
             audit(uow, self.d.clock, team.id, actor, "schedule.update", target=s.opponent or s.every,
                   before=before, after={**clean, "matches": moved})
             uow.commit()

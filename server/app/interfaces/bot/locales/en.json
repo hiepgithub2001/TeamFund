@@ -706,5 +706,10 @@
  "ct.sched_title": "🔁 <b>Fixed calendars with {name}</b>",
  "ct.sched_none": "None yet.",
  "ct.btn_sched_new": "➕ New fixed calendar with this team",
- "act.schedule.update": "Repeating calendar changed"
+ "act.schedule.update": "Repeating calendar changed",
+ "mt.sched_overlap": "⚠️ <b>Not created:</b> it shares {n} match day(s) in the next year with a calendar you already have:\n{other}\nFirst shared days: {days}.\n\nChange or stop that calendar, or pick other days.",
+ "err.schedule_overlap": "This calendar shares match days with another calendar. Change or stop that one first.",
+ "mt.btn_open_sched": "🔁 Open that calendar",
+ "mt.sched_merged": "♻️ You already had a calendar on these days, so it was updated instead of adding a new one:\n{what}\n{n} upcoming matches changed with it.",
+ "mt.sched_skipped": "⚠️ {n} day(s) already had a match, so the calendar didn't add one there: {days}."
 }

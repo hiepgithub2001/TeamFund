@@ -10,6 +10,7 @@ from aiogram.filters import Command, CommandObject
 from aiogram.types import CallbackQuery, ForceReply, Message
 
 from ..deps import S
+from ...domain.errors import DomainError
 from .fmt import amount_and_title, esc, money, parse_amount, parse_contact, parse_match, parse_phone, show_phone
 from .i18n import t
 from .render import edit, is_private, kb, say
@@ -500,9 +501,24 @@ async def sched_save(ev, entry, lang, st: dict, at, place, opponent: str | None 
     kw = {k: st.get(k) for k in ("weekday", "nth", "mday")}
     if st.get("anchor"):
         kw["anchor"] = _d(st["anchor"])
-    await call(S.matches.add_schedule, tid(entry), ev.from_user.id, st["every"], at=at, place=place,
-               opponent=opponent, **kw)
-    await say(ev, t(lang, "mt.sched_saved"))
+    try:
+        r = await call(S.matches.add_schedule, tid(entry), ev.from_user.id, st["every"], at=at, place=place,
+                       opponent=opponent, **kw)
+    except DomainError as e:
+        if e.code != "schedule_overlap":
+            raise
+        x = e.extra
+        days = ", ".join(day_label(lang, date.fromisoformat(d)) for d in x["days"])
+        await say(ev, t(lang, "mt.sched_overlap", other=schedule_line(lang, x["schedule"]), days=days, n=x["count"]),
+                  reply_markup=kb([(t(lang, "mt.btn_open_sched"), f"mt:sv:{x['schedule']['id']}")],
+                                  [(t(lang, "mt.btn_sched_new"), "mt:sn")]))
+        return
+    if r["updated"]:
+        await say(ev, t(lang, "mt.sched_merged", what=schedule_line(lang, r), n=r["moved"]))
+    else:
+        await say(ev, t(lang, "mt.sched_saved") + (
+            "\n" + t(lang, "mt.sched_skipped", n=r["skipped"], days=", ".join(
+                day_label(lang, date.fromisoformat(d)) for d in r["skipped_days"][:3])) if r["skipped"] else ""))
     await show_list(ev, entry, lang)
 
 

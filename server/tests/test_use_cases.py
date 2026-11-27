@@ -1088,6 +1088,29 @@ def test_schedule_with_opponent():
     assert m.get_schedule(tid, OWNER, ax["id"])["opponent"] == "Axon"
     assert {x["day"]: x["opponent"] for x in m.show(tid, OWNER, 200)["matches"]}["2026-12-07"] == "Axon"
 
+    # the same days again: the calendar we have is updated, not doubled (what's given replaces, the rest stays)
+    again = m.add_schedule(tid, OWNER, "monthly", weekday=0, nth=1, opponent="Axon B")
+    assert again["updated"] and again["id"] == ax["id"] and again["moved"] == 1
+    assert (again["opponent"], again["at"], again["place"]) == ("Axon B", "19:00", "Sân A")
+    assert len(m.show(tid, OWNER)["schedules"]) == 2
+    assert {x["day"]: x["opponent"] for x in m.show(tid, OWNER, 200)["matches"]}["2026-12-07"] == "Axon B"
+    # sharing a day with another calendar is refused: every Monday meets Monday of week 1
+    err = None
+    try:
+        m.add_schedule(tid, OWNER, "weekly", weekday=0, opponent="FC X")
+    except DomainError as e:
+        err = e
+    assert err and err.code == "schedule_overlap" and err.extra["schedule"]["id"] == ax["id"]
+    assert err.extra["days"][0] == "2026-12-07" and err.extra["count"] >= 12
+    assert code(m.add_schedule, tid, OWNER, "monthly", mday=7) == "schedule_overlap", "the 7th is a week-1 Monday sometimes"
+    assert len(m.show(tid, OWNER)["schedules"]) == 2, "nothing created"
+    # days with a match already are skipped and reported
+    m.add(tid, OWNER, [{"day": date(2026, 12, 15), "opponent": "Giao hữu"}])
+    ok = m.add_schedule(tid, OWNER, "monthly", mday=15)
+    assert not ok["updated"] and ok["skipped"] == 1 and ok["skipped_days"] == ["2026-12-15"]
+    m.stop_schedule(tid, OWNER, ok["id"])
+    m.delete(tid, OWNER, next(x["id"] for x in m.show(tid, OWNER, 200)["matches"] if x["opponent"] == "Giao hữu"))
+
     # stopping drops the calendar's own untouched matches, keeps the hand-changed one
     st = m.stop_schedule(tid, OWNER, kcu["id"])
     assert st["dropped"] >= 2 and all(x["opponent"] != "FC KCU" for x in m.show(tid, OWNER, 200)["matches"])
