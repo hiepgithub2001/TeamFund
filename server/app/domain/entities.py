@@ -283,6 +283,7 @@ class MatchSchedule:
     anchor: date | None = None   # biweekly: a first date
     at: str | None = None
     place: str | None = None
+    opponent: str | None = None  # a fixed opponent: every match it fills is against them
     active: bool = True
     created_at: datetime | None = None
     id: int | None = None

@@ -68,8 +68,29 @@ def schedule_line(lang: str, s: dict) -> str:
         when = t(lang, "mt.every_month", nth=nth, wd=t(lang, f"mt.wd{s['weekday']}"))
     else:
         when = t(lang, f"mt.every_{s['every']}", wd=t(lang, f"mt.wd{s['weekday']}"))
-    extra = "".join([f", {s['at']}" if s.get("at") else "", f" @{esc(s['place'])}" if s.get("place") else ""])
+    extra = "".join([f", {s['at']}" if s.get("at") else "", f" @{esc(s['place'])}" if s.get("place") else "",
+                     f" · vs {esc(s['opponent'])}" if s.get("opponent") else ""])
     return f"🔁 {when}{extra}"
+
+
+def sched_label(lang: str, s: dict) -> str:
+    """The calendar line as plain text for a button, the opponent first so a long line doesn't cut it off."""
+    line = re.sub(r"<[^>]+>", "", schedule_line(lang, {**s, "opponent": None})).replace("&amp;", "&")
+    return (f"⚔️ {s['opponent']} · {line[2:]}" if s.get("opponent") else line)[:60]
+
+
+def sched_card(lang: str, s: dict):
+    lines = [t(lang, "mt.sched_card"), schedule_line(lang, s)]
+    if s.get("next"):
+        lines.append(t(lang, "mt.sched_next") + ", ".join(day_label(lang, date.fromisoformat(x["day"])) for x in s["next"]))
+    i = s["id"]
+    return "\n".join(lines), kb([(t(lang, "mt.btn_opp"), f"mt:seo:{i}"), (t(lang, "mt.btn_sched_time"), f"mt:set:{i}")],
+                                [(t(lang, "mt.btn_stop_sched"), f"mt:sx:{i}"), (t(lang, "btn.back"), "mt:s")])
+
+
+def sopp_key(ev) -> str:
+    """The opponent a new calendar is for, when it was started from a contact's card."""
+    return f"sopp:{ev.bot.id}:{_chat(ev)}"
 
 
 def list_view(lang: str, v: dict):
@@ -373,14 +394,32 @@ async def on_matches(cq: CallbackQuery, m: re.Match, entry, lang):
     elif action == "s":
         v = await call(S.matches.show, team, user, 5)
         lines = [t(lang, "mt.sched_title")] + ([schedule_line(lang, s) for s in v["schedules"]] or [t(lang, "mt.sched_none")])
-        rows = [[(t(lang, "mt.btn_stop", what=schedule_line(lang, s)[2:40]), f"mt:sx:{s['id']}")] for s in v["schedules"]]
+        rows = [[(sched_label(lang, s), f"mt:sv:{s['id']}")] for s in v["schedules"]]
         await edit(cq, "\n".join(lines), kb(*rows, [(t(lang, "mt.btn_sched_new"), "mt:sn")], [(t(lang, "btn.back"), "mt:l:5")]))
+    elif action == "sv" and a:
+        await edit(cq, *sched_card(lang, await call(S.matches.get_schedule, team, user, int(a))))
+    elif action == "seo" and a:  # the calendar's opponent: a contact, ➕ a new team, none, or typed
+        await edit(cq, t(lang, "mt.ask_sched_opp"), await opponent_kb(cq, entry, lang, f"mt:sop:{a}:", f"mt:sv:{a}"))
+        await ask(cq, lang, {"type": "mt_sched_opp", "id": int(a)}, t(lang, "mt.type_opp"), "FC Moreh")
+    elif action == "sop" and a and b == "n":
+        await ask(cq, lang, {"type": "mt_sched_opp_new", "id": int(a)}, t(lang, "mt.ask_new_opp"), "FC Moreh 0912 345 678")
+    elif action == "sop" and a and b is not None:
+        del_state(ikey(cq))
+        name = await contact_name(cq, entry, b)
+        r = await call(S.matches.update_schedule, team, user, int(a), {"opponent": name})
+        await edit(cq, t(lang, "mt.sched_updated", n=r["moved"]) + "\n\n" + sched_card(lang, await call(S.matches.get_schedule, team, user, int(a)))[0],
+                   sched_card(lang, r)[1])
+    elif action == "set" and a:
+        await ask(cq, lang, {"type": "mt_sched_at", "id": int(a)}, t(lang, "mt.ask_sched_edit_time"), "19h @Sân Mỹ Đình")
     elif action == "sx" and a:
         await edit(cq, t(lang, "mt.confirm_stop"), kb([(t(lang, "mt.btn_stop_yes"), f"mt:sxy:{a}"), (t(lang, "btn.cancel"), "mt:s")]))
     elif action == "sxy" and a:
         r = await call(S.matches.stop_schedule, team, user, int(a))
         await edit(cq, t(lang, "mt.stopped", n=r["dropped"]), kb([(t(lang, "btn.back"), "mt:s")]))
-    elif action == "sn":
+    elif action in ("sn", "sno"):  # sno:<contact>: a calendar against that team, from its contact card
+        del_state(sopp_key(cq))
+        if action == "sno" and a:
+            set_state(sopp_key(cq), await contact_name(cq, entry, a), 900)
         await edit(cq, t(lang, "mt.ask_every"), kb([(t(lang, "mt.btn_weekly"), "mt:sf:weekly"),
                                                     (t(lang, "mt.btn_biweekly"), "mt:sf:biweekly")],
                                                    [(t(lang, "mt.btn_monthly"), "mt:sf:monthly")],
@@ -412,8 +451,16 @@ async def on_matches(cq: CallbackQuery, m: re.Match, entry, lang):
         if st.get("type") != "mt_sched":
             await edit(cq, t(lang, "err.menu_expired"))
             return
-        del_state(ikey(cq))
-        await sched_save(cq, entry, lang, st, None, None)
+        await sched_opponent(cq, entry, lang, st, None, None)
+    elif action == "sp" and a is not None:  # the new calendar's opponent
+        st = get_state(ikey(cq)) or {}
+        if st.get("type") != "mt_sched_new_opp":
+            await edit(cq, t(lang, "err.menu_expired"))
+            return
+        if a == "n":
+            await ask(cq, lang, {**st, "type": "mt_sched_new_opp_c"}, t(lang, "mt.ask_new_opp"), "FC Moreh 0912 345 678")
+            return
+        await sched_save(cq, entry, lang, st, st.get("at"), st.get("place"), await contact_name(cq, entry, a))
 
 
 def weekday_kb(lang: str, prefix: str):
@@ -428,11 +475,33 @@ async def sched_time(ev, lang, spec: dict) -> None:
     await ask(ev, lang, st, t(lang, "mt.ask_sched_time"), "19h @Sân Mỹ Đình")
 
 
-async def sched_save(ev, entry, lang, st: dict, at, place) -> None:
+async def contact_name(ev, entry, cid: str) -> str | None:
+    """A contact's name from its id in a button ("0": no opponent)."""
+    if cid in ("0", None):
+        return None
+    c = next((c for c in await call(S.contacts.search, tid(entry), ev.from_user.id) if c["id"] == int(cid)), None)
+    return c["name"] if c else None
+
+
+async def sched_opponent(ev, entry, lang, st: dict, at, place) -> None:
+    """After the time and pitch: against whom? Skipped when the calendar was started from a contact."""
+    opp = get_state(sopp_key(ev))
+    if opp:
+        await sched_save(ev, entry, lang, st, at, place, opp)
+        return
+    st = {**st, "type": "mt_sched_new_opp", "at": at, "place": place}
+    await say(ev, t(lang, "mt.ask_sched_opp"), reply_markup=await opponent_kb(ev, entry, lang, "mt:sp:", "mt:x"))
+    await ask(ev, lang, st, t(lang, "mt.type_opp"), "FC Moreh")
+
+
+async def sched_save(ev, entry, lang, st: dict, at, place, opponent: str | None = None) -> None:
+    del_state(ikey(ev))
+    del_state(sopp_key(ev))
     kw = {k: st.get(k) for k in ("weekday", "nth", "mday")}
     if st.get("anchor"):
         kw["anchor"] = _d(st["anchor"])
-    await call(S.matches.add_schedule, tid(entry), ev.from_user.id, st["every"], at=at, place=place, **kw)
+    await call(S.matches.add_schedule, tid(entry), ev.from_user.id, st["every"], at=at, place=place,
+               opponent=opponent, **kw)
     await say(ev, t(lang, "mt.sched_saved"))
     await show_list(ev, entry, lang)
 
@@ -543,6 +612,7 @@ def contact_view(lang: str, c: dict, can_edit: bool = True):
         return "\n".join(lines), kb([(t(lang, "ct.btn_list"), "ct:l")])
     return "\n".join(lines), kb([(t(lang, "ct.btn_name"), f"ct:en:{i}"), (t(lang, "ct.btn_phone"), f"ct:ph:{i}"),
                                  (t(lang, "ct.btn_note"), f"ct:nt:{i}")],
+                                [(t(lang, "ct.btn_sched"), f"ct:sc:{i}")],
                                 [(t(lang, "mt.btn_delete"), f"ct:d:{i}"), (t(lang, "ct.btn_list"), "ct:l")])
 
 
@@ -569,6 +639,13 @@ async def on_contacts(cq: CallbackQuery, m: re.Match, entry, lang):
         phone = action == "aph"
         await ask(cq, lang, {"type": "ct_phone" if phone else "ct_note", "id": int(a), "fresh": True},
                   t(lang, "ct.ask_phone" if phone else "ct.ask_note"), "0912 345 678" if phone else "fb: Dũng, zalo…")
+    elif action == "sc" and a:  # this team's fixed calendars: open one, or ➕ a new one against them
+        c = await call(S.contacts.get, team, user, int(a))
+        ss = await call(S.matches.schedules_with, team, user, c["name"])
+        lines = [t(lang, "ct.sched_title", name=esc(c["name"]))] + ([schedule_line(lang, s) for s in ss] or [t(lang, "ct.sched_none")])
+        await edit(cq, "\n".join(lines), kb(*[[(sched_label(lang, s), f"mt:sv:{s['id']}")] for s in ss],
+                                             [(t(lang, "ct.btn_sched_new"), f"mt:sno:{a}")],
+                                             [(t(lang, "btn.back"), f"ct:v:{a}")]))
     elif action == "ok1" and a:
         c = await call(S.contacts.get, team, user, int(a))
         await edit(cq, t(lang, "ct.done", name=esc(c["name"])))
@@ -713,7 +790,37 @@ async def on_reply(message: Message, entry, lang):
         await sched_time(message, lang, {"every": "monthly", "mday": int(text)})
     elif kind == "mt_sched":
         p = parse_match(f"{today:%d/%m/%Y} {text}", today)
-        await sched_save(message, entry, lang, st, p["at"], p["place"] or p["opponent"])
+        await sched_opponent(message, entry, lang, st, p["at"], p["place"] or p["opponent"])
+    elif kind in ("mt_sched_new_opp", "mt_sched_new_opp_c"):
+        if kind == "mt_sched_new_opp" and not parse_phone(text):
+            name = text
+        else:
+            name = await new_opponent(message, entry, lang, text)
+        if not name:
+            await again("mt.ask_new_opp", "FC Moreh 0912 345 678")
+            return
+        await sched_save(message, entry, lang, st, st.get("at"), st.get("place"), name)
+    elif kind in ("mt_sched_opp", "mt_sched_opp_new"):
+        if kind == "mt_sched_opp" and (text == "-" or not parse_phone(text)):
+            name = None if text == "-" else text
+        else:
+            name = await new_opponent(message, entry, lang, text)
+            if not name:
+                await again("mt.ask_new_opp", "FC Moreh 0912 345 678")
+                return
+        r = await call(S.matches.update_schedule, team, user, st["id"], {"opponent": name})
+        text_, markup = sched_card(lang, await call(S.matches.get_schedule, team, user, st["id"]))
+        await message.answer(t(lang, "mt.sched_updated", n=r["moved"]) + "\n\n" + text_, reply_markup=markup)
+    elif kind == "mt_sched_at":
+        p = parse_match(f"{today:%d/%m/%Y} {text}", today)
+        changes = {"at": p["at"], "place": p["place"] or p["opponent"]} if text != "-" else {"at": None, "place": None}
+        changes = {k: v for k, v in changes.items() if v is not None or text == "-"}
+        if not changes:
+            await again("mt.ask_sched_edit_time", "19h @Sân Mỹ Đình")
+            return
+        r = await call(S.matches.update_schedule, team, user, st["id"], changes)
+        text_, markup = sched_card(lang, await call(S.matches.get_schedule, team, user, st["id"]))
+        await message.answer(t(lang, "mt.sched_updated", n=r["moved"]) + "\n\n" + text_, reply_markup=markup)
     elif kind == "ct_add":
         lines = [x for x in text.splitlines() if x.strip()]
         p = parse_contact(text) if len(lines) == 1 else None

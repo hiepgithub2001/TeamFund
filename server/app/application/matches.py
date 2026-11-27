@@ -14,7 +14,7 @@ from .ports import Deps, UnitOfWork
 
 TEXT_LIMITS = {"place": 100, "opponent": 100, "note": 255, "reason": 255}
 EVERY = ("weekly", "biweekly", "monthly")
-MAX_SCHEDULES = 5
+MAX_SCHEDULES = 20  # room for one calendar per regular opponent
 
 
 def _time(v) -> str | None:
@@ -53,7 +53,8 @@ def match_dict(m: Match, today: date | None = None) -> dict:
 
 def schedule_dict(s: MatchSchedule) -> dict:
     return {"id": s.id, "every": s.every, "weekday": s.weekday, "nth": s.nth, "mday": s.mday,
-            "anchor": s.anchor.isoformat() if s.anchor else None, "at": s.at, "place": s.place}
+            "anchor": s.anchor.isoformat() if s.anchor else None, "at": s.at, "place": s.place,
+            "opponent": s.opponent}
 
 
 def fill(uow: UnitOfWork, team: Team, today: date, now) -> int:
@@ -68,8 +69,8 @@ def fill(uow: UnitOfWork, team: Team, today: date, now) -> int:
         for d in schedule_dates(s, today, end):
             if d not in have:
                 busy.add(d)
-                uow.matches.add(Match(team_id=team.id, day=d, at=s.at, place=s.place, schedule_id=s.id,
-                                      created_at=now))
+                uow.matches.add(Match(team_id=team.id, day=d, at=s.at, place=s.place, opponent=s.opponent,
+                                      schedule_id=s.id, created_at=now))
                 added += 1
     return added
 
@@ -281,8 +282,9 @@ class MatchUseCases:
 
     def add_schedule(self, team_id: int, actor: int, every: str, weekday: int | None = None, nth: int | None = None,
                      mday: int | None = None, anchor: date | None = None, at: str | None = None,
-                     place: str | None = None) -> dict:
-        """A repeating calendar; its matches for the next 8 weeks appear at once."""
+                     place: str | None = None, opponent: str | None = None) -> dict:
+        """A repeating calendar, optionally against one opponent (Axon every Monday of week 1); its matches
+        for the next 8 weeks appear at once."""
         ok = every in EVERY and (
             (every == "weekly" and weekday in range(7)) or
             (every == "biweekly" and isinstance(anchor, date)) or
@@ -298,7 +300,8 @@ class MatchUseCases:
                               nth=nth if every == "monthly" and not mday else None,
                               mday=mday if every == "monthly" else None,
                               anchor=anchor if every == "biweekly" else None, at=_time(at),
-                              place=_text("place", place), created_at=self.d.clock.now())
+                              place=_text("place", place), opponent=_text("opponent", opponent),
+                              created_at=self.d.clock.now())
             uow.schedules.add(s)
             uow.flush()
             fill(uow, team, self._today(), self.d.clock.now())
@@ -306,17 +309,64 @@ class MatchUseCases:
             uow.commit()
             return schedule_dict(s)
 
-    def stop_schedule(self, team_id: int, actor: int, schedule_id: int) -> dict:
-        """No more dates from it. Its future dates without an opponent or note go; the others stay."""
+    def _schedule(self, uow, team: Team, schedule_id) -> MatchSchedule:
+        s = uow.schedules.get(schedule_id) if isinstance(schedule_id, int) and not isinstance(schedule_id, bool) else None
+        if not s or s.team_id != team.id or not s.active:
+            raise DomainError(404, "not_found")
+        return s
+
+    def get_schedule(self, team_id: int, actor: int, schedule_id: int) -> dict:
         with self.d.uow() as uow:
             team = manager_team(uow, team_id, actor)
-            s = uow.schedules.get(schedule_id) if isinstance(schedule_id, int) else None
-            if not s or s.team_id != team.id or not s.active:
-                raise DomainError(404, "not_found")
+            s = self._schedule(uow, team, schedule_id)
+            today = self._today()
+            nxt = [m for m in uow.matches.of_schedule(s.id) if m.day >= today and m.status == "scheduled"]
+            return {**schedule_dict(s), "next": [match_dict(m, today) for m in sorted(nxt, key=lambda m: m.day)[:4]]}
+
+    def schedules_with(self, team_id: int, actor: int, opponent: str) -> list[dict]:
+        """The calendars against this opponent (name compared like contacts: accents, case, spaces ignored)."""
+        with self.d.uow() as uow:
+            team = manager_team(uow, team_id, actor)
+            key = same(opponent)
+            return [schedule_dict(s) for s in uow.schedules.of_team(team.id) if key and same(s.opponent) == key]
+
+    def update_schedule(self, team_id: int, actor: int, schedule_id: int, changes: dict) -> dict:
+        """Change a calendar's time, pitch or opponent (None clears). Its matches still ahead follow, unless
+        that match was changed by hand (it no longer has the calendar's old value). Undoable."""
+        if not isinstance(changes, dict) or not changes or not set(changes) <= {"at", "place", "opponent"}:
+            raise invalid()
+        with self.d.uow() as uow:
+            team = manager_team(uow, team_id, actor)
+            s = self._schedule(uow, team, schedule_id)
+            clean = {k: (_time(v) if k == "at" else _text(k, v)) for k, v in changes.items()}
+            before = {k: getattr(s, k) for k in clean}
+            today, moved = self._today(), 0
+            for m in uow.matches.of_schedule(s.id):
+                if m.day < today or m.status != "scheduled":
+                    continue
+                hit = False
+                for k, v in clean.items():
+                    if getattr(m, k) == before[k] and before[k] != v:
+                        setattr(m, k, v)
+                        hit = True
+                moved += hit
+            for k, v in clean.items():
+                setattr(s, k, v)
+            audit(uow, self.d.clock, team.id, actor, "schedule.update", target=s.opponent or s.every,
+                  before=before, after={**clean, "matches": moved})
+            uow.commit()
+            return {**schedule_dict(s), "moved": moved}
+
+    def stop_schedule(self, team_id: int, actor: int, schedule_id: int) -> dict:
+        """No more dates from it. Its future dates the calendar made and nobody changed (no opponent, or the
+        calendar's own opponent; no note) go; the others stay."""
+        with self.d.uow() as uow:
+            team = manager_team(uow, team_id, actor)
+            s = self._schedule(uow, team, schedule_id)
             s.active = False
             today, dropped = self._today(), 0
             for m in uow.matches.of_schedule(s.id):
-                if m.day >= today and m.status == "scheduled" and not m.opponent and not m.note:
+                if m.day >= today and m.status == "scheduled" and m.opponent == s.opponent and not m.note:
                     uow.matches.remove(m)
                     dropped += 1
             audit(uow, self.d.clock, team.id, actor, "schedule.stop", target=s.every, after={"dropped": dropped})

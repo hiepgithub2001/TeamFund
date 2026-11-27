@@ -1054,6 +1054,48 @@ def test_edit_text(world):
         assert code(svc.money.editable, tid, OWNER, bad) == "invalid"
 
 
+def test_schedule_with_opponent():
+    """A calendar against one team (Axon, Monday of week 1; FC KCU, Tuesday of week 2): every match it adds is
+    against them. Changing its opponent, time or pitch moves the matches still ahead that nobody changed by hand."""
+    from datetime import date
+    svc, clock, _ = make_services(datetime(2026, 11, 27, 10, 0))
+    tid = setup_team(svc)
+    m = svc.matches
+    ax = m.add_schedule(tid, OWNER, "monthly", weekday=0, nth=1, at="19:00", place="Sân A", opponent=" Axon ")
+    kcu = m.add_schedule(tid, OWNER, "monthly", weekday=1, nth=2, opponent="FC KCU")
+    assert ax["opponent"] == "Axon"
+    got = {(x["day"], x["opponent"]) for x in m.show(tid, OWNER, 200)["matches"]}
+    assert {("2026-12-07", "Axon"), ("2027-01-04", "Axon"), ("2026-12-08", "FC KCU"), ("2027-01-12", "FC KCU")} <= got
+    assert [s["id"] for s in m.schedules_with(tid, OWNER, "axon")] == [ax["id"]], "accents and case ignored"
+    assert code(m.schedules_with, tid, MEMBER, "Axon") == "not_manager"
+
+    # one Axon match changed by hand keeps its own opponent
+    jan = next(x for x in m.show(tid, OWNER, 200)["matches"] if x["day"] == "2027-01-04")
+    m.update(tid, OWNER, jan["id"], {"opponent": "FC Moreh"})
+    r = m.update_schedule(tid, OWNER, ax["id"], {"opponent": "Axon United", "at": "20:00"})
+    assert r["opponent"] == "Axon United" and r["moved"] == 2
+    ms = {x["day"]: x for x in m.show(tid, OWNER, 200)["matches"]}
+    assert (ms["2026-12-07"]["opponent"], ms["2026-12-07"]["at"]) == ("Axon United", "20:00")
+    assert (ms["2027-01-04"]["opponent"], ms["2027-01-04"]["at"]) == ("FC Moreh", "20:00")
+    assert m.get_schedule(tid, OWNER, ax["id"])["next"][0]["day"] == "2026-12-07"
+    for bad in ({}, {"day": 1}, {"at": "25:00"}, {"opponent": "x" * 101}):
+        assert code(m.update_schedule, tid, OWNER, ax["id"], bad) == "invalid"
+    assert code(m.update_schedule, tid, MEMBER, ax["id"], {"at": None}) == "not_manager"
+
+    # undo puts the calendar and its matches back
+    entry = next(x for x in svc.undo.recent(tid, OWNER) if x["action"] == "schedule.update")
+    svc.undo.undo(tid, OWNER, entry["id"])
+    assert m.get_schedule(tid, OWNER, ax["id"])["opponent"] == "Axon"
+    assert {x["day"]: x["opponent"] for x in m.show(tid, OWNER, 200)["matches"]}["2026-12-07"] == "Axon"
+
+    # stopping drops the calendar's own untouched matches, keeps the hand-changed one
+    st = m.stop_schedule(tid, OWNER, kcu["id"])
+    assert st["dropped"] >= 2 and all(x["opponent"] != "FC KCU" for x in m.show(tid, OWNER, 200)["matches"])
+    assert code(m.get_schedule, tid, OWNER, kcu["id"]) == "not_found"
+    m.stop_schedule(tid, OWNER, ax["id"])
+    assert [x["opponent"] for x in m.show(tid, OWNER, 200)["matches"]] == ["FC Moreh"]
+
+
 def test_two_teams_on_one_bank_account(world):
     """Two teams linked to the same bank account both hear every transfer. A transfer with the other team's
     code is that team's, and one with no code at all is ignored too: only this team's QR codes count here."""

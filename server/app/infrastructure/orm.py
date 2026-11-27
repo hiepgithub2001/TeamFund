@@ -160,7 +160,8 @@ match_schedules = Table(
     "match_schedules", metadata, _id(),
     Column("team_id", ForeignKey("teams.id"), index=True, nullable=False), Column("every", String(16), nullable=False),
     Column("weekday", Integer), Column("nth", Integer), Column("mday", Integer), Column("anchor", Date),
-    Column("at", String(5)), Column("place", String(100)), Column("active", Boolean, nullable=False),
+    Column("at", String(5)), Column("place", String(100)), Column("opponent", String(100)),
+    Column("active", Boolean, nullable=False),
     Column("created_at", DateTime, nullable=False),
 )
 

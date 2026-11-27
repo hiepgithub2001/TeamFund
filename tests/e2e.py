@@ -862,6 +862,9 @@ async def main():
             await T(cb_update(OWNER, d, lst["message_id"]))
         await wait_sent(to(OWNER, "Send them, e.g."), "usual time asked")
         await T(text_update(OWNER, "19h @Pitch A"))
+        so = await wait_sent(to(OWNER, "A fixed opponent for this calendar"), "calendar opponent asked")
+        assert "mt:sp:0" in buttons(so) and "mt:sp:n" in buttons(so)
+        await T(cb_update(OWNER, "mt:sp:0", so["message_id"]))  # no fixed opponent
         await wait_sent(to(OWNER, "Repeating calendar set"), "calendar saved")
         lst = await wait_sent(lambda c: to(OWNER, "Upcoming matches")(c) and "every Sunday, 19:00 @Pitch A" in c["params"]["text"],
                               "calendar listed")
@@ -948,7 +951,7 @@ async def main():
         await T(cb_update(OWNER, cid, found["message_id"]))
         card = await wait_sent(lambda c: c["method"] == "editMessageText" and "Played 0 · cancelled 1" in c["params"]["text"],
                                "contact with history")
-        assert [d.split(":")[1] for d in buttons(card)] == ["en", "ph", "nt", "d", "l"], buttons(card)
+        assert [d.split(":")[1] for d in buttons(card)] == ["en", "ph", "nt", "sc", "d", "l"], buttons(card)
         assert "📞 0912 345 678" in card["params"]["text"]
         await T(cb_update(OWNER, cid.replace("ct:v:", "ct:ph:"), found["message_id"]))
         await wait_sent(to(OWNER, "Send the phone number"), "phone asked")
@@ -958,6 +961,28 @@ async def main():
         await wait_sent(to(OWNER, "Send the note"), "note asked")
         await T(text_update(OWNER, "zalo: Dung, sân Mỹ Đình"))
         await wait_sent(lambda c: to(OWNER, "Updated")(c) and "📝 zalo: Dung, sân Mỹ Đình" in c["params"]["text"], "note saved")
+        # a fixed calendar with this team, from its card: Monday of week 1 every month; then change its time
+        await T(cb_update(OWNER, cid.replace("ct:v:", "ct:sc:"), found["message_id"]))
+        sc = await wait_sent(lambda c: c["method"] == "editMessageText" and "Fixed calendars with FC Moreh" in c["params"]["text"],
+                             "the team's calendars")
+        new = next(d for d in buttons(sc) if d.startswith("mt:sno:"))
+        for d in (new, "mt:sf:monthly", "mt:sm:1", "mt:smw:1:0"):
+            await T(cb_update(OWNER, d, found["message_id"]))
+        await wait_sent(to(OWNER, "Send them, e.g."), "usual time asked for the team's calendar")
+        await T(text_update(OWNER, "18h @Pitch B"))
+        lst = await wait_sent(lambda c: to(OWNER, "Upcoming matches")(c) and "Monday of week 1, every month, 18:00 @Pitch B · vs FC Moreh"
+                              in c["params"]["text"], "calendar listed with its opponent")
+        await T(cb_update(OWNER, "mt:s", lst["message_id"]))
+        cal = await wait_sent(lambda c: c["method"] == "editMessageText" and "Repeating calendars" in c["params"]["text"]
+                              and "⚔️ FC Moreh · " in json.dumps(c["params"].get("reply_markup"), ensure_ascii=False), "calendar buttons")
+        sv = next(b["callback_data"] for r in cal["params"]["reply_markup"]["inline_keyboard"] for b in r if "FC Moreh" in b["text"])
+        await T(cb_update(OWNER, sv, lst["message_id"]))
+        await wait_sent(lambda c: c["method"] == "editMessageText" and "Next: " in c["params"]["text"], "calendar card")
+        await T(cb_update(OWNER, sv.replace("mt:sv:", "mt:set:"), lst["message_id"]))
+        await wait_sent(to(OWNER, "Send the new time and pitch"), "new time asked")
+        await T(text_update(OWNER, "20h"))
+        await wait_sent(lambda c: to(OWNER, r"Calendar updated; \d+ upcoming matches changed")(c)
+                        and "20:00 @Pitch B · vs FC Moreh" in c["params"]["text"], "time changed, pitch kept")
         # ➕ one team: the name saves it; phone and note are optional buttons, then Done
         await T(cb_update(OWNER, "ct:l", found["message_id"]))
         await T(cb_update(OWNER, "ct:a", found["message_id"]))
