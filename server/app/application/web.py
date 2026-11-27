@@ -42,7 +42,8 @@ class WebUseCases:
             billing.ensure_bills(uow, self.d, team)
             unpaid = [{"member_id": g["member_id"], "name": g["name"], "total": g["total"],
                        "bills": [{"kind": b["kind"], "title": b["title"], "period_label": b["period_label"],
-                                  "months": b["months"], "amount": b["amount"], "days": b.get("days")}
+                                  "months": b["months"], "amount": b["amount"], "days": b.get("days"),
+                                  "of": b.get("of"), "due": b.get("due")}
                                  for b in g["bills"]]}
                       for g in billing.unpaid_by_member(uow, team)]
             period = self.d.clock.current_period()

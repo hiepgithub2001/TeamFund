@@ -41,6 +41,7 @@ const T = {
     cancelled: "Huỷ", wd: ["T2", "T3", "T4", "T5", "T6", "T7", "CN"],
     tabContacts: "Danh bạ", contacts: "Đội bạn", noContacts: "Chưa có đội nào trong danh bạ.",
     history: "Đã đá {p} · huỷ {c}", lastMatch: "gần nhất {d}", nextMatch: "sắp tới {d}", call: "Gọi",
+    lateCharge: "Phạt trễ {n} ngày ({x})",
     tabRules: "Nội quy", rules: "Nội quy của đội", rulesUpdated: "Cập nhật {d}",
   },
   en: {
@@ -81,6 +82,7 @@ const T = {
     cancelled: "Cancelled", wd: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
     tabContacts: "Contacts", contacts: "Opposing teams", noContacts: "No teams in the contacts yet.",
     history: "Played {p} · cancelled {c}", lastMatch: "last {d}", nextMatch: "next {d}", call: "Call",
+    lateCharge: "Late fee, {n} days ({x})",
     tabRules: "Rules", rules: "Team rules", rulesUpdated: "Updated {d}",
   },
 };
@@ -175,8 +177,8 @@ function footer() {
 }
 
 function billText(b) {
-  if (b.kind === "late") return t("late", { n: b.days || 0, p: b.period_label });
-  if (b.kind !== "monthly") return `${b.title} (${b.period_label})`;
+  if (b.kind === "late") return b.of ? t("lateCharge", { n: b.days || 0, x: b.of }) : t("late", { n: b.days || 0, p: b.period_label });
+  if (b.kind !== "monthly") return `${b.title} (${b.period_label})` + (b.due ? " · " + t("due", { d: b.due }) : "");
   return (b.months || 1) > 1 ? t("feeCycle", { c: t("c" + b.months), p: b.period_label }) : t("monthly", { p: b.period_label });
 }
 function feeOf(amount, months) { return `${money(amount)}/${t("c" + (months || 1))}`; }

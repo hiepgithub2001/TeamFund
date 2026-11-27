@@ -72,9 +72,39 @@ class TeamUseCases:
             return {"team_id": t.id, "name": t.name, "bot_username": t.bot_username, "fee": t.fee,
                     "notify_day": notify, "due_days": days, "late_fee": t.late_fee or 0, "lang": t.lang, "bank_name": t.bank_name, "bank_account": t.bank_account,
                     "pay_account": t.pay_to(),
+                    "charge_due_days": t.charge_due_days, "charge_late_fee": t.charge_late_fee or 0,
                     "bank_holder": t.bank_holder, "sepay_connected": bool(t.sepay_key_hash),
                     "sepay_url": self._webhook_url(t), "followers": len(uow.followers.active_ids(t.id)),
                     "role": role_of(uow, t.id, actor)}
+
+    def set_charge_terms(self, team_id: int, actor: int, **kw) -> dict:
+        """The general terms of one-off charges (/charge, splits): due_days after they're made (None: no
+        deadline), late_fee đ a day after it (0: off). Only the keys given change. New charges take them;
+        a fine change also applies to charges already made (from the day it's turned on). Undoable."""
+        if not kw or set(kw) - {"due_days", "late_fee"}:
+            raise invalid()
+        dd, lf = kw.get("due_days"), kw.get("late_fee")
+        is_int = lambda v: isinstance(v, int) and not isinstance(v, bool)  # noqa: E731
+        if ("due_days" in kw and dd is not None and not (is_int(dd) and 0 <= dd <= MAX_DUE_DAYS)) or \
+                ("late_fee" in kw and not (is_int(lf) and 0 <= lf <= MAX_LATE_FEE)):
+            raise invalid()
+        with self.d.uow() as uow:
+            team = manager_team(uow, team_id, actor)
+            before = {"due_days": team.charge_due_days, "late_fee": team.charge_late_fee or 0}
+            if "due_days" in kw:
+                team.charge_due_days = dd
+            if "late_fee" in kw:
+                if lf and not team.charge_late_fee:
+                    team.charge_late_since = self.d.clock.local_now().date()
+                elif not lf:
+                    team.charge_late_since = None
+                team.charge_late_fee = lf or None
+            after = {"due_days": team.charge_due_days, "late_fee": team.charge_late_fee or 0}
+            audit(uow, self.d.clock, team.id, actor, "charge.terms", before=before, after=after)
+            uow.commit()
+            if "late_fee" in kw:
+                update_late_fees(uow, self.d, team)
+            return after
 
     def rules(self, team_id: int, actor: int | None = None) -> dict:
         """The team's rules, for everyone."""

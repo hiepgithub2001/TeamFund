@@ -3,7 +3,7 @@ import asyncio
 import contextvars
 import logging
 import re
-from datetime import date
+from datetime import date, timedelta
 
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
@@ -192,9 +192,11 @@ async def on_picker_confirm(cq: CallbackQuery, entry, lang, st, key) -> None:
                        st["kind"], ids)
         del_state(key)
         await cq.answer()
-        await edit(cq, t(lang, "charge.done", count=r["count"], title=esc(r["title"]), each=money(r["each"], lang)))
+        await edit(cq, t(lang, "charge.done", count=r["count"], title=esc(r["title"]), each=money(r["each"], lang))
+                   + "\n" + charge_terms_line(lang, r), charge_done_kb(lang, r["bill_id"]))
         await broadcast(entry, t(G, "group.charge", title=esc(r["title"]), each=money(r["each"], G),
-                                     count=r["count"]), reply_markup=pay_keyboard(G, entry.username))
+                                     count=r["count"]) + ("\n" + charge_terms_line(G, r) if r["due"] else ""),
+                        reply_markup=pay_keyboard(G, entry.username))
     elif st["kind"] == "markpaid" and len(ids) == 1:
         # one person: ask whether the full amount came in, or something else
         o = await call(S.money.owed_by, tid(entry), cq.from_user.id, ids[0])
@@ -936,6 +938,104 @@ async def cmd_add(message: Message, command: CommandObject, entry, lang):
         return
     set_state(input_key(message.bot.id, message.chat.id), {"type": "add"}, 600)
     await message.answer(t(lang, "add.prompt"), reply_markup=FORCE)
+
+
+def charge_terms_line(lang: str, r: dict) -> str:
+    """"📅 Hạn 04/12 · ⏰ phạt 10.000đ/ngày sau hạn", or that it has no deadline."""
+    if not r.get("due"):
+        return t(lang, "charge.no_due")
+    return t(lang, "charge.due", due=r["due"]) + (" · " + t(lang, "charge.fine", fee=money(r["late_fee"], lang))
+                                                  if r.get("late_fee") else "")
+
+
+def charge_done_kb(lang: str, bill_id: int):
+    return kb([(t(lang, "charge.btn_due"), f"cd:{bill_id}")], [(t(lang, "charge.btn_terms"), "cs:v")])
+
+
+def charge_settings_text(lang: str, s: dict) -> str:
+    """The general terms of one-off charges: due after X days, fine Y a day after that."""
+    due = t(lang, "cs.due_days", n=s["charge_due_days"]) if s["charge_due_days"] is not None else t(lang, "cs.no_due")
+    fine = t(lang, "cs.fine", fee=money(s["charge_late_fee"], lang)) if s["charge_late_fee"] else t(lang, "cs.no_fine")
+    return t(lang, "cs.title") + "\n" + due + "\n" + fine + (
+        "\n" + t(lang, "cs.fine_needs_due") if s["charge_late_fee"] and s["charge_due_days"] is None else "")
+
+
+def charge_settings_kb(lang: str):
+    return kb([(t(lang, "cs.btn_due"), "cs:d"), (t(lang, "cs.btn_fine"), "cs:f")])
+
+
+def parse_deadline(text: str, today: date):
+    """"7" (days from today), "15/12" or "15/12/2026" (a date; without a year, the next such day), "-" (none).
+    Returns (ok, date or None)."""
+    text = (text or "").strip().lower()
+    if text in ("-", "0 -", "none", "không", "khong"):
+        return True, None
+    m = re.fullmatch(r"(\d{1,3})\s*(ngày|ngay|days?|d)?", text)
+    if m:
+        n = int(m.group(1))
+        return (n <= 366), today + timedelta(days=n)
+    _, d, ok = split_date("x " + text, today)
+    if not d or not ok or not re.fullmatch(r"\d{1,2}[/.-]\d{1,2}([/.-]\d{2,4})?", text):
+        return False, None
+    if d < today and text.count("/") + text.count(".") + text.count("-") == 1:
+        try:
+            d = d.replace(year=d.year + 1)
+        except ValueError:
+            return False, None
+    return True, d
+
+
+@router.callback_query(F.data.regexp(r"^cd:(\d+)$").as_("m"))
+async def on_charge_deadline(cq: CallbackQuery, m: re.Match, entry, lang):
+    """📅 Change this charge's deadline: asks for days, a date or "-"."""
+    if not await allow(cq, entry, lang, "manager"):
+        return
+    await cq.answer()
+    set_state(input_key(cq.bot.id, cq.message.chat.id), {"type": "charge_due_one", "bill_id": int(m.group(1))}, 900)
+    await cq.message.answer(t(lang, "charge.ask_due"), reply_markup=FORCE)
+
+
+@router.callback_query(F.data.regexp(r"^cs:(v|d|f)$").as_("m"))
+async def on_charge_settings(cq: CallbackQuery, m: re.Match, entry, lang):
+    if not await allow(cq, entry, lang, "manager"):
+        return
+    await cq.answer()
+    if m.group(1) == "v":
+        s = await call(S.teams.team_info, tid(entry), cq.from_user.id)
+        await say(cq, charge_settings_text(lang, s), reply_markup=charge_settings_kb(lang))
+        return
+    kind = "charge_days" if m.group(1) == "d" else "charge_fine"
+    set_state(input_key(cq.bot.id, cq.message.chat.id), {"type": kind}, 900)
+    await cq.message.answer(t(lang, "cs.ask_due" if kind == "charge_days" else "cs.ask_fine"), reply_markup=FORCE)
+
+
+async def charge_terms_reply(message: Message, entry, lang, st: dict, text: str) -> None:
+    """A reply with the general deadline ("7", "-") or fine ("10k", "0"), or one charge's deadline."""
+    key = input_key(message.bot.id, message.chat.id)
+    if st["type"] == "charge_due_one":
+        ok, due = parse_deadline(text, await call(S.money.today))
+        if not ok:
+            set_state(key, st, 900)
+            await message.answer(t(lang, "err.invalid") + "\n\n" + t(lang, "charge.ask_due"), reply_markup=FORCE)
+            return
+        r = await call(S.money.charge_deadline, tid(entry), message.from_user.id, st["bill_id"], due)
+        await message.answer(t(lang, "charge.due_changed", title=esc(r["title"]), n=r["count"])
+                             + "\n" + charge_terms_line(lang, r))
+        return
+    if st["type"] == "charge_days":
+        v = text.strip()
+        kw = {"due_days": None} if v == "-" else {"due_days": int(v)} if v.isdigit() and int(v) <= 60 else None
+    else:
+        fee = 0 if text.strip() == "0" else parse_amount(text)
+        kw = None if fee is None else {"late_fee": fee}
+    if kw is None:
+        set_state(key, st, 900)
+        await message.answer(t(lang, "err.invalid") + "\n\n"
+                             + t(lang, "cs.ask_due" if st["type"] == "charge_days" else "cs.ask_fine"), reply_markup=FORCE)
+        return
+    await call(S.teams.set_charge_terms, tid(entry), message.from_user.id, **kw)
+    s = await call(S.teams.team_info, tid(entry), message.from_user.id)
+    await message.answer(t(lang, "cs.saved") + "\n\n" + charge_settings_text(lang, s), reply_markup=charge_settings_kb(lang))
 
 
 async def charge_picker(ev, entry, lang, kind: str, amount: int, title: str) -> dict | None:
@@ -1710,7 +1810,8 @@ async def cmd_settings(message: Message, entry, lang):
                            + (" · " + t(lang, "latefee.on", fee=money(s["late_fee"], lang)) if s["late_fee"] else ""),
                            bank=bank, sepay="✅" if s["sepay_connected"] else none,
                            group=s["followers"],
-                           lang="Tiếng Việt" if s["lang"] == "vi" else "English"))
+                           lang="Tiếng Việt" if s["lang"] == "vi" else "English")
+                         + "\n\n" + charge_settings_text(lang, s), reply_markup=charge_settings_kb(lang))
 
 
 @router.message(Command("teamlang"))
@@ -2002,6 +2103,8 @@ async def on_text(message: Message, entry, lang):
         await record_money(message, entry, lang, st["type"], text)
     elif st["type"] == "entry_text":
         await entry_text_reply(message, entry, lang, st, text)
+    elif st["type"] in ("charge_due_one", "charge_days", "charge_fine"):
+        await charge_terms_reply(message, entry, lang, st, text)
     elif st["type"] == "rules":  # several lines: kept as typed
         await rules_reply(message, entry, lang, message.text)
     elif st["type"] == "member_pack":

@@ -1004,6 +1004,63 @@ def test_donation(world):
                                                      for x in svc.web.page(token)["history"]}
 
 
+def test_charge_deadline_and_fine():
+    """Charges are due charge_due_days after they're made and fined charge_late_fee a day after that; one charge's
+    deadline can be moved or removed; the fine stops once it's paid and goes with the charge (waive, undo)."""
+    from datetime import date
+    svc, clock, _ = make_services(datetime(2026, 11, 27, 10, 0))
+    tid = setup_team(svc)
+    an, bi = [m["id"] for m in svc.members.add_members(tid, OWNER, [{"name": "An"}, {"name": "Bình"}])]
+    nodue = svc.money.charges(tid, OWNER, "Nước", 20000, "charge", [an])
+    assert nodue["due"] is None and nodue["late_fee"] == 0, "no setting: no deadline"
+    assert code(svc.teams.set_charge_terms, tid, MEMBER, due_days=7) == "not_manager"
+    for bad in ({"due_days": 61}, {"late_fee": -1}, {"x": 1}, {}):
+        assert code(svc.teams.set_charge_terms, tid, OWNER, **bad) == "invalid"
+    assert svc.teams.set_charge_terms(tid, OWNER, due_days=7, late_fee=10000) == {"due_days": 7, "late_fee": 10000}
+    r = svc.money.charges(tid, OWNER, "Áo đấu", 150000, "charge", [an, bi])
+    assert (r["due"], r["late_fee"]) == ("04/12", 10000), r
+    late = lambda: {(b["title"], b.get("of"), b["amount"]) for g in svc.money.unpaid(tid) for b in g["bills"]  # noqa: E731
+                    if b["kind"] == "late"}
+    clock.advance(days=10)  # 07/12: 3 days late
+    svc.jobs.late_fees()
+    assert late() == {("late:3:Áo đấu", "Áo đấu", 30000)}, late()
+    assert sum(1 for g in svc.money.unpaid(tid) for b in g["bills"] if b["kind"] == "late") == 2, "An and Bình"
+    shown = next(b for g in svc.money.unpaid(tid) for b in g["bills"] if b["title"] == "Áo đấu")
+    assert shown["due"] == "04/12"
+    # moved to the 10th: not late any more; undo puts the 4th back and the fine with it
+    m = svc.money.charge_deadline(tid, OWNER, r["bill_id"], date(2026, 12, 10))
+    assert (m["count"], m["due"]) == (2, "10/12") and late() == set()
+    entry = next(x for x in svc.undo.recent(tid, OWNER) if x["action"] == "bill.due")
+    svc.undo.undo(tid, OWNER, entry["id"])
+    assert late() == {("late:3:Áo đấu", "Áo đấu", 30000)}
+    # An pays: An's fine stays as it was but stops growing; Bình's keeps growing
+    svc.money.markpaid(tid, OWNER, [an])
+    clock.advance(days=2)
+    svc.jobs.late_fees()
+    assert {g["name"]: g["total"] for g in svc.money.unpaid(tid)} == {"Bình": 150000 + 50000}, svc.money.unpaid(tid)
+    # no deadline for that charge: Bình's fine goes
+    svc.money.charge_deadline(tid, OWNER, r["bill_id"], None)
+    assert late() == set()
+    # the fine turned off and on again counts from the day it's back on
+    r2 = svc.money.charges(tid, OWNER, "Sân", 100000, "split", [bi])
+    assert r2["due"] == "16/12"
+    svc.teams.set_charge_terms(tid, OWNER, late_fee=0)
+    clock.advance(days=10)  # 19/12: 3 days past the deadline, fine off
+    svc.jobs.late_fees()
+    assert late() == set()
+    svc.teams.set_charge_terms(tid, OWNER, late_fee=5000)
+    clock.advance(days=2)
+    svc.jobs.late_fees()
+    assert late() == {("late:2:Sân", "Sân", 10000)}, "from the day it was turned on"
+    # waiving the charge waives its fine; match fees and the monthly fee are left alone
+    b = next(b for g in svc.money.unpaid(tid) for b in g["bills"] if b["title"] == "Sân")
+    svc.money.waive(tid, OWNER, b["id"])
+    assert late() == set()
+    assert code(svc.money.charge_deadline, tid, OWNER, 99999, None) == "not_found"
+    assert svc.teams.set_charge_terms(tid, OWNER, due_days=None)["due_days"] is None
+    assert svc.money.charges(tid, OWNER, "Bóng", 10000, "charge", [bi])["due"] is None
+
+
 def test_team_rules(world):
     """Managers write the rules (several lines kept, tidied), everyone reads them, the web page shows them,
     /undo brings the old text back, and clearing hides them."""

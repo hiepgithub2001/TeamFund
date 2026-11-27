@@ -616,6 +616,21 @@ async def main():
         await T(cb_update(OWNER, "p:fkc:1", dp["message_id"]))
         await wait_sent(lambda c: c["method"] == "editMessageText" and "Default package</b>: 250,000đ/month" in c["params"]["text"],
                         "back to monthly")
+        # the general terms of charges, in /settings: due 7 days after, 10k a day late
+        await T(text_update(OWNER, "/settings"))
+        st_ = await wait_sent(lambda c: to(OWNER, "One-off charges")(c) and "cs:d" in buttons(c), "charge terms in /settings")
+        assert "No deadline" in st_["params"]["text"] and "No late fee" in st_["params"]["text"]
+        await T(cb_update(OWNER, "cs:d", st_["message_id"]))
+        await wait_sent(to(OWNER, "Charges are due how many days"), "deadline asked")
+        await T(text_update(OWNER, "7"))
+        await wait_sent(lambda c: to(OWNER, "Due 7 days after the charge")(c) and "No late fee" in c["params"]["text"], "deadline saved")
+        await T(cb_update(OWNER, "cs:f", st_["message_id"]))
+        await wait_sent(to(OWNER, "Late fee per day after"), "fine asked")
+        await T(text_update(OWNER, "abc"))
+        await wait_sent(lambda c: to(OWNER, "Late fee per day after")(c) and "Invalid" in c["params"]["text"] or
+                        to(OWNER, "Late fee per day after")(c) and len(sent(to(OWNER, "Late fee per day after"))) >= 2, "bad fine asked again")
+        await T(text_update(OWNER, "10k"))
+        await wait_sent(to(OWNER, r"Late fee: 10,000đ per day after the deadline"), "fine saved")
         await T(text_update(OWNER, "/charge 100k Jersey"))
         how = await wait_sent(to(OWNER, "Tap the names of who pays"), "charge: pick people, then how")
         assert buttons(how)[-4:] == ["k:a", "k:ok:1", "k:ok:2", "k:x"] and not any(
@@ -625,8 +640,28 @@ async def main():
                         and any("Split 100,000đ ·" in b["text"] for row in c["params"]["reply_markup"]["inline_keyboard"]
                                 for b in row), "whole team ticked, the split shows each share")
         await T(cb_update(OWNER, "k:ok:2", how["message_id"]))
-        await wait_sent(lambda c: c["method"] == "editMessageText" and "Jersey" in c["params"]["text"]
-                        and "Tap the names" not in c["params"]["text"], "split charged")
+        done = await wait_sent(lambda c: c["method"] == "editMessageText" and "Jersey" in c["params"]["text"]
+                               and "Tap the names" not in c["params"]["text"], "split charged")
+        assert re.search(r"📅 Due \d\d/\d\d · ⏰ late fee 10,000đ/day after that", done["params"]["text"]), done["params"]["text"]
+        cd = [b for b in buttons(done) if b.startswith("cd:")]
+        assert cd and "cs:v" in buttons(done)
+        await wait_sent(lambda c: "New charge <b>Jersey</b>" in c["params"].get("text", "") and "📅 Due" in c["params"]["text"],
+                        "followers told the deadline")
+        await T(cb_update(OWNER, cd[0], done["message_id"]))
+        await wait_sent(to(OWNER, "New deadline for this charge"), "per-charge deadline asked")
+        await T(text_update(OWNER, "-"))
+        await wait_sent(lambda c: to(OWNER, "Deadline of <b>Jersey</b> changed")(c) and "No deadline" in c["params"]["text"],
+                        "this charge has no deadline now")
+        await T(text_update(OWNER, "/settings"))
+        st_ = await wait_sent(lambda c: to(OWNER, "One-off charges")(c) and "Due 7 days" in c["params"]["text"]
+                              and len(sent(to(OWNER, "One-off charges"))) >= 4, "settings again")
+        await T(cb_update(OWNER, "cs:f", st_["message_id"]))
+        await T(text_update(OWNER, "0"))
+        await wait_sent(lambda c: to(OWNER, "No late fee")(c) and "Saved" in c["params"]["text"], "fine off")
+        await T(cb_update(OWNER, "cs:d", st_["message_id"]))
+        await T(text_update(OWNER, "-"))
+        await wait_sent(lambda c: to(OWNER, "No deadline")(c) and "Saved" in c["params"]["text"]
+                        and "No late fee" in c["params"]["text"], "deadline off: back as it was")
         await T(text_update(OWNER, "/members"))
         lst = await wait_sent(to(OWNER, r"Members</b>"), "members with add button")
         assert "m:add" in buttons(lst)

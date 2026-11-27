@@ -103,6 +103,27 @@ class MoneyUseCases:
             uow.commit()
             return result
 
+    def charge_deadline(self, team_id: int, actor: int, bill_id: int, due: date | None) -> dict:
+        """Change one charge's deadline (None: no deadline) for everyone it was made for: the bills made
+        together with `bill_id` (same title, kind and time). Paid ones keep theirs. Undoable."""
+        with self.d.uow() as uow:
+            team = manager_team(uow, team_id, actor)
+            b = uow.bills.get(bill_id) if isinstance(bill_id, int) else None
+            if not b or b.team_id != team.id or b.kind not in ("charge", "split") or b.match_id:
+                raise DomainError(404, "not_found")
+            today = self.d.clock.local_now().date()
+            if due is not None and not (today - timedelta(days=MAX_BACKDATE_DAYS) <= due <= today + timedelta(days=366)):
+                raise DomainError(400, "bad_date")
+            group = [x for x in uow.bills.of_team(team.id) if (x.kind, x.title, x.created_at, x.period)
+                     == (b.kind, b.title, b.created_at, b.period) and x.status == "unpaid"]
+            for x in group:
+                x.due_on = due
+            audit(uow, self.d.clock, team.id, actor, "bill.due", target=b.title,
+                  after={"bill_id": b.id, "due": due.isoformat() if due else None, "count": len(group)})
+            uow.commit()
+            billing.update_late_fees(uow, self.d, team)
+            return {"title": b.title, "count": len(group), **billing.charge_terms(team, due)}
+
     def waive(self, team_id: int, actor: int, bill_id: int) -> dict:
         with self.d.uow() as uow:
             team = manager_team(uow, team_id, actor)

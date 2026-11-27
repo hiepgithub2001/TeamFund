@@ -121,6 +121,11 @@ def ensure_bills(uow: UnitOfWork, d: Deps, team: Team, period: str | None = None
     return created
 
 
+def late_title(days: int, of: str | None = None) -> str:
+    """A late bill's title: "late:<days>", or "late:<days>:<charge title>" for a charge's fine."""
+    return f"late:{days}" + (f":{of[:80]}" if of else "")
+
+
 def update_late_fees(uow: UnitOfWork, d: Deps, team: Team) -> None:
     """Set each overdue fee bill's late fee (its own "late" bill) to days past its due date × its package's
     rate, counted from the bill's real due date (a quarter's: its first month's), whenever the fee was set.
@@ -131,26 +136,39 @@ def update_late_fees(uow: UnitOfWork, d: Deps, team: Team) -> None:
     today, plans = d.clock.local_now().date(), plans_of(uow, team)
     late = {b.monthly_key: b for b in uow.bills.late_of_team(team.id)}
     changed = False
+    seen = set()
     for b, m in uow.bills.unpaid_with_members(team.id):
-        if b.kind != "monthly" or m.status != "active":
+        if m.status != "active" or not (b.kind == "monthly" or (b.kind in ("charge", "split") and b.due_on)):
             continue
         key = f"late:{b.id}"
+        seen.add(key)
         lb = late.get(key)
+        of = b.title if b.kind != "monthly" else None
         # paid, or waived by a manager: leave it. One this job set to nothing ("late:0") may come back.
-        if lb is not None and lb.status != "unpaid" and not (lb.status == "waived" and lb.title == "late:0"):
+        if lb is not None and lb.status != "unpaid" and not (lb.status == "waived" and lb.title == late_title(0, of)):
             continue
-        rate = terms_of(team, plans, b.plan_id).late_fee
-        days = late_days(bill_due(team, plans, b), today, None) if rate else 0  # always from the real due date
+        if of:  # a charge: the team's charge fine, from its deadline (or from when the fine was turned on)
+            rate = team.charge_late_fee or 0
+            days = late_days(b.due_on, today, team.charge_late_since) if rate else 0
+        else:
+            rate = terms_of(team, plans, b.plan_id).late_fee
+            days = late_days(bill_due(team, plans, b), today, None) if rate else 0  # always from the real due date
         if days > 0:
             if lb is None:
-                uow.bills.add(Bill(team_id=team.id, member_id=b.member_id, kind="late", title=f"late:{days}",
+                uow.bills.add(Bill(team_id=team.id, member_id=b.member_id, kind="late", title=late_title(days, of),
                                    period=b.period, months=b.months, amount=days * rate, monthly_key=key,
                                    plan_id=b.plan_id, created_at=d.clock.now()))
                 changed = True
-            elif (lb.amount, lb.title, lb.status) != (days * rate, f"late:{days}", "unpaid"):
-                lb.amount, lb.title, lb.status, changed = days * rate, f"late:{days}", "unpaid", True
+            elif (lb.amount, lb.title, lb.status) != (days * rate, late_title(days, of), "unpaid"):
+                lb.amount, lb.title, lb.status, changed = days * rate, late_title(days, of), "unpaid", True
         elif lb is not None and lb.status == "unpaid":  # not overdue any more (a later due date) or no fine
-            lb.title, lb.status, changed = "late:0", "waived", True
+            lb.title, lb.status, changed = late_title(0, of), "waived", True
+    # a charge's fine whose charge is gone (undone) or no longer has a deadline: nothing to fine any more
+    for key, lb in late.items():
+        if key not in seen and lb.status == "unpaid" and lb.title.count(":") >= 2:
+            parent = uow.bills.get(int(key.split(":")[1]))
+            if parent is None or (parent.status == "unpaid" and not parent.due_on) or parent.status == "waived":
+                lb.title, lb.status, changed = late_title(0, lb.title.split(":", 2)[2]), "waived", True
     if changed:
         try:
             uow.commit()
@@ -239,7 +257,13 @@ def bill_dict(b: Bill) -> dict:
     out = {"id": b.id, "kind": b.kind, "title": b.title, "period": b.period, "months": b.months or 1,
            "period_label": period_label(b.period, b.months), "amount": b.amount, "status": b.status}
     if b.kind == "late":
-        out["days"] = int(b.title.split(":")[1]) if ":" in b.title else 0
+        parts = b.title.split(":", 2)
+        out["days"] = int(parts[1]) if len(parts) > 1 else 0
+        if len(parts) > 2:
+            out["of"] = parts[2]  # a charge's fine: which charge
+    if b.kind in ("charge", "split") and b.due_on:
+        out["due"] = b.due_on.strftime("%d/%m")
+        out["due_on"] = b.due_on.isoformat()
     return out
 
 
@@ -482,10 +506,27 @@ def create_charges(uow: UnitOfWork, d: Deps, team: Team, title: str, amount: int
         raise DomainError(400, "no_members")
     each = amount if kind == "charge" else split_share(amount, len(members))
     period, now = d.clock.current_period(), d.clock.now()
-    for m in members:
-        uow.bills.add(Bill(team_id=team.id, member_id=m.id, kind=kind, title=title[:100], period=period,
-                           amount=each, created_at=now))
-    return {"count": len(members), "each": each, "title": title, "total": each * len(members)}
+    due = charge_due(d, team)
+    bills = [Bill(team_id=team.id, member_id=m.id, kind=kind, title=title[:100], period=period,
+                  amount=each, due_on=due, created_at=now) for m in members]
+    for b in bills:
+        uow.bills.add(b)
+    uow.flush()
+    return {"count": len(members), "each": each, "title": title, "total": each * len(members),
+            "bill_id": bills[0].id, **charge_terms(team, due)}
+
+
+def charge_due(d: Deps, team: Team):
+    """A new charge's deadline from the team's setting: today + charge_due_days, or None."""
+    if team.charge_due_days is None:
+        return None
+    return d.clock.local_now().date() + timedelta(days=team.charge_due_days)
+
+
+def charge_terms(team: Team, due) -> dict:
+    """What a charge's deadline and fine look like: {"due": "dd/mm" | None, "due_on", "late_fee"}."""
+    return {"due": due.strftime("%d/%m") if due else None, "due_on": due.isoformat() if due else None,
+            "late_fee": (team.charge_late_fee or 0) if due else 0}
 
 
 def team_status(uow: UnitOfWork, d: Deps, team: Team) -> dict:

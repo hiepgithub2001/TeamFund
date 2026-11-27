@@ -66,13 +66,15 @@ def status_text(lang: str, s: dict) -> str:
 
 def bill_label(lang: str, b: dict) -> str:
     if b["kind"] == "late":
+        if b.get("of"):  # a charge's fine
+            return t(lang, "bill.late_charge", days=b.get("days", 0), title=b["of"])
         return t(lang, "bill.late", days=b.get("days", 0), period=b["period_label"])
     if b["kind"] == "monthly":
         months = b.get("months") or 1
         if months > 1:
             return t(lang, "bill.fee", cycle=t(lang, f"cycle.{months}"), period=b["period_label"])
         return t(lang, "bill.monthly", period=b["period_label"])
-    return f"{b['title']} ({b['period_label']})"
+    return f"{b['title']} ({b['period_label']})" + (" · " + t(lang, "bill.due", due=b["due"]) if b.get("due") else "")
 
 
 def error_text(lang: str, err: Exception) -> str:

@@ -63,6 +63,9 @@ class Team:
     sepay_quota: int | None = None         # transactions the owner's SePay plan allows per cycle (None: not told)
     sepay_cycle_day: int | None = None     # day of the month that plan's cycle restarts (None: the 1st)
     last_billed_period: str | None = None
+    charge_due_days: int | None = None     # one-off charges are due this many days after they're made (None: no deadline)
+    charge_late_fee: int | None = None     # đ per day a charge is overdue; 0/None: off
+    charge_late_since: date | None = None  # the day that fine was turned on: no fines for days before it
     rules: str | None = None               # the team's rules, free text managers write; everyone reads them
     rules_updated_at: datetime | None = None
     active: bool = True
@@ -167,7 +170,8 @@ class Bill:
     monthly_key: str | None = None
     months: int | None = None  # fee bills: how many months from `period` this bill covers (None = 1)
     plan_id: int | None = None  # fee and late bills: the plan billed under (None: the default package)
-    due_on: date | None = None  # fee bills: an own due date (someone who joined mid-period), else the package's
+    due_on: date | None = None  # fee bills: an own due date (someone who joined mid-period), else the package's;
+                                # charges: their deadline (None: none)
     match_id: int | None = None  # a match fee: someone who played that match pays for it
     payment_id: int | None = None
     created_at: datetime | None = None

@@ -77,4 +77,5 @@ class UndoUseCases:
                   after={"entry": e.id})
             uow.commit()
             billing.ensure_bills(uow, self.d, team)
+            billing.update_late_fees(uow, self.d, team)  # fines follow the deadlines and charges put back
             return {**v, "announce": e.action in ANNOUNCED, "by": display_name(uow, actor)}
