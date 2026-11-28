@@ -755,5 +755,8 @@
  "cs.ask_fine": "Late fee per day after a charge's deadline? Send an amount (<code>10k</code>), or <code>0</code> to turn it off. Applies to unpaid charges too, counted from today.",
  "cs.saved": "✅ Saved.",
  "act.charge.terms": "Charge deadline & late fee",
- "act.bill.due": "Charge deadline"
+ "act.bill.due": "Charge deadline",
+ "group.charge_reminder": "⏰ <b>{title}</b> is due {due}.\nNot paid yet:",
+ "group.charge_overdue": "⏰ <b>{title}</b> is overdue (due {due}).\nNot paid yet:",
+ "group.charge_fine": "⚠️ Late: {fee} per day past the deadline."
 }

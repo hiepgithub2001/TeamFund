@@ -1,6 +1,6 @@
 """Use cases run by the clock: open the month, remind, report, clean up."""
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from ..domain.entities import JobRun
 from ..domain.rules import add_months, period_label, should_remind
@@ -90,6 +90,43 @@ class JobUseCases:
                 except Exception:
                     uow.rollback()
                     log.exception("remind failed for team %s", team.id)
+
+    def remind_charges(self) -> None:
+        """Charges with a deadline (/charge, splits): one message a day at most, when a charge is 3 days from
+        its deadline, on it, or every 3 days after it, listing who still owes it (with its fine)."""
+        now = self.d.clock.local_now()
+        today = now.date()
+        with self.d.uow() as uow:
+            for team in uow.teams.active():
+                try:
+                    key = f"remind_charge:{team.id}:{now:%Y-%m-%d}"
+                    to = uow.followers.active_ids(team.id)
+                    if not to or self._ran(uow, key):
+                        continue
+                    fines = {lb.monthly_key: lb.amount for lb in uow.bills.late_of_team(team.id) if lb.status == "unpaid"}
+                    groups: dict = {}
+                    for b, m in uow.bills.unpaid_with_members(team.id):
+                        if b.kind not in ("charge", "split") or not b.due_on or b.match_id or m.status != "active":
+                            continue
+                        made = self.d.clock.fmt(b.created_at)
+                        made_on = datetime.strptime(made, "%d/%m/%Y %H:%M").date() if made else today
+                        if not should_remind(today, made_on, b.due_on):
+                            continue
+                        g = groups.setdefault((b.title, b.kind, b.created_at, b.due_on), {
+                            "title": b.title, "due": b.due_on.strftime("%d/%m"), "overdue": today > b.due_on,
+                            "late_fee": team.charge_late_fee or 0, "unpaid": []})
+                        g["unpaid"].append({"name": m.name, "total": b.amount + fines.get(f"late:{b.id}", 0)})
+                    if not groups:
+                        continue
+                    charges = [g for k, g in sorted(groups.items(), key=lambda kv: (kv[0][3], kv[0][0]))]
+                    for g in charges:
+                        g["unpaid"].sort(key=lambda u: u["name"].casefold())
+                    if self.d.notifier.deliver({"type": "charge_reminder", "team_id": team.id, "charges": charges,
+                                                "to": to}):
+                        self._mark(uow, key)
+                except Exception:
+                    uow.rollback()
+                    log.exception("remind_charges failed for team %s", team.id)
 
     def late_fees(self) -> None:
         """Once a day, just after midnight: add the new day to every overdue fee bill's late fee."""

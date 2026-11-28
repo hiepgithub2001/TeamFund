@@ -18,6 +18,7 @@ def start(jobs, timezone: str, daily_check=None) -> AsyncIOScheduler:
     sched = AsyncIOScheduler(timezone=timezone)
     sched.add_job(threaded(jobs.open_month), "cron", minute=5, id="open_month")
     sched.add_job(threaded(jobs.remind), "cron", hour=9, minute=0, id="remind")
+    sched.add_job(threaded(jobs.remind_charges), "cron", hour=9, minute=1, id="remind_charges")
     sched.add_job(threaded(jobs.clean_up), "cron", minute=30, id="clean_up")
     sched.add_job(threaded(jobs.late_fees), "cron", hour=0, minute=5, id="late_fees")  # once a day
     sched.add_job(threaded(jobs.matches), "cron", minute=10, id="matches")

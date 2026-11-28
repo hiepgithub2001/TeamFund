@@ -1031,6 +1031,38 @@ def test_reminder_only_for_the_fee_still_owed():
     assert ev[-1]["period_label"].startswith(("10/2026–12/2026", "11/2026", "12/2026")), ev[-1]["period_label"]
 
 
+def test_charge_reminders():
+    """A charge with a deadline is reminded 3 days before, on the day, then every 3 days while unpaid, once a
+    day, listing who owes it with its fine; nothing once everyone has paid, and nothing for a charge without one."""
+    svc, clock, notifier = make_services(datetime(2026, 11, 27, 10, 0))
+    tid = setup_team(svc)
+    an, bi = [m["id"] for m in svc.members.add_members(tid, OWNER, [{"name": "An"}, {"name": "Bình"}])]
+    svc.money.charges(tid, OWNER, "Nước", 20000, "charge", [an])  # no deadline: never reminded
+    svc.teams.set_charge_terms(tid, OWNER, due_days=7, late_fee=10000)
+    svc.money.charges(tid, OWNER, "Áo đấu", 150000, "charge", [an, bi])  # due 04/12
+    svc.teams.follow(tid, MEMBER)
+    sent = lambda: [e for e in notifier.events if e["type"] == "charge_reminder"]  # noqa: E731
+    hit = []
+    for _ in range(14):  # 28/11 … 11/12
+        clock.advance(days=1)
+        before = len(sent())
+        svc.jobs.late_fees()
+        svc.jobs.remind_charges()
+        svc.jobs.remind_charges()  # once a day
+        if len(sent()) > before:
+            hit.append(clock.local.strftime("%d/%m"))
+    assert hit == ["01/12", "04/12", "07/12", "10/12"], hit
+    first = sent()[0]["charges"]
+    assert [(c["title"], c["due"], c["overdue"]) for c in first] == [("Áo đấu", "04/12", False)]
+    assert [u["name"] for u in first[0]["unpaid"]] == ["An", "Bình"] and first[0]["unpaid"][0]["total"] == 150000
+    assert sent()[2]["charges"][0]["overdue"] and sent()[2]["charges"][0]["unpaid"][0]["total"] == 150000 + 30000
+    svc.money.markpaid(tid, OWNER, [an, bi])
+    clock.advance(days=3)
+    svc.jobs.late_fees()
+    svc.jobs.remind_charges()
+    assert len(sent()) == 4, "all paid: quiet"
+
+
 def test_charge_deadline_and_fine():
     """Charges are due charge_due_days after they're made and fined charge_late_fee a day after that; one charge's
     deadline can be moved or removed; the fine stops once it's paid and goes with the charge (waive, undo)."""

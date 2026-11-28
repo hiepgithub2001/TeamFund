@@ -755,5 +755,8 @@
  "cs.ask_fine": "Phạt bao nhiêu mỗi ngày sau hạn? Gửi số tiền (<code>10k</code>), hoặc <code>0</code> để tắt. Áp dụng cả cho khoản chưa đóng, tính từ hôm nay.",
  "cs.saved": "✅ Đã lưu.",
  "act.charge.terms": "Hạn & phạt khoản thu riêng",
- "act.bill.due": "Đổi hạn khoản thu"
+ "act.bill.due": "Đổi hạn khoản thu",
+ "group.charge_reminder": "⏰ <b>Nhắc đóng {title}</b>, hạn {due}.\nChưa đóng:",
+ "group.charge_overdue": "⏰ <b>{title} đã quá hạn</b> (hạn {due}).\nChưa đóng:",
+ "group.charge_fine": "⚠️ Đóng trễ: phạt {fee} mỗi ngày quá hạn."
 }

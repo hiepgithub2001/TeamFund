@@ -70,6 +70,16 @@ async def deliver(ev: dict) -> bool:
         if ev.get("overdue") and ev.get("late_fee"):
             head += "\n" + t(G, "late.rule", fee=money(ev["late_fee"], G))
         await _tell(entry, to, f"{head}\n{owes_lines(G, ev['unpaid'])}", pay_keyboard(G, name))
+    elif kind == "charge_reminder":
+        blocks = []
+        for c in ev["charges"]:
+            head = t(G, "group.charge_overdue" if c["overdue"] else "group.charge_reminder", title=esc(c["title"]),
+                     due=c["due"])
+            if c.get("late_fee"):  # above "Chưa đóng:", the head's last line
+                first, _, last = head.rpartition("\n")
+                head = f"{first}\n{t(G, 'group.charge_fine', fee=money(c['late_fee'], G))}\n{last}"
+            blocks.append(f"{head}\n{owes_lines(G, c['unpaid'])}")
+        await _tell(entry, to, "\n\n".join(blocks), pay_keyboard(G, name))
     elif kind == "match_tomorrow":
         from .matches import match_line
         lines = "\n".join("• " + match_line(G, x) for x in ev["matches"])
