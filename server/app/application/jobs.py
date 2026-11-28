@@ -61,20 +61,29 @@ class JobUseCases:
                     if not to or self._ran(uow, key):
                         continue
                     billing.ensure_bills(uow, self.d, team)
+                    # who still owes a fee bill (with its late fee); a charge alone isn't the fee
+                    owing = billing.unpaid_by_member(uow, team)
+                    fee_keys = {(b["period"], b["months"]) for o in owing for b in o["bills"] if b["kind"] == "monthly"}
                     hit = None
                     for p in (period, add_months(period, -1)):
                         for g in billing.opened_groups(uow, self.d, team, p):
                             due = g["due_on"]
-                            if should_remind(today, g["notify"], due):
-                                hit = hit or (p, g, due)
+                            # only a package somebody still owes for: a paid-up quarter doesn't nag
+                            if (g["period"], g["months"]) in fee_keys and should_remind(today, g["notify"], due):
+                                hit = hit or (g, due)
                     if not hit:
                         continue
-                    unpaid = [{"name": g["name"], "total": g["total"]} for g in billing.unpaid_by_member(uow, team)]
+                    unpaid = []
+                    for o in owing:
+                        fee = [b for b in o["bills"] if b["kind"] == "monthly" or (b["kind"] == "late" and not b.get("of"))]
+                        if any(b["kind"] == "monthly" for b in fee):
+                            unpaid.append({"name": o["name"], "total": sum(b["amount"] for b in fee)})
                     if not unpaid:
                         continue
-                    p, g, due = hit
+                    g, due = hit
                     if self.d.notifier.deliver({
-                            "type": "reminder", "team_id": team.id, "period_label": period_label(p),
+                            "type": "reminder", "team_id": team.id,
+                            "period_label": period_label(g["period"], g["months"]),
                             "due": due.strftime("%d/%m"), "late_fee": g["late_fee"], "overdue": today > due,
                             "unpaid": unpaid, "to": to}):
                         self._mark(uow, key)

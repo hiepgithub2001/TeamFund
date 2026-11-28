@@ -1004,6 +1004,33 @@ def test_donation(world):
                                                      for x in svc.web.page(token)["history"]}
 
 
+def test_reminder_only_for_the_fee_still_owed():
+    """FC37it, 28/11: a quarterly package set up in November (Q4, due 05/10) paid by everyone, and a charge
+    someone owes. No "fee overdue" reminder: the quarter is paid and a charge isn't the fee. Once someone owes
+    the quarter, the reminder names it (10/2026–12/2026) and lists only who owes the fee."""
+    svc, clock, notifier = make_services(datetime(2026, 11, 17, 10, 0))
+    tid = setup_team(svc)
+    svc.teams.update_settings(tid, OWNER, notify_day=1, due_days=4)
+    an, bi = [m["id"] for m in svc.members.add_members(tid, OWNER, [{"name": "An"}, {"name": "Bình"}])]
+    svc.plans.save_plan(tid, OWNER, 200000, 3, [an, bi])
+    svc.money.unpaid(tid)
+    svc.money.markpaid(tid, OWNER, [an, bi])
+    svc.money.charges(tid, OWNER, "Vote có không đi", 40000, "charge", [an])
+    svc.teams.follow(tid, MEMBER)
+    clock.local = clock.local.replace(day=28)
+    svc.jobs.remind()
+    assert [e for e in notifier.events if e["type"] == "reminder"] == [], "paid quarter + a charge: no fee reminder"
+    # Cường joins the package mid-quarter and doesn't pay: he's reminded, An (charge only) isn't
+    cu, = [m["id"] for m in svc.members.add_members(tid, OWNER, [{"name": "Cường"}])]
+    plan = svc.plans.list_plans(tid, OWNER)["plans"][0]
+    svc.plans.save_plan(tid, OWNER, 200000, 3, [an, bi, cu], plan["id"])
+    clock.local = clock.local.replace(month=12, day=10)
+    svc.jobs.remind()
+    ev = [e for e in notifier.events if e["type"] == "reminder"]
+    assert ev and [u["name"] for u in ev[-1]["unpaid"]] == ["Cường"], ev
+    assert ev[-1]["period_label"].startswith(("10/2026–12/2026", "11/2026", "12/2026")), ev[-1]["period_label"]
+
+
 def test_charge_deadline_and_fine():
     """Charges are due charge_due_days after they're made and fined charge_late_fee a day after that; one charge's
     deadline can be moved or removed; the fine stops once it's paid and goes with the charge (waive, undo)."""
